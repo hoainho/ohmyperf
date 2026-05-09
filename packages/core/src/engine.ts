@@ -1,0 +1,363 @@
+import { randomUUID } from "node:crypto";
+import { arch as osArch, platform as osPlatform, release as osRelease } from "node:os";
+import {
+  type CollectorContext,
+  type CollectorFactory,
+  type CollectorHandle,
+  type CollectorResult,
+  emptyCollectorResult,
+  mergeCollectorResults,
+} from "./collectors.js";
+import { cwvCollectorFactory } from "./collectors-impl/cwv-collector.js";
+import { loadingCollectorFactory } from "./collectors-impl/loading-collector.js";
+import { longTaskCollectorFactory } from "./collectors-impl/longtask-collector.js";
+import { createConsoleLogger, createSilentLogger } from "./logger.js";
+import type {
+  AggregatedMetric,
+  AggregatedMetrics,
+  CDPSessionLike,
+  Driver,
+  FrameNode,
+  FrameTree,
+  HeadlessMode,
+  Logger,
+  MeasureOptions,
+  Metric,
+  Mode,
+  Report,
+  ReportMeta,
+  RunReport,
+} from "./types.js";
+
+export interface EngineLaunchAdapter {
+  launchPageWithCdp(): Promise<EnginePageContext>;
+}
+
+export interface EnginePageContext {
+  readonly browserVersion: string;
+  readonly browserSource: "bundled" | "system" | "extension-host";
+  readonly rootSession: CDPSessionLike;
+  readonly attachedFrames: ReadonlyArray<EngineAttachedFrame>;
+  goto(url: string): Promise<void>;
+  waitForLoadIdle(timeoutMs: number): Promise<void>;
+  close(): Promise<void>;
+}
+
+export interface EngineAttachedFrame {
+  readonly frameId: string;
+  readonly url: string;
+  readonly isOOPIF: boolean;
+  readonly session: CDPSessionLike | null;
+}
+
+export interface EngineRunOptions {
+  readonly opts: MeasureOptions;
+  readonly driver: Driver;
+  readonly adapter: EngineLaunchAdapter;
+  readonly logger?: Logger;
+  readonly collectors?: ReadonlyArray<CollectorFactory>;
+}
+
+export const DEFAULT_COLLECTOR_FACTORIES: ReadonlyArray<CollectorFactory> = [
+  cwvCollectorFactory,
+  loadingCollectorFactory,
+  longTaskCollectorFactory,
+];
+
+const DEFAULT_RUNS = 5;
+const DEFAULT_HEADLESS: HeadlessMode = "headless";
+const DEFAULT_MODE: Mode = "real";
+const ROOT_FRAME_ID = "ohmyperf:root";
+const LOAD_IDLE_TIMEOUT_MS = 30_000;
+
+export async function runEngine(input: EngineRunOptions): Promise<Report> {
+  const { opts, driver, adapter, collectors } = input;
+  const logger = input.logger ?? createSilentLogger();
+  const factories = collectors ?? DEFAULT_COLLECTOR_FACTORIES;
+
+  const runs = opts.runs ?? DEFAULT_RUNS;
+  const headless = opts.headless ?? DEFAULT_HEADLESS;
+  const mode = opts.mode ?? DEFAULT_MODE;
+  const startedAt = new Date().toISOString();
+  const startedAtMs = Date.now();
+
+  const runReports: RunReport[] = [];
+  const frameNodes: Record<string, FrameNode> = {};
+  let browserVersion = driver.browserVersion;
+  let browserSource: "bundled" | "system" | "extension-host" = "bundled";
+
+  for (let i = 0; i < runs; i++) {
+    logger.debug("engine: starting run", { runIndex: i, url: opts.url });
+    const pageCtx = await adapter.launchPageWithCdp();
+    browserVersion = pageCtx.browserVersion || browserVersion;
+    browserSource = pageCtx.browserSource;
+
+    try {
+      const navStartMs = Date.now();
+      await pageCtx.goto(opts.url);
+      try {
+        await pageCtx.waitForLoadIdle(LOAD_IDLE_TIMEOUT_MS);
+      } catch (err) {
+        logger.debug("engine: load-idle wait timed out", {
+          runIndex: i,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
+      const rootCtx: CollectorContext = {
+        logger,
+        frameId: ROOT_FRAME_ID,
+        isRoot: true,
+        url: opts.url,
+        navigationStart: navStartMs,
+      };
+
+      const rootHandles = await installCollectorsOn(
+        pageCtx.rootSession,
+        rootCtx,
+        factories,
+        driver,
+        logger,
+      );
+
+      const frameResults: Record<string, CollectorResult> = {};
+      const frameHandles: Array<{ frameId: string; handles: CollectorHandle[] }> = [];
+      for (const f of pageCtx.attachedFrames) {
+        if (f.session === null) continue;
+        const fctx: CollectorContext = {
+          logger,
+          frameId: f.frameId,
+          isRoot: false,
+          url: f.url,
+          navigationStart: navStartMs,
+        };
+        const handles = await installCollectorsOn(f.session, fctx, factories, driver, logger);
+        frameHandles.push({ frameId: f.frameId, handles });
+      }
+
+      const rootFinal = await finalizeAll(rootHandles);
+      for (const f of frameHandles) {
+        frameResults[f.frameId] = await finalizeAll(f.handles);
+      }
+
+      runReports.push(buildRunReport(i, rootFinal));
+
+      if (i === 0) {
+        frameNodes[ROOT_FRAME_ID] = {
+          frameId: ROOT_FRAME_ID,
+          url: opts.url,
+          origin: safeOrigin(opts.url),
+          parentFrameId: null,
+          isOOPIF: false,
+          isCrossOrigin: false,
+          attachedAt: navStartMs,
+          metrics: rootFinal.metrics,
+          children: pageCtx.attachedFrames.map((f) => f.frameId),
+        };
+        for (const f of pageCtx.attachedFrames) {
+          frameNodes[f.frameId] = {
+            frameId: f.frameId,
+            url: f.url,
+            origin: safeOrigin(f.url),
+            parentFrameId: ROOT_FRAME_ID,
+            isOOPIF: f.isOOPIF,
+            isCrossOrigin: safeOrigin(f.url) !== safeOrigin(opts.url),
+            attachedAt: navStartMs,
+            metrics: frameResults[f.frameId]?.metrics ?? {},
+            children: [],
+          };
+        }
+      }
+    } finally {
+      try {
+        await pageCtx.close();
+      } catch (err) {
+        logger.debug("engine: pageCtx.close threw", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+  }
+
+  const aggregated = aggregateRuns(runReports);
+  const durationMs = Date.now() - startedAtMs;
+  const meta = buildMeta({
+    opts,
+    runs,
+    mode,
+    headless,
+    browserVersion,
+    browserSource,
+    startedAt,
+    durationMs,
+  });
+
+  const report: Report = {
+    schemaVersion: "1.0.0",
+    meta,
+    runs: runReports,
+    aggregated,
+    frames: { root: ROOT_FRAME_ID, nodes: frameNodes } satisfies FrameTree,
+    audits: [],
+    artifacts: {},
+    pluginData: {},
+  };
+  return report;
+}
+
+async function installCollectorsOn(
+  session: CDPSessionLike,
+  ctx: CollectorContext,
+  factories: ReadonlyArray<CollectorFactory>,
+  driver: Driver,
+  logger: Logger,
+): Promise<CollectorHandle[]> {
+  const handles: CollectorHandle[] = [];
+  for (const factory of factories) {
+    const supported = factory.requires.every((cap) => driver.supports(cap));
+    if (!supported) {
+      logger.debug("engine: collector skipped (driver capability missing)", {
+        collectorId: factory.id,
+        requires: factory.requires,
+      });
+      continue;
+    }
+    try {
+      const handle = await factory.create(session, ctx);
+      handles.push(handle);
+    } catch (err) {
+      logger.warn("engine: collector create() threw", {
+        collectorId: factory.id,
+        frameId: ctx.frameId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  return handles;
+}
+
+async function finalizeAll(handles: ReadonlyArray<CollectorHandle>): Promise<CollectorResult> {
+  const results: CollectorResult[] = [];
+  for (const h of handles) {
+    try {
+      results.push(await h.finalize());
+    } catch (err) {
+      results.push(emptyCollectorResult(`${h.id}: ${err instanceof Error ? err.message : String(err)}`));
+    }
+    try {
+      await h.dispose();
+    } catch {
+      /* dispose errors are non-fatal */
+    }
+  }
+  return mergeCollectorResults(results);
+}
+
+function buildRunReport(runIndex: number, rootFinal: CollectorResult): RunReport {
+  return {
+    runIndex,
+    cold: runIndex === 0,
+    metrics: rootFinal.metrics,
+    resources: rootFinal.resources,
+    longTasks: rootFinal.longTasks,
+    meta: {},
+  };
+}
+
+function aggregateRuns(runs: ReadonlyArray<RunReport>): AggregatedMetrics {
+  const byMetric: Record<string, number[]> = {};
+  for (const r of runs) {
+    for (const [name, m] of Object.entries(r.metrics)) {
+      const list = byMetric[name];
+      if (list) list.push(m.value);
+      else byMetric[name] = [m.value];
+    }
+  }
+  const aggregated: Record<string, AggregatedMetric> = {};
+  for (const [name, values] of Object.entries(byMetric)) {
+    if (values.length === 0) continue;
+    const sorted = [...values].sort((a, b) => a - b);
+    const median = quantile(sorted, 0.5);
+    const p75 = quantile(sorted, 0.75);
+    const p95 = quantile(sorted, 0.95);
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    const stdev = Math.sqrt(
+      values.reduce((acc, v) => acc + (v - mean) ** 2, 0) / values.length,
+    );
+    const cov = mean === 0 ? 0 : stdev / mean;
+    aggregated[name] = {
+      median,
+      p75,
+      p95,
+      mean,
+      stdev,
+      cov,
+      runs: values.length,
+      droppedOutliers: 0,
+    };
+  }
+  return aggregated;
+}
+
+function quantile(sortedAsc: ReadonlyArray<number>, q: number): number {
+  if (sortedAsc.length === 0) return Number.NaN;
+  if (sortedAsc.length === 1) return sortedAsc[0]!;
+  const pos = (sortedAsc.length - 1) * q;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  const lo = sortedAsc[base]!;
+  const hi = sortedAsc[Math.min(base + 1, sortedAsc.length - 1)]!;
+  return lo + rest * (hi - lo);
+}
+
+function safeOrigin(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return url;
+  }
+}
+
+interface BuildMetaInput {
+  opts: MeasureOptions;
+  runs: number;
+  mode: Mode;
+  headless: HeadlessMode;
+  browserVersion: string;
+  browserSource: "bundled" | "system" | "extension-host";
+  startedAt: string;
+  durationMs: number;
+}
+
+function buildMeta(input: BuildMetaInput): ReportMeta {
+  const { opts, runs, mode, headless, browserVersion, browserSource, startedAt, durationMs } =
+    input;
+  return {
+    url: opts.url,
+    startedAt,
+    durationMs,
+    runs,
+    mode,
+    browser: {
+      name: "chromium",
+      version: browserVersion,
+      source: browserSource,
+    },
+    host: {
+      os: `${osPlatform()} ${osRelease()}`,
+      arch: osArch(),
+      nodeVersion: process.version,
+    },
+    parity: {
+      mode: headless,
+      knownDeltas: headless === "headless" ? { inp: "synthetic-input" } : {},
+    },
+    emulation: opts.emulation ?? false,
+    pluginCapabilityUses: [],
+    measurementId: typeof randomUUID === "function" ? randomUUID() : `m_${String(Date.now())}`,
+  };
+}
+
+export function makeConsoleLoggerForEngine(level: "debug" | "info" | "warn" | "error" = "info"): Logger {
+  return createConsoleLogger({ level, prefix: "ohmyperf:engine" });
+}

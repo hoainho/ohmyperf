@@ -4,6 +4,35 @@ export const SCHEMA_VERSION = "1.0.0" as const;
 export { createConsoleLogger, createSilentLogger } from "./logger.js";
 export type { LogLevel, ConsoleLoggerOptions } from "./logger.js";
 
+export {
+  emptyCollectorResult,
+  mergeCollectorResults,
+  withCollectorTimeout,
+  CollectorTimeoutError,
+} from "./collectors.js";
+export type {
+  CollectorContext,
+  CollectorFactory,
+  CollectorHandle,
+  CollectorResult,
+} from "./collectors.js";
+
+export {
+  DEFAULT_COLLECTOR_FACTORIES,
+  runEngine,
+  makeConsoleLoggerForEngine,
+} from "./engine.js";
+export type {
+  EngineAttachedFrame,
+  EngineLaunchAdapter,
+  EnginePageContext,
+  EngineRunOptions,
+} from "./engine.js";
+
+export { cwvCollectorFactory } from "./collectors-impl/cwv-collector.js";
+export { loadingCollectorFactory } from "./collectors-impl/loading-collector.js";
+export { longTaskCollectorFactory } from "./collectors-impl/longtask-collector.js";
+
 export type {
   AggregatedMetric,
   AggregatedMetrics,

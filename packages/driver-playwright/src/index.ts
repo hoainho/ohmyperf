@@ -260,3 +260,9 @@ export type {
   TargetInfo,
 } from "./cdp-compat.js";
 export type { AttachedTarget, OopifAttachController } from "./oopif-attach.js";
+
+export { createPlaywrightAdapter } from "./engine-adapter.js";
+export type {
+  PlaywrightAdapterOptions,
+  PlaywrightAdapterBundle,
+} from "./engine-adapter.js";

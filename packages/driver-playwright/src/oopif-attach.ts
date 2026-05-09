@@ -83,25 +83,38 @@ export async function setupOopifAutoAttach(
   };
 
   const seenFrames = new WeakSet<Frame>();
-  const recordFrameAttach = async (frame: Frame): Promise<void> => {
+  const frameToSessionId = new WeakMap<Frame, string>();
+
+  const isSrcdocOrBlank = (url: string): boolean =>
+    url === "about:srcdoc" || url === "about:blank" || url === "";
+
+  const recordFrameAttach = (frame: Frame): void => {
     if (frame === page.mainFrame()) return;
     if (frame.parentFrame() !== page.mainFrame()) return;
     if (seenFrames.has(frame)) return;
     seenFrames.add(frame);
 
-    await new Promise((r) => setTimeout(r, 200));
-    const url = frame.url();
-    const isSrcdocLike = url === "about:srcdoc" || url === "about:blank" || url === "";
-    if (isSrcdocLike && !trackSrcdoc) {
-      return;
-    }
-    for (const existing of attached.values()) {
-      if (existing.url === url) return;
-    }
-
-    const enrichment = cdpEnrichments.get(url);
     frameCounter++;
     const synthSessionId = `frame-${String(frameCounter)}`;
+    frameToSessionId.set(frame, synthSessionId);
+
+    const url = frame.url();
+    if (isSrcdocOrBlank(url)) {
+      return;
+    }
+    publishAttach(frame, url);
+  };
+
+  const publishAttach = (frame: Frame, url: string): void => {
+    const synthSessionId = frameToSessionId.get(frame);
+    if (synthSessionId === undefined) return;
+    if (attached.has(synthSessionId)) return;
+    if (cdpEnrichments.has(url)) {
+      for (const existing of attached.values()) {
+        if (existing.url === url) return;
+      }
+    }
+    const enrichment = cdpEnrichments.get(url);
     const record: AttachedTarget = {
       sessionId: synthSessionId,
       targetId: enrichment?.targetId ?? synthSessionId,
@@ -113,13 +126,35 @@ export async function setupOopifAutoAttach(
       attachedAt: Date.now(),
     };
     attached.set(synthSessionId, record);
-    try {
-      await onAttach(record);
-    } catch (err) {
+    void Promise.resolve(onAttach(record)).catch((err: unknown) => {
       logger.warn("oopif-attach: onAttach handler threw (playwright path)", {
         url,
         error: errMessage(err),
       });
+    });
+  };
+
+  const reconcileFrameNavigated = (frame: Frame): void => {
+    if (frame === page.mainFrame()) return;
+    if (frame.parentFrame() !== page.mainFrame()) return;
+    const synthSessionId = frameToSessionId.get(frame);
+    if (synthSessionId === undefined) return;
+    const url = frame.url();
+    if (isSrcdocOrBlank(url) && !trackSrcdoc) {
+      const record = attached.get(synthSessionId);
+      if (record) {
+        attached.delete(synthSessionId);
+        opts.onDetach?.(synthSessionId, record.targetId);
+      }
+      return;
+    }
+    const record = attached.get(synthSessionId);
+    if (!record) {
+      publishAttach(frame, url);
+      return;
+    }
+    if (record.url !== url) {
+      attached.set(synthSessionId, { ...record, url });
     }
   };
 
@@ -132,6 +167,16 @@ export async function setupOopifAutoAttach(
   };
 
   const handleFrameDetached = (frame: Frame): void => {
+    const synthSessionId = frameToSessionId.get(frame);
+    if (synthSessionId !== undefined) {
+      const record = attached.get(synthSessionId);
+      if (record) {
+        attached.delete(synthSessionId);
+        seenFrameUrls.delete(record.url);
+        opts.onDetach?.(synthSessionId, record.targetId);
+        return;
+      }
+    }
     const url = frame.url();
     for (const [sessionId, record] of attached) {
       if (record.url === url || record.url === "") {
@@ -156,13 +201,18 @@ export async function setupOopifAutoAttach(
   offHandlers.push(rootSession.on("Target.targetInfoChanged", handleCdpInfoChanged));
 
   const onPlaywrightFrameAttached = (frame: Frame): void => {
-    void recordFrameAttach(frame);
+    recordFrameAttach(frame);
+  };
+  const onPlaywrightFrameNavigated = (frame: Frame): void => {
+    reconcileFrameNavigated(frame);
   };
   page.on("frameattached", onPlaywrightFrameAttached);
+  page.on("framenavigated", onPlaywrightFrameNavigated);
   page.on("framedetached", handleFrameDetached);
   offHandlers.push(() => {
     try {
       page.off("frameattached", onPlaywrightFrameAttached);
+      page.off("framenavigated", onPlaywrightFrameNavigated);
       page.off("framedetached", handleFrameDetached);
     } catch {
       /* noop */

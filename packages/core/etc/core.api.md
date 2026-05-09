@@ -79,6 +79,60 @@ export { CalibrationInfo }
 export { CDPSessionLike }
 
 // @public (undocumented)
+export interface CollectorContext {
+    // (undocumented)
+    readonly frameId: string;
+    // (undocumented)
+    readonly isRoot: boolean;
+    // (undocumented)
+    readonly logger: Logger;
+    // (undocumented)
+    readonly navigationStart: number;
+    // (undocumented)
+    readonly url: string;
+}
+
+// @public (undocumented)
+export interface CollectorFactory {
+    // (undocumented)
+    create(session: CDPSessionLike, ctx: CollectorContext): Promise<CollectorHandle>;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly requires: ReadonlyArray<DriverCapability>;
+}
+
+// @public (undocumented)
+export interface CollectorHandle {
+    // (undocumented)
+    dispose(): Promise<void>;
+    // (undocumented)
+    finalize(): Promise<CollectorResult>;
+    // (undocumented)
+    readonly id: string;
+}
+
+// @public (undocumented)
+export interface CollectorResult {
+    // (undocumented)
+    readonly available: boolean;
+    // (undocumented)
+    readonly longTasks: readonly LongTask[];
+    // (undocumented)
+    readonly metrics: Readonly<Record<string, Metric>>;
+    // (undocumented)
+    readonly reason?: string;
+    // (undocumented)
+    readonly resources: readonly Resource[];
+}
+
+// @public (undocumented)
+export class CollectorTimeoutError extends Error {
+    // (undocumented)
+    readonly name = "CollectorTimeoutError";
+}
+
+// @public (undocumented)
 export interface ConsoleLoggerOptions {
     // (undocumented)
     readonly errStream?: NodeJS.WritableStream;
@@ -99,6 +153,12 @@ export function createConsoleLogger(opts?: ConsoleLoggerOptions): Logger;
 export function createSilentLogger(): Logger;
 
 // @public (undocumented)
+export const cwvCollectorFactory: CollectorFactory;
+
+// @public (undocumented)
+export const DEFAULT_COLLECTOR_FACTORIES: ReadonlyArray<CollectorFactory>;
+
+// @public (undocumented)
 export function defineConfig<T>(config: T): T;
 
 // @public (undocumented)
@@ -115,9 +175,62 @@ export { DriverHandle }
 
 export { DriverRef }
 
+// @public (undocumented)
+export function emptyCollectorResult(reason?: string): CollectorResult;
+
 export { EmulationConfig }
 
+// @public (undocumented)
+export interface EngineAttachedFrame {
+    // (undocumented)
+    readonly frameId: string;
+    // (undocumented)
+    readonly isOOPIF: boolean;
+    // (undocumented)
+    readonly session: CDPSessionLike | null;
+    // (undocumented)
+    readonly url: string;
+}
+
 export { EngineHooks }
+
+// @public (undocumented)
+export interface EngineLaunchAdapter {
+    // (undocumented)
+    launchPageWithCdp(): Promise<EnginePageContext>;
+}
+
+// @public (undocumented)
+export interface EnginePageContext {
+    // (undocumented)
+    readonly attachedFrames: ReadonlyArray<EngineAttachedFrame>;
+    // (undocumented)
+    readonly browserSource: "bundled" | "system" | "extension-host";
+    // (undocumented)
+    readonly browserVersion: string;
+    // (undocumented)
+    close(): Promise<void>;
+    // (undocumented)
+    goto(url: string): Promise<void>;
+    // (undocumented)
+    readonly rootSession: CDPSessionLike;
+    // (undocumented)
+    waitForLoadIdle(timeoutMs: number): Promise<void>;
+}
+
+// @public (undocumented)
+export interface EngineRunOptions {
+    // (undocumented)
+    readonly adapter: EngineLaunchAdapter;
+    // (undocumented)
+    readonly collectors?: ReadonlyArray<CollectorFactory>;
+    // (undocumented)
+    readonly driver: Driver;
+    // (undocumented)
+    readonly logger?: Logger;
+    // (undocumented)
+    readonly opts: MeasureOptions;
+}
 
 export { FrameCtx }
 
@@ -129,12 +242,21 @@ export { HeadlessMode }
 
 export { LaunchOpts }
 
+// @public (undocumented)
+export const loadingCollectorFactory: CollectorFactory;
+
 export { Logger }
 
 // @public (undocumented)
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export { LongTask }
+
+// @public (undocumented)
+export const longTaskCollectorFactory: CollectorFactory;
+
+// @public (undocumented)
+export function makeConsoleLoggerForEngine(level?: "debug" | "info" | "warn" | "error"): Logger;
 
 // @public (undocumented)
 export function measure(opts: MeasureOptions): Promise<Report_2>;
@@ -149,6 +271,9 @@ export class MeasureOptionsError extends Error {
     // (undocumented)
     readonly name = "MeasureOptionsError";
 }
+
+// @public (undocumented)
+export function mergeCollectorResults(results: readonly CollectorResult[]): CollectorResult;
 
 export { Metric }
 
@@ -205,6 +330,9 @@ export { Resource }
 
 export { RunCtx }
 
+// @public (undocumented)
+export function runEngine(input: EngineRunOptions): Promise<Report_2>;
+
 export { RunReport }
 
 export { ScenarioDefinition }
@@ -225,6 +353,9 @@ export { ShareCtx }
 export { TargetHandle }
 
 export { TeardownCtx }
+
+// @public (undocumented)
+export function withCollectorTimeout<T>(promise: Promise<T>, ms: number, what: string): Promise<T>;
 
 // (No @packageDocumentation comment for this package)
 
