@@ -1,0 +1,41 @@
+{
+  "name": "ohmyperf",
+  "version": "0.0.0-pre",
+  "private": true,
+  "description": "Real-machine, real-browser web performance measurement platform with ~99% iframe coverage via CDP OOPIF deep-inspection.",
+  "license": "Apache-2.0",
+  "homepage": "https://ohmyperf.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ohmyperf/ohmyperf.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ohmyperf/ohmyperf/issues"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "pnpm@10.33.3",
+  "type": "module",
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "test:oopif-corpus": "turbo run test:oopif-corpus",
+    "license:audit": "node scripts/license-audit.mjs",
+    "api:check": "turbo run api:check",
+    "clean": "turbo run clean && rimraf node_modules"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@typescript-eslint/parser": "^8.59.2",
+    "eslint": "^9.18.0",
+    "eslint-import-resolver-typescript": "^3.7.0",
+    "eslint-plugin-import": "^2.31.0",
+    "rimraf": "^6.0.1",
+    "turbo": "^2.3.3",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.2"
+  }
+}

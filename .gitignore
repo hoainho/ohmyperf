@@ -1,0 +1,23 @@
+node_modules/
+dist/
+build/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.log
+
+# OhMyPerf runtime artifacts
+ohmyperf-out/
+*.heapsnapshot
+trace.json.gz
+.ohmyperf-cache/
+
+# Secrets
+.env
+.env.local
+.env.*.local

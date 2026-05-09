@@ -1,0 +1,31 @@
+{
+  "name": "@ohmyperf/cli",
+  "version": "0.0.0-pre",
+  "description": "ohmyperf CLI binary (citty). Default entry point.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit",
+    "lint": "eslint src",
+    "clean": "rimraf dist .turbo *.tsbuildinfo"
+  },
+  "devDependencies": {},
+  "bin": {
+    "ohmyperf": "./bin/ohmyperf.mjs"
+  }
+}

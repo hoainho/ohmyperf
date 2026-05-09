@@ -1,0 +1,24 @@
+{
+  "name": "@ohmyperf/extension-chrome",
+  "version": "0.0.0-pre",
+  "description": "MV3 Chrome extension; chrome.debugger-backed real-device runner.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "browser": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit",
+    "lint": "eslint src",
+    "clean": "rimraf dist .turbo *.tsbuildinfo"
+  },
+  "devDependencies": {},
+  "private": true
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@ohmyperf/ide-vscode",
+  "version": "0.0.0-pre",
+  "description": "VSCode extension; spawns CLI subprocess; embeds viewer in webview.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --noEmit",
+    "lint": "eslint src",
+    "clean": "rimraf dist .turbo *.tsbuildinfo"
+  },
+  "devDependencies": {},
+  "private": true
+}

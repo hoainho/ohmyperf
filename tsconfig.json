@@ -1,0 +1,27 @@
+{
+  "extends": "./tsconfig.base.json",
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/driver-playwright" },
+    { "path": "./packages/driver-extension" },
+    { "path": "./packages/plugins-builtin" },
+    { "path": "./packages/reporter-json" },
+    { "path": "./packages/reporter-html" },
+    { "path": "./packages/reporter-markdown" },
+    { "path": "./packages/reporter-junit" },
+    { "path": "./packages/reporter-csv" },
+    { "path": "./packages/reporter-har" },
+    { "path": "./packages/reporter-trace" },
+    { "path": "./packages/reporter-lh-compat" },
+    { "path": "./packages/viewer" },
+    { "path": "./packages/share-client" },
+    { "path": "./packages/share-server" },
+    { "path": "./packages/trace-utils" },
+    { "path": "./apps/cli" },
+    { "path": "./apps/website" },
+    { "path": "./apps/extension-chrome" },
+    { "path": "./apps/ide-vscode" },
+    { "path": "./tests/oopif-corpus" }
+  ]
+}
