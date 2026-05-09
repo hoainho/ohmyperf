@@ -4,11 +4,12 @@
     "rootDir": "./src",
     "outDir": "./dist"
   },
-  "include": [
-    "src/**/*"
+  "references": [
+    { "path": "../../packages/core" },
+    { "path": "../../packages/driver-playwright" },
+    { "path": "../../packages/plugins-builtin" },
+    { "path": "../../packages/reporter-json" }
   ],
-  "exclude": [
-    "dist",
-    "node_modules"
-  ]
+  "include": ["src/**/*"],
+  "exclude": ["dist", "node_modules", "**/*.test.ts"]
 }

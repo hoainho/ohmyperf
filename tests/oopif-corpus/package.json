@@ -21,6 +21,7 @@
     "clean": "rimraf dist .turbo *.tsbuildinfo"
   },
   "devDependencies": {
+    "@ohmyperf/cli": "workspace:*",
     "@ohmyperf/core": "workspace:*",
     "@ohmyperf/driver-playwright": "workspace:*",
     "@ohmyperf/plugins-builtin": "workspace:*",

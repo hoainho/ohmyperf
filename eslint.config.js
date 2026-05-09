@@ -57,16 +57,18 @@ const cliRestriction = {
     {
       patterns: [
         {
+          group: ["playwright", "playwright-core", "puppeteer-core"],
+          message:
+            "Layering violation: CLI must use @ohmyperf/driver-* adapter factories, never reach Playwright directly.",
+        },
+        {
           group: [
-            "@ohmyperf/driver-playwright",
-            "@ohmyperf/driver-playwright/*",
-            "@ohmyperf/driver-extension",
-            "@ohmyperf/driver-extension/*",
-            "playwright",
-            "playwright-core",
+            "@ohmyperf/driver-playwright/cdp-compat",
+            "@ohmyperf/driver-playwright/oopif-attach",
+            "@ohmyperf/driver-extension/cdp-compat",
           ],
           message:
-            "Layering violation: CLI must invoke measure() from @ohmyperf/core, never reach the driver directly.",
+            "Layering violation: CLI may use the driver's createPlaywrightAdapter() but must not reach into driver internals.",
         },
       ],
     },

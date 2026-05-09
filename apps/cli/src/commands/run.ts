@@ -1,0 +1,309 @@
+import { defineCommand } from "citty";
+import {
+  createConsoleLogger,
+  PluginHookTimeout,
+  PluginLoadError,
+  runEngine,
+  type Logger,
+  type Mode,
+  type Plugin,
+  type Report,
+} from "@ohmyperf/core";
+import { createPlaywrightAdapter } from "@ohmyperf/driver-playwright";
+import {
+  axePlugin,
+  cwvPlugin,
+  customMetricExamplePlugin,
+} from "@ohmyperf/plugins-builtin";
+import { writeJsonReport } from "@ohmyperf/reporter-json";
+import { EXIT_CODES } from "../exit-codes.js";
+
+const DEFAULT_RUNS = 5;
+
+export const runCommand = defineCommand({
+  meta: {
+    name: "run",
+    description: "Measure a URL with the OhMyPerf engine and emit a JSON Report.",
+  },
+  args: {
+    url: {
+      type: "positional",
+      description: "URL to measure (http or https)",
+      required: true,
+    },
+    mode: {
+      type: "string",
+      description: "Measurement mode: real | ci-stable",
+      default: "real",
+    },
+    runs: {
+      type: "string",
+      description: "Number of repetitions",
+      default: String(DEFAULT_RUNS),
+    },
+    headless: {
+      type: "boolean",
+      description: "Run Chromium headless (default: true)",
+      default: true,
+    },
+    output: {
+      type: "string",
+      description: "Output directory",
+      default: "./ohmyperf-out",
+    },
+    format: {
+      type: "string",
+      description: "Comma-separated formats (json supported in v0)",
+      default: "json",
+    },
+    "browser-path": {
+      type: "string",
+      description: "Path to a Chromium binary (default: Playwright bundled)",
+      required: false,
+    },
+    plugins: {
+      type: "string",
+      description: "Plugin set: 'all' (cwv+axe+example), 'cwv', 'cwv+axe', or 'none'",
+      default: "all",
+    },
+    "isolate-origins": {
+      type: "string",
+      description: "Comma-separated origins to pass to --isolate-origins (advanced)",
+      required: false,
+    },
+    quiet: {
+      type: "boolean",
+      description: "Suppress human-readable summary; only print structured info",
+      default: false,
+    },
+    json: {
+      type: "boolean",
+      description: "Print final JSON status line to stdout",
+      default: false,
+    },
+    "allow-single-run": {
+      type: "boolean",
+      description: "Allow runs=1 (variance disclaimer; budget eval still refused)",
+      default: false,
+    },
+    "frozen-lockfile": {
+      type: "boolean",
+      description: "Refuse to start if plugin set drifts from ohmyperf.lock.json (no-op in v0)",
+      default: false,
+    },
+    budget: {
+      type: "string",
+      description: "Repeatable budget metric=threshold (e.g. lcp=2500); reserved for v0 acceptance",
+      required: false,
+    },
+  },
+  async run({ args }): Promise<void> {
+    const logger = createConsoleLogger({
+      level: args.quiet ? "warn" : "info",
+      prefix: "ohmyperf",
+    });
+
+    const url = String(args.url ?? "");
+    if (!isValidHttpUrl(url)) {
+      logger.error("invalid url; expected http(s) URL", { url });
+      process.exit(EXIT_CODES.invalidUsage);
+    }
+
+    const runs = parseRuns(String(args.runs));
+    if (runs === undefined) {
+      logger.error("invalid --runs; expected positive integer", { runs: args.runs });
+      process.exit(EXIT_CODES.invalidUsage);
+    }
+
+    const mode = parseMode(String(args.mode));
+    if (mode === undefined) {
+      logger.error("invalid --mode; expected 'real' or 'ci-stable'", { mode: args.mode });
+      process.exit(EXIT_CODES.invalidUsage);
+    }
+
+    if (mode === "ci-stable") {
+      logger.warn("--mode ci-stable is not yet implemented in v0; falling back to 'real'");
+    }
+
+    const formats = String(args.format)
+      .split(",")
+      .map((f) => f.trim())
+      .filter((f) => f.length > 0);
+    const unsupported = formats.filter((f) => f !== "json");
+    if (unsupported.length > 0) {
+      logger.error(`format(s) not supported in v0: ${unsupported.join(", ")} (supported: json)`);
+      process.exit(EXIT_CODES.invalidUsage);
+    }
+
+    if (args.budget !== undefined && runs === 1 && !args["allow-single-run"]) {
+      logger.error(
+        "--budget refused with --runs=1 (variance flake risk). Pass --allow-single-run to override.",
+      );
+      process.exit(EXIT_CODES.invalidUsage);
+    }
+
+    const plugins = resolvePluginSet(String(args.plugins), logger);
+
+    const browserPath = optString(args["browser-path"]);
+    const isolateOrigins = optString(args["isolate-origins"]);
+
+    let report: Report;
+    try {
+      const { driver, adapter } = createPlaywrightAdapter({
+        url,
+        kind: "chromium",
+        ...(browserPath !== undefined ? { executablePath: browserPath } : {}),
+        ...(isolateOrigins !== undefined
+          ? { extraChromiumArgs: [`--isolate-origins=${isolateOrigins}`] }
+          : {}),
+        headless: args.headless ? "headless" : "headful",
+        logger,
+      });
+
+      report = await runEngine({
+        opts: {
+          url,
+          runs,
+          mode,
+          headless: args.headless ? "headless" : "headful",
+          plugins,
+        },
+        driver,
+        adapter,
+        logger,
+      });
+    } catch (err) {
+      const code = mapErrorToExitCode(err);
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error(`measurement failed (${code}): ${msg}`);
+      if (code === EXIT_CODES.browserBinaryMissing) {
+        logger.error("hint: run `ohmyperf install-browser` or set --browser-path");
+      }
+      process.exit(code);
+    }
+
+    let written: { path: string; bytes: number } | undefined;
+    if (formats.includes("json")) {
+      written = await writeJsonReport(report, String(args.output));
+    }
+
+    if (!args.quiet) {
+      printHumanSummary(report, logger);
+      if (written) {
+        logger.info(`wrote ${written.path} (${String(written.bytes)} bytes)`);
+      }
+    }
+
+    if (args.json) {
+      process.stdout.write(
+        `${JSON.stringify({
+          schemaVersion: report.schemaVersion,
+          measurementId: report.meta.measurementId,
+          aggregatedKeys: Object.keys(report.aggregated),
+          auditCount: report.audits.length,
+          outputPath: written?.path ?? null,
+        })}\n`,
+      );
+    }
+  },
+});
+
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function parseRuns(value: string): number | undefined {
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 1) return undefined;
+  return n;
+}
+
+function parseMode(value: string): Mode | undefined {
+  if (value === "real" || value === "ci-stable") return value;
+  return undefined;
+}
+
+function optString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  if (value.length === 0) return undefined;
+  return value;
+}
+
+function resolvePluginSet(name: string, logger: Logger): ReadonlyArray<Plugin> {
+  switch (name) {
+    case "none":
+      return [];
+    case "cwv":
+      return [cwvPlugin()];
+    case "cwv+axe":
+      return [cwvPlugin(), axePlugin()];
+    case "all":
+      return [cwvPlugin(), axePlugin(), customMetricExamplePlugin()];
+    default:
+      logger.warn(`unknown --plugins value '${name}'; defaulting to 'all'`);
+      return [cwvPlugin(), axePlugin(), customMetricExamplePlugin()];
+  }
+}
+
+function mapErrorToExitCode(err: unknown): number {
+  if (err instanceof PluginLoadError) return EXIT_CODES.pluginLoadError;
+  if (err instanceof PluginHookTimeout) return EXIT_CODES.pluginHookTimeout;
+  const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+  if (
+    msg.includes("executable doesn't exist") ||
+    msg.includes("browser was not installed") ||
+    msg.includes("looks like playwright was just installed")
+  ) {
+    return EXIT_CODES.browserBinaryMissing;
+  }
+  if (msg.includes("oopif_autoattach_order_violation")) {
+    return EXIT_CODES.oopifAttachOrderViolation;
+  }
+  if (
+    msg.includes("net::err_") ||
+    msg.includes("dns") ||
+    msg.includes("navigation timeout") ||
+    msg.includes("err_too_many_redirects")
+  ) {
+    return EXIT_CODES.navigationFailure;
+  }
+  if (msg.includes("targetcrashed") || msg.includes("renderer crashed")) {
+    return EXIT_CODES.measurementRuntimeError;
+  }
+  if (msg.includes("browserlaunchfailure") || msg.includes("failed to launch")) {
+    return EXIT_CODES.browserLaunchFailure;
+  }
+  return EXIT_CODES.measurementRuntimeError;
+}
+
+function printHumanSummary(report: Report, logger: Logger): void {
+  logger.info(`OhMyPerf v${report.schemaVersion} report`);
+  logger.info(`url:     ${report.meta.url}`);
+  logger.info(`browser: ${report.meta.browser.name} ${report.meta.browser.version} (${report.meta.browser.source})`);
+  logger.info(`mode:    ${report.meta.mode}; runs=${String(report.meta.runs)}; duration=${String(report.meta.durationMs)}ms`);
+
+  const lines: string[] = [];
+  for (const [name, agg] of Object.entries(report.aggregated)) {
+    const median = agg.median.toFixed(name === "cls" ? 3 : 1);
+    const cov = (agg.cov * 100).toFixed(1);
+    lines.push(`  ${name.padEnd(10)} median=${median.padStart(7)}  cov=${cov}%  n=${String(agg.runs)}`);
+  }
+  if (lines.length > 0) {
+    logger.info("aggregated:");
+    for (const line of lines) {
+      logger.info(line);
+    }
+  }
+  if (report.audits.length > 0) {
+    logger.info(`audits: ${String(report.audits.length)}`);
+    for (const audit of report.audits) {
+      const status = audit.passed ? "PASS" : "FAIL";
+      logger.info(`  [${status}] ${audit.id} — ${audit.title}`);
+    }
+  }
+}
