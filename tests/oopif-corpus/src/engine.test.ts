@@ -84,6 +84,23 @@ describe("runEngine() end-to-end", () => {
       expect(report.frames).toBeDefined();
       expect(report.frames.root).toBe("ohmyperf:root");
 
+      const totalResources = report.runs.reduce((acc, r) => acc + r.resources.length, 0);
+      expect(
+        totalResources,
+        "expected resourceCollector to record at least 1 resource across the runs",
+      ).toBeGreaterThan(0);
+      const docResource = report.runs
+        .flatMap((r) => r.resources)
+        .find((r) => r.url === url);
+      expect(docResource, "expected the parent document URL in resources").toBeDefined();
+      if (docResource) {
+        expect(Number.isFinite(docResource.requestMs)).toBe(true);
+        expect(Number.isFinite(docResource.responseMs)).toBe(true);
+        expect(docResource.encodedSizeBytes).toBeGreaterThan(0);
+        expect(typeof docResource.cacheHit).toBe("boolean");
+        expect(typeof docResource.renderBlocking).toBe("boolean");
+      }
+
       const fcpRunValues = report.runs
         .map((r) => r.metrics["fcp"]?.value)
         .filter((v): v is number => typeof v === "number" && Number.isFinite(v));

@@ -32,6 +32,7 @@ export type {
 export { cwvCollectorFactory } from "./collectors-impl/cwv-collector.js";
 export { loadingCollectorFactory } from "./collectors-impl/loading-collector.js";
 export { longTaskCollectorFactory } from "./collectors-impl/longtask-collector.js";
+export { resourceCollectorFactory } from "./collectors-impl/resource-collector.js";
 
 export {
   HOOK_NAMES,

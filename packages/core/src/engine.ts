@@ -11,6 +11,7 @@ import {
 import { cwvCollectorFactory } from "./collectors-impl/cwv-collector.js";
 import { loadingCollectorFactory } from "./collectors-impl/loading-collector.js";
 import { longTaskCollectorFactory } from "./collectors-impl/longtask-collector.js";
+import { resourceCollectorFactory } from "./collectors-impl/resource-collector.js";
 import { createConsoleLogger, createSilentLogger } from "./logger.js";
 import {
   createPluginRuntime,
@@ -69,6 +70,7 @@ export const DEFAULT_COLLECTOR_FACTORIES: ReadonlyArray<CollectorFactory> = [
   cwvCollectorFactory,
   loadingCollectorFactory,
   longTaskCollectorFactory,
+  resourceCollectorFactory,
 ];
 
 const DEFAULT_RUNS = 5;
@@ -141,6 +143,22 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
     try {
       await pluginRuntime.beforeNavigate(runCtx);
       const navStartMs = Date.now();
+
+      const rootCtx: CollectorContext = {
+        logger,
+        frameId: ROOT_FRAME_ID,
+        isRoot: true,
+        url: opts.url,
+        navigationStart: navStartMs,
+      };
+      const rootHandles = await installCollectorsOn(
+        pageCtx.rootSession,
+        rootCtx,
+        factories,
+        driver,
+        logger,
+      );
+
       await pageCtx.goto(opts.url);
       await pluginRuntime.onNavigate(runCtx, {
         url: opts.url,
@@ -157,22 +175,6 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
       }
       await pluginRuntime.onLoad(runCtx);
       await pluginRuntime.onIdle(runCtx);
-
-      const rootCtx: CollectorContext = {
-        logger,
-        frameId: ROOT_FRAME_ID,
-        isRoot: true,
-        url: opts.url,
-        navigationStart: navStartMs,
-      };
-
-      const rootHandles = await installCollectorsOn(
-        pageCtx.rootSession,
-        rootCtx,
-        factories,
-        driver,
-        logger,
-      );
 
       const frameResults: Record<string, CollectorResult> = {};
       const frameHandles: Array<{ frameId: string; handles: CollectorHandle[] }> = [];

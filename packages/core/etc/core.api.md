@@ -806,6 +806,9 @@ export interface Resource {
 }
 
 // @public (undocumented)
+export const resourceCollectorFactory: CollectorFactory;
+
+// @public (undocumented)
 export interface RunCtx {
     // (undocumented)
     audit(audit: AuditResult): void;

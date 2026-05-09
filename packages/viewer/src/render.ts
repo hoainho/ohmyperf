@@ -3,6 +3,7 @@ import type {
   AuditResult,
   FrameNode,
   Report,
+  RunReport,
 } from "@ohmyperf/core";
 import { escapeHtml, escapeJsonForHtml } from "./escape.js";
 import { VIEWER_CSS } from "./styles.js";
@@ -47,6 +48,7 @@ export function renderReportHtml(report: Report, opts: RenderViewerOptions = {})
   ${renderUnstableBanner(report)}
   ${renderTiles(report)}
   ${renderAudits(report.audits)}
+  ${renderResources(report)}
   ${renderFrameTree(report)}
   ${renderRunsTable(report)}
   ${renderPluginData(report.pluginData)}
@@ -150,6 +152,69 @@ ${rows}
     </tbody>
   </table>
 </div>`;
+}
+
+function renderResources(report: Report): string {
+  const cold = report.runs.find((r) => r.cold);
+  const warm = report.runs.find((r) => !r.cold);
+  const sourceRun: RunReport | undefined = warm ?? cold ?? report.runs[0];
+  if (!sourceRun || sourceRun.resources.length === 0) return "";
+  const resources = [...sourceRun.resources];
+  resources.sort((a, b) => a.requestMs + a.responseMs - (b.requestMs + b.responseMs));
+
+  const totalEncoded = resources.reduce((acc, r) => acc + (r.encodedSizeBytes || 0), 0);
+  const totalTransfer = resources.reduce((acc, r) => acc + (r.transferSizeBytes || 0), 0);
+  const renderBlocking = resources.filter((r) => r.renderBlocking).length;
+
+  const summary = `${String(resources.length)} resources · ${formatBytes(totalEncoded)} encoded · ${formatBytes(totalTransfer)} transfer${
+    renderBlocking > 0 ? ` · <span class="tag warn">${String(renderBlocking)} render-blocking</span>` : ""
+  }`;
+
+  const rows = resources
+    .slice(0, 100)
+    .map((r) => {
+      const totalMs = (r.requestMs + r.responseMs).toFixed(1);
+      const dns = r.dnsMs !== undefined ? r.dnsMs.toFixed(1) : "—";
+      const tcp = r.tcpMs !== undefined ? r.tcpMs.toFixed(1) : "—";
+      const tls = r.tlsMs !== undefined ? r.tlsMs.toFixed(1) : "—";
+      const tags: string[] = [];
+      if (r.renderBlocking) tags.push(`<span class="tag warn">render-block</span>`);
+      if (r.cacheHit) tags.push(`<span class="tag pass">cache</span>`);
+      return `    <tr>
+      <td class="mono" style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.url)}">${escapeHtml(r.url)}</td>
+      <td>${escapeHtml(r.mimeType || "—")}</td>
+      <td class="mono">${escapeHtml(formatBytes(r.encodedSizeBytes))}</td>
+      <td class="mono">${escapeHtml(totalMs)}</td>
+      <td class="mono">${escapeHtml(dns)}/${escapeHtml(tcp)}/${escapeHtml(tls)}</td>
+      <td>${tags.join(" ") || "<span class=\"muted\">—</span>"}</td>
+    </tr>`;
+    })
+    .join("\n");
+
+  const truncated = resources.length > 100
+    ? `<p class="muted" style="margin:8px 14px 12px;">Showing first 100 of ${String(resources.length)} resources.</p>`
+    : "";
+
+  return `<h2>Resources</h2>
+<div class="panel" style="padding:0;overflow:hidden;">
+  <p class="muted" style="margin:12px 14px 4px;">${summary}</p>
+  <table>
+    <thead><tr>
+      <th>URL</th><th>Type</th><th>Size</th><th>Total ms</th><th>DNS/TCP/TLS</th><th>Tags</th>
+    </tr></thead>
+    <tbody>
+${rows}
+    </tbody>
+  </table>
+  ${truncated}
+</div>`;
+}
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  if (bytes < 1024) return `${String(Math.round(bytes))} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
 function renderFrameTree(report: Report): string {
