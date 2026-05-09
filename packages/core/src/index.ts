@@ -35,6 +35,20 @@ export { longTaskCollectorFactory } from "./collectors-impl/longtask-collector.j
 export { resourceCollectorFactory } from "./collectors-impl/resource-collector.js";
 
 export {
+  CALIBRATION_REFERENCE_MS,
+  CALIBRATION_REFERENCE_NAME,
+  CalibrationFailedError,
+  NETWORK_PROFILES,
+  applyEmulation,
+  calibrate,
+} from "./calibration.js";
+export type {
+  CalibrationOptions,
+  CalibrationResult,
+  NetworkProfileName,
+} from "./calibration.js";
+
+export {
   HOOK_NAMES,
   checkDriverCompatibility,
   computePluginIntegrity,

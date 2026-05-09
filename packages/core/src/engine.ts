@@ -12,6 +12,7 @@ import { cwvCollectorFactory } from "./collectors-impl/cwv-collector.js";
 import { loadingCollectorFactory } from "./collectors-impl/loading-collector.js";
 import { longTaskCollectorFactory } from "./collectors-impl/longtask-collector.js";
 import { resourceCollectorFactory } from "./collectors-impl/resource-collector.js";
+import { applyEmulation, calibrate, type CalibrationResult } from "./calibration.js";
 import { createConsoleLogger, createSilentLogger } from "./logger.js";
 import {
   createPluginRuntime,
@@ -94,6 +95,22 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
   const pluginRuntime = createPluginRuntime({ plugins, driver, logger });
   await pluginRuntime.setup();
 
+  let calibration: CalibrationResult | undefined;
+  if (mode === "ci-stable") {
+    logger.info("engine: running CPU calibration (mode=ci-stable)");
+    calibration = await calibrate({
+      driver,
+      adapter,
+      logger,
+      networkProfile: "fast-4g",
+    });
+    logger.info("engine: calibration done", {
+      throttleRate: calibration.throttleRate,
+      observedScore: calibration.observedScore,
+      cacheHit: calibration.cacheHit,
+    });
+  }
+
   const runReports: RunReport[] = [];
   const frameNodes: Record<string, FrameNode> = {};
   let browserVersion = driver.browserVersion;
@@ -158,6 +175,10 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
         driver,
         logger,
       );
+
+      if (calibration) {
+        await applyEmulation(pageCtx.rootSession, calibration, logger);
+      }
 
       await pageCtx.goto(opts.url);
       await pluginRuntime.onNavigate(runCtx, {
@@ -242,6 +263,7 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
   const reportCtx: ReportCtx = { logger };
   await pluginRuntime.beforeReport(reportCtx);
 
+  const unstable = isReportUnstable(aggregated);
   const meta = buildMeta({
     opts,
     runs,
@@ -252,6 +274,8 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
     startedAt,
     durationMs,
     pluginCapabilityUses: pluginRuntime.capabilityUses,
+    unstable,
+    calibration,
   });
 
   let report: Report = {
@@ -342,7 +366,12 @@ function buildRunReport(runIndex: number, rootFinal: CollectorResult): RunReport
   };
 }
 
-function aggregateRuns(runs: ReadonlyArray<RunReport>): AggregatedMetrics {
+const UNSTABLE_COV_THRESHOLD = 0.2;
+const OUTLIER_Z_THRESHOLD = 3.5;
+
+const CWV_METRIC_NAMES = new Set(["lcp", "cls", "inp", "fcp", "ttfb"]);
+
+export function aggregateRuns(runs: ReadonlyArray<RunReport>): AggregatedMetrics {
   const byMetric: Record<string, number[]> = {};
   for (const r of runs) {
     for (const [name, m] of Object.entries(r.metrics)) {
@@ -352,17 +381,22 @@ function aggregateRuns(runs: ReadonlyArray<RunReport>): AggregatedMetrics {
     }
   }
   const aggregated: Record<string, AggregatedMetric> = {};
-  for (const [name, values] of Object.entries(byMetric)) {
+  for (const [name, raw] of Object.entries(byMetric)) {
+    if (raw.length === 0) continue;
+    const { kept, dropped } = rejectOutliers(raw);
+    const values = kept;
     if (values.length === 0) continue;
     const sorted = [...values].sort((a, b) => a - b);
     const median = quantile(sorted, 0.5);
     const p75 = quantile(sorted, 0.75);
     const p95 = quantile(sorted, 0.95);
     const mean = values.reduce((a, b) => a + b, 0) / values.length;
-    const stdev = Math.sqrt(
-      values.reduce((acc, v) => acc + (v - mean) ** 2, 0) / values.length,
-    );
-    const cov = mean === 0 ? 0 : stdev / mean;
+    const variance =
+      values.length > 1
+        ? values.reduce((acc, v) => acc + (v - mean) ** 2, 0) / values.length
+        : 0;
+    const stdev = Math.sqrt(variance);
+    const cov = mean === 0 ? 0 : Math.abs(stdev / mean);
     aggregated[name] = {
       median,
       p75,
@@ -371,10 +405,43 @@ function aggregateRuns(runs: ReadonlyArray<RunReport>): AggregatedMetrics {
       stdev,
       cov,
       runs: values.length,
-      droppedOutliers: 0,
+      droppedOutliers: dropped,
     };
   }
   return aggregated;
+}
+
+export function isReportUnstable(aggregated: AggregatedMetrics): boolean {
+  for (const name of CWV_METRIC_NAMES) {
+    const agg = aggregated[name];
+    if (!agg) continue;
+    if (Number.isFinite(agg.cov) && agg.cov > UNSTABLE_COV_THRESHOLD) return true;
+  }
+  return false;
+}
+
+function rejectOutliers(values: ReadonlyArray<number>): {
+  kept: number[];
+  dropped: number;
+} {
+  if (values.length < 5) return { kept: [...values], dropped: 0 };
+  const sorted = [...values].sort((a, b) => a - b);
+  const median = quantile(sorted, 0.5);
+  const deviations = values.map((v) => Math.abs(v - median));
+  const sortedDeviations = [...deviations].sort((a, b) => a - b);
+  const mad = quantile(sortedDeviations, 0.5);
+  if (mad === 0) return { kept: [...values], dropped: 0 };
+  const kept: number[] = [];
+  let dropped = 0;
+  for (const v of values) {
+    const z = (0.6745 * (v - median)) / mad;
+    if (Math.abs(z) > OUTLIER_Z_THRESHOLD) {
+      dropped++;
+    } else {
+      kept.push(v);
+    }
+  }
+  return { kept, dropped };
 }
 
 function quantile(sortedAsc: ReadonlyArray<number>, q: number): number {
@@ -410,6 +477,8 @@ interface BuildMetaInput {
     capability: string;
     when: string;
   }>;
+  unstable: boolean;
+  calibration?: CalibrationResult | undefined;
 }
 
 function buildMeta(input: BuildMetaInput): ReportMeta {
@@ -423,8 +492,10 @@ function buildMeta(input: BuildMetaInput): ReportMeta {
     startedAt,
     durationMs,
     pluginCapabilityUses,
+    unstable,
+    calibration,
   } = input;
-  return {
+  const meta: ReportMeta = {
     url: opts.url,
     startedAt,
     durationMs,
@@ -451,7 +522,20 @@ function buildMeta(input: BuildMetaInput): ReportMeta {
       when: u.when,
     })),
     measurementId: typeof randomUUID === "function" ? randomUUID() : `m_${String(Date.now())}`,
+    ...(unstable ? { unstable: true } : {}),
+    ...(calibration
+      ? {
+          calibration: {
+            reference: calibration.reference,
+            observedScore: calibration.observedScore,
+            throttleRate: calibration.throttleRate,
+            networkProfile: calibration.networkProfile,
+            cacheHit: calibration.cacheHit,
+          },
+        }
+      : {}),
   };
+  return meta;
 }
 
 export function makeConsoleLoggerForEngine(level: "debug" | "info" | "warn" | "error" = "info"): Logger {

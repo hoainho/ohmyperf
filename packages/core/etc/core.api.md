@@ -31,6 +31,9 @@ export interface AggregatedMetrics {
 }
 
 // @public (undocumented)
+export function applyEmulation(session: CDPSessionLike, calibration: CalibrationResult, logger: Logger): Promise<void>;
+
+// @public (undocumented)
 export interface ArtifactRef {
     // (undocumented)
     readonly path: string;
@@ -94,6 +97,21 @@ export interface BudgetEvaluation {
 }
 
 // @public (undocumented)
+export function calibrate(opts: CalibrationOptions): Promise<CalibrationResult>;
+
+// @public (undocumented)
+export const CALIBRATION_REFERENCE_MS: 250;
+
+// @public (undocumented)
+export const CALIBRATION_REFERENCE_NAME: "mid-range-2024-laptop";
+
+// @public (undocumented)
+export class CalibrationFailedError extends Error {
+    // (undocumented)
+    readonly name = "CalibrationFailedError";
+}
+
+// @public (undocumented)
 export interface CalibrationInfo {
     // (undocumented)
     readonly cacheHit: boolean;
@@ -103,6 +121,40 @@ export interface CalibrationInfo {
     readonly observedScore: number;
     // (undocumented)
     readonly reference: string;
+    // (undocumented)
+    readonly throttleRate: number;
+}
+
+// @public (undocumented)
+export interface CalibrationOptions {
+    // (undocumented)
+    readonly adapter: EngineLaunchAdapter;
+    // (undocumented)
+    readonly cacheDir?: string;
+    // (undocumented)
+    readonly driver: Driver;
+    // (undocumented)
+    readonly logger?: Logger;
+    // (undocumented)
+    readonly networkProfile?: NetworkProfileName;
+    // (undocumented)
+    readonly recalibrate?: boolean;
+    // (undocumented)
+    readonly samples?: number;
+}
+
+// @public (undocumented)
+export interface CalibrationResult extends CalibrationInfo {
+    // (undocumented)
+    readonly cacheHit: boolean;
+    // (undocumented)
+    readonly networkProfile: NetworkProfileName;
+    // (undocumented)
+    readonly observedScore: number;
+    // (undocumented)
+    readonly reference: typeof CALIBRATION_REFERENCE_NAME;
+    // (undocumented)
+    readonly samplesMs: ReadonlyArray<number>;
     // (undocumented)
     readonly throttleRate: number;
 }
@@ -532,6 +584,24 @@ export interface NavigationEvent {
     // (undocumented)
     readonly url: string;
 }
+
+// @public (undocumented)
+export const NETWORK_PROFILES: {
+    readonly "fast-4g": {
+        readonly downloadThroughput: number;
+        readonly uploadThroughput: number;
+        readonly latency: 70;
+    };
+    readonly "slow-4g": {
+        readonly downloadThroughput: number;
+        readonly uploadThroughput: number;
+        readonly latency: 150;
+    };
+    readonly "no-throttle": null;
+};
+
+// @public (undocumented)
+export type NetworkProfileName = keyof typeof NETWORK_PROFILES;
 
 // @public (undocumented)
 export const PACKAGE_NAME: "@ohmyperf/core";

@@ -126,7 +126,9 @@ export const runCommand = defineCommand({
     }
 
     if (mode === "ci-stable") {
-      logger.warn("--mode ci-stable is not yet implemented in v0; falling back to 'real'");
+      logger.info(
+        "--mode ci-stable: pre-flight CPU calibration + Fast 4G network throttle will be applied",
+      );
     }
 
     const formats = String(args.format)
