@@ -10,6 +10,7 @@
     { "path": "../../packages/plugins-builtin" },
     { "path": "../../packages/reporter-html" },
     { "path": "../../packages/reporter-json" },
+    { "path": "../../packages/reporter-markdown" },
     { "path": "../../packages/viewer" }
   ],
   "include": ["src/**/*"],

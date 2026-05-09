@@ -71,6 +71,9 @@ importers:
       '@ohmyperf/reporter-json':
         specifier: workspace:*
         version: link:../../packages/reporter-json
+      '@ohmyperf/reporter-markdown':
+        specifier: workspace:*
+        version: link:../../packages/reporter-markdown
       '@ohmyperf/viewer':
         specifier: workspace:*
         version: link:../../packages/viewer
@@ -163,7 +166,14 @@ importers:
 
   packages/reporter-lh-compat: {}
 
-  packages/reporter-markdown: {}
+  packages/reporter-markdown:
+    devDependencies:
+      '@ohmyperf/core':
+        specifier: workspace:*
+        version: link:../core
+      vitest:
+        specifier: 'catalog:'
+        version: 2.1.9(@types/node@22.19.18)
 
   packages/reporter-trace: {}
 

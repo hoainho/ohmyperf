@@ -17,9 +17,10 @@ import {
 } from "@ohmyperf/plugins-builtin";
 import { writeHtmlReport } from "@ohmyperf/reporter-html";
 import { writeJsonReport } from "@ohmyperf/reporter-json";
+import { writeMarkdownReport } from "@ohmyperf/reporter-markdown";
 import { EXIT_CODES } from "../exit-codes.js";
 
-const SUPPORTED_FORMATS = ["json", "html"] as const;
+const SUPPORTED_FORMATS = ["json", "html", "markdown"] as const;
 type SupportedFormat = (typeof SUPPORTED_FORMATS)[number];
 
 const DEFAULT_RUNS = 5;
@@ -195,12 +196,16 @@ export const runCommand = defineCommand({
     const written: Record<SupportedFormat, { path: string; bytes: number } | undefined> = {
       json: undefined,
       html: undefined,
+      markdown: undefined,
     };
     if (formats.includes("json")) {
       written.json = await writeJsonReport(report, String(args.output));
     }
     if (formats.includes("html")) {
       written.html = await writeHtmlReport(report, String(args.output));
+    }
+    if (formats.includes("markdown")) {
+      written.markdown = await writeMarkdownReport(report, String(args.output));
     }
 
     if (!args.quiet) {
@@ -220,6 +225,7 @@ export const runCommand = defineCommand({
           auditCount: report.audits.length,
           outputPath: written.json?.path ?? null,
           htmlPath: written.html?.path ?? null,
+          markdownPath: written.markdown?.path ?? null,
         })}\n`,
       );
     }
