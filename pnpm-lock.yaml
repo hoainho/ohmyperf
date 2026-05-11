@@ -113,7 +113,20 @@ importers:
 
   apps/ide-vscode: {}
 
-  apps/website: {}
+  apps/website:
+    devDependencies:
+      '@ohmyperf/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@ohmyperf/viewer':
+        specifier: workspace:*
+        version: link:../../packages/viewer
+      esbuild:
+        specifier: ^0.24.0
+        version: 0.24.2
+      vitest:
+        specifier: 'catalog:'
+        version: 2.1.9(@types/node@22.19.18)
 
   packages/core:
     devDependencies:

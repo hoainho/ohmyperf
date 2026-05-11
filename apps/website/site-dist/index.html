@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>OhMyPerf — Real-machine web performance measurement</title>
+<style>
+:root{color-scheme:light dark;--accent:#4338ca;--text:#111827;--muted:#6b7280;--bg:#ffffff;--panel:#f7f7f8;--border:#e5e7eb}
+@media(prefers-color-scheme:dark){:root{--text:#e5e7eb;--muted:#94a3b8;--bg:#0b1020;--panel:#111827;--border:#1f2937;--accent:#818cf8}}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:var(--text);background:var(--bg);line-height:1.5}
+.container{max-width:880px;margin:0 auto;padding:48px 24px}
+header h1{font-size:42px;line-height:1.1;letter-spacing:-0.02em;margin:0 0 12px}
+header p.lede{font-size:18px;color:var(--muted);margin:0 0 32px;max-width:640px}
+.cta-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:48px}
+.cta{display:inline-block;padding:10px 18px;border-radius:8px;border:1px solid var(--border);text-decoration:none;color:var(--text);font-weight:500;background:var(--panel)}
+.cta.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.cta:hover{border-color:var(--accent)}
+section{margin:40px 0}
+h2{font-size:22px;margin:0 0 12px}
+ul.features{padding-left:20px;margin:0}
+ul.features li{margin:6px 0}
+pre{background:var(--panel);border:1px solid var(--border);padding:14px;border-radius:8px;overflow-x:auto;font-size:13px}
+code{font-family:ui-monospace,"SF Mono",Menlo,monospace}
+.muted{color:var(--muted);font-size:13px}
+footer{margin-top:80px;padding-top:24px;border-top:1px solid var(--border);color:var(--muted);font-size:13px}
+footer a{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+<h1>OhMyPerf</h1>
+<p class="lede">Real-machine, real-browser web performance measurement with ~99% cross-origin iframe coverage. Runs on your hardware, not a synthetic datacenter CPU.</p>
+<div class="cta-row">
+<a class="cta primary" href="#install">Install the CLI</a>
+<a class="cta" href="/viewer.html">Drop a report here</a>
+<a class="cta" href="#extension">Get the Chrome extension</a>
+<a class="cta" href="https://github.com/ohmyperf/ohmyperf">GitHub</a>
+</div>
+</header>
+
+<section id="why">
+<h2>Why?</h2>
+<p>Lighthouse and PageSpeed Insights run on synthetic emulated CPUs in Google's datacenter. The numbers are systematically inflated and don't reflect what your real users experience on real hardware. Existing tools also can't deeply inspect cross-origin iframes — the long-standing blind spot of web-perf tooling.</p>
+</section>
+
+<section id="features">
+<h2>What you get</h2>
+<ul class="features">
+<li><strong>Real numbers from real browsers</strong> — Chromium runs on your machine; no synthetic CPU throttle by default.</li>
+<li><strong>Cross-origin iframe deep-inspection</strong> via CDP Target.setAutoAttach (~99% measurable signals).</li>
+<li><strong>Plugin-first</strong> — every metric, audit, reporter is a plugin. <code>web-vitals</code>, <code>axe-core</code>, custom metrics.</li>
+<li><strong>Honest variance</strong> — every report carries CoV; unstable runs (CoV&gt;20%) get a visible banner.</li>
+<li><strong>CI-Stable mode</strong> with pre-flight CPU calibration so numbers compare across runners.</li>
+<li><strong>Inert shared reports</strong> — public viewers never re-execute plugin code.</li>
+</ul>
+</section>
+
+<section id="install">
+<h2>Install the CLI</h2>
+<pre><code>npm install -g @ohmyperf/cli
+ohmyperf install-browser
+ohmyperf run https://example.com --runs 5 --format json,html
+</code></pre>
+<p class="muted">Requires Node.js 20+ on macOS, Linux, or Windows.</p>
+</section>
+
+<section id="extension">
+<h2>Chrome extension</h2>
+<p>Install the extension, click the toolbar icon on any tab to measure it. The result opens in a new tab with the full HTML viewer.</p>
+<p class="muted">Available for Chrome and Edge. Firefox and Safari support uses the CLI instead (CDP isn't available in those browsers).</p>
+</section>
+
+<section id="viewer">
+<h2>Drop an existing report</h2>
+<p>Already have a <code>report.json</code>? Open the <a href="/viewer.html">drag-drop viewer</a> — no upload, runs entirely in your browser, zero network requests.</p>
+</section>
+
+<footer>
+<p>OhMyPerf · Apache-2.0 · <a href="/privacy.html">Privacy</a> · <a href="https://github.com/ohmyperf/ohmyperf">Source</a></p>
+</footer>
+</div>
+</body>
+</html>
