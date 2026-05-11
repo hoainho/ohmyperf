@@ -1,23 +1,63 @@
 {
-  "name": "@ohmyperf/ide-vscode",
-  "version": "0.0.0-pre",
-  "description": "VSCode extension; spawns CLI subprocess; embeds viewer in webview.",
+  "name": "ohmyperf-vscode",
+  "displayName": "OhMyPerf",
+  "version": "0.0.1",
+  "description": "Real-machine web performance measurement inside VSCode. Wraps the ohmyperf CLI binary.",
   "license": "Apache-2.0",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+  "publisher": "ohmyperf",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other"],
+  "main": "./extension-out/extension.js",
+  "activationEvents": [
+    "onCommand:ohmyperf.measureUrl",
+    "onCommand:ohmyperf.openReport"
+  ],
+  "contributes": {
+    "commands": [
+      { "command": "ohmyperf.measureUrl", "title": "OhMyPerf: Measure URL", "category": "OhMyPerf" },
+      { "command": "ohmyperf.openReport", "title": "OhMyPerf: Open Report File…", "category": "OhMyPerf" }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "OhMyPerf",
+      "properties": {
+        "ohmyperf.cliPath": {
+          "type": "string",
+          "default": "",
+          "description": "Override the path to the ohmyperf CLI binary. Leave blank to use 'ohmyperf' from PATH."
+        },
+        "ohmyperf.defaultUrl": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "description": "Default URL pre-filled in the Measure prompt."
+        },
+        "ohmyperf.defaultRuns": {
+          "type": "number",
+          "default": 3,
+          "description": "Default number of measurement runs."
+        },
+        "ohmyperf.defaultMode": {
+          "type": "string",
+          "enum": ["real", "ci-stable"],
+          "default": "real",
+          "description": "Default measurement mode."
+        }
+      }
     }
   },
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && node scripts/bundle-extension.mjs",
     "typecheck": "tsc -b",
     "lint": "eslint src",
-    "clean": "rimraf dist .turbo *.tsbuildinfo"
+    "test": "vitest run --passWithNoTests",
+    "clean": "rimraf dist .turbo extension-out *.tsbuildinfo"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@ohmyperf/core": "workspace:*",
+    "@ohmyperf/viewer": "workspace:*",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.24.0",
+    "vitest": "catalog:"
+  },
   "private": true
 }
