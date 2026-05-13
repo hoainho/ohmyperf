@@ -14,9 +14,11 @@ import { detectPrivateHost, urlFormSchema, type UrlFormValues } from '@/lib/url-
 interface Props {
   autoFocus?: boolean;
   defaultUrl?: string;
+  onSubmit?: (url: string) => void;
+  disabled?: boolean;
 }
 
-export function UrlForm({ autoFocus, defaultUrl = '' }: Props) {
+export function UrlForm({ autoFocus, defaultUrl = '', onSubmit: externalSubmit, disabled: externalDisabled }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [privateWarning, setPrivateWarning] = useState<string | null>(null);
@@ -38,6 +40,10 @@ export function UrlForm({ autoFocus, defaultUrl = '' }: Props) {
       return;
     }
     setPrivateWarning(null);
+    if (externalSubmit) {
+      externalSubmit(url);
+      return;
+    }
     startTransition(() => {
       router.push(`/measure/?url=${encodeURIComponent(url)}`);
     });
@@ -61,14 +67,14 @@ export function UrlForm({ autoFocus, defaultUrl = '' }: Props) {
                     autoComplete="url"
                     autoFocus={autoFocus}
                     aria-label="URL to measure"
-                    disabled={isPending}
+                    disabled={isPending || externalDisabled}
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          <Button type="submit" size="lg" disabled={isPending}>
+          <Button type="submit" size="lg" disabled={isPending || externalDisabled}>
             {isPending ? (
               <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Measuring</>
             ) : (

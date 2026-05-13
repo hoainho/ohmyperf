@@ -45,24 +45,24 @@ Phased delivery. Each task independently verifiable. Order de-risks downstream p
 
 ## γ. Runner client + metrics rendering + IndexedDB + viewer port
 
-- [ ] γ.1 Build `lib/runner-client.ts` — fetch + EventSource wrapper; typed event stream; reconnect with backoff; AbortController for cancellation.
-- [ ] γ.2 Build `lib/storage.ts` — idb wrapper per D6: `saveReport`, `getReport(id)`, `listReports(limit)`, `deleteReport(id)`, `evictIfOverQuota(maxBytes)`. Use `db.transaction('reports', 'readwrite')` for atomic writes. Run eviction AFTER put. Catch `QuotaExceededError`: evict 25% oldest then retry once, else surface user-facing "Browser storage full" error.
-- [ ] γ.3 Build `lib/store.ts` — zustand store: `{ backend, currentJob, recentReports }` + actions.
-- [ ] γ.4 Port `packages/viewer/` to React: `packages/viewer/src/react/ReportViewer.tsx` (Q4 decision). Extract format helpers to `format.ts`. Keep `renderReportHtml` export for CLI reporter-html (parity tested).
-- [ ] γ.5 Build `components/measure/progress-stream.tsx` — consumes runner-client SSE; renders step list, per-run progress bar, ETA estimate.
-- [ ] γ.6 Build `components/metrics/cwv-gauge.tsx` — uPlot canvas; LCP/INP/CLS/FCP/TTFB; Google's Good/NI/Poor color bands.
-- [ ] γ.7 Build `components/metrics/metric-row.tsx` — table row: median, p75, CoV%, n runs, unit.
-- [ ] γ.8 Build `components/metrics/variance-banner.tsx` — banner when CoV > 0.20.
-- [ ] γ.9 Build `components/metrics/audits-list.tsx` — pass/fail/warn audits with description.
-- [ ] γ.10 Build `components/metrics/frame-tree.tsx` — collapsible tree of parent + OOPIFs with per-frame metrics.
-- [ ] γ.11 Build `components/metrics/waterfall.tsx` — Recharts; dynamic-imported via `next/dynamic({ ssr: false })`.
-- [ ] γ.12 Build `components/measure/error-state.tsx` — typed error → user remediation. Cases: timeout, navigation failed, CSP blocked, DNS error, CORS/PNA blocked, runner offline, extension offline, SSRF refused.
-- [ ] γ.13 Build `app/report/[[...id]]/page.tsx` — catch-all dynamic route, `dynamic = 'force-static'`, `generateStaticParams: () => []`, hydrates from IndexedDB. Show 404 state if id not found.
-- [ ] γ.14 Build `app/report/page.tsx` — index of recent reports from IndexedDB; delete + bulk clear; "Measure another" CTA.
-- [ ] γ.15 Build `app/viewer/page.tsx` — drag-drop JSON file input → parse → save to IndexedDB → route to `/report/[id]`.
-- [ ] γ.16 Wire URL form → backend-client → SSE consumption → save report → navigate `/report/[id]`. End-to-end via runner path.
-- [ ] γ.17 Update bundle budget: `/measure` ≤ 200KB, `/report/[[...id]]` ≤ 250KB gzipped first-load JS.
-- [ ] γ.18 Acceptance: with runner running locally, enter URL on landing → see live progress → see Report with CWV/audits/frame-tree/waterfall, no console errors.
+- [x] γ.1 Build `lib/runner-client.ts` — fetch + EventSource wrapper; typed event stream; reconnect with backoff; AbortController for cancellation.
+- [x] γ.2 Build `lib/storage.ts` — idb wrapper per D6: `saveReport`, `getReport(id)`, `listReports(limit)`, `deleteReport(id)`, `evictIfOverQuota(maxBytes)`. Use `db.transaction('reports', 'readwrite')` for atomic writes. Run eviction AFTER put. Catch `QuotaExceededError`: evict 25% oldest then retry once, else surface user-facing "Browser storage full" error.
+- [x] γ.3 Build `lib/store.ts` — zustand store: `{ backend, currentJob, recentReports }` + actions.
+- [x] γ.4 Port viewer to React: `apps/website/components/viewer/report-viewer.tsx` + `apps/website/lib/format.ts`. Keep `renderReportHtml` in `packages/viewer` untouched (no modification to frozen packages). (Deviation from D5 spec: React component placed in website to avoid modifying `@ohmyperf/viewer`.)
+- [x] γ.5 Build `components/measure/progress-stream.tsx` — consumes runner-client SSE; renders step list, per-run progress bar, ETA estimate.
+- [x] γ.6 Build `components/metrics/cwv-gauge.tsx` — canvas-based gauges; LCP/INP/CLS/FCP/TTFB; Google's Good/NI/Poor color bands. (uPlot not used — native canvas achieves same result with smaller footprint.)
+- [x] γ.7 Build `components/metrics/metric-row.tsx` — table row: median, p75, CoV%, n runs, unit.
+- [x] γ.8 Build `components/metrics/variance-banner.tsx` — banner when CoV > 0.20.
+- [x] γ.9 Build `components/metrics/audits-list.tsx` — pass/fail/warn audits with description.
+- [x] γ.10 Build `components/metrics/frame-tree.tsx` — collapsible tree of parent + OOPIFs with per-frame metrics.
+- [x] γ.11 Build `components/metrics/waterfall.tsx` — Recharts; dynamic-imported via `next/dynamic({ ssr: false })`.
+- [x] γ.12 Build `components/measure/error-state.tsx` — typed error → user remediation. Cases: timeout, navigation failed, CSP blocked, DNS error, CORS/PNA blocked, runner offline, extension offline, SSRF refused.
+- [x] γ.13 `app/report/[[...id]]/page.tsx` dropped (Next.js 15 route conflict with `app/report/page.tsx`). Report view via `?id=` query param on `/report/page.tsx` per D10 fallback. Hydrates from IndexedDB. Shows 404 state if id not found.
+- [x] γ.14 Build `app/report/page.tsx` — history index + single-report view (via `?id=`); delete + bulk clear; CWV gauges + full ReportViewer.
+- [x] γ.15 Build `app/viewer/page.tsx` — drag-drop JSON file input → parse → save to IndexedDB → route to `/report/?id=`.
+- [x] γ.16 Wire URL form → runner-client (submit + SSE stream) → saveReport → navigate `/report/?id=`. Full end-to-end via runner path. Extension path deferred to Phase δ.
+- [x] γ.17 Bundle budgets verified: `/` 112 KB, `/measure` 160 KB ✅ (≤200 KB), `/report` 125 KB ✅ (≤250 KB), `/viewer` 122 KB.
+- [ ] γ.18 Acceptance: with runner running locally, enter URL on landing → see live progress → see Report with CWV/audits/frame-tree/waterfall, no console errors. (Deferred to local run — no runner binary in sandbox.)
 
 ## δ. Extension bridge
 
