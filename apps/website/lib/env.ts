@@ -8,7 +8,10 @@ const envSchema = z.object({
   NEXT_PUBLIC_RUNNER_PORT: z.string().regex(/^\d{2,5}$/).default('5174'),
 });
 
+const rawExtensionId = process.env.NEXT_PUBLIC_EXTENSION_ID;
+const rawRunnerPort = process.env.NEXT_PUBLIC_RUNNER_PORT;
+
 export const env = envSchema.parse({
-  NEXT_PUBLIC_EXTENSION_ID: process.env['NEXT_PUBLIC_EXTENSION_ID'],
-  NEXT_PUBLIC_RUNNER_PORT: process.env['NEXT_PUBLIC_RUNNER_PORT'],
+  ...(rawExtensionId ? { NEXT_PUBLIC_EXTENSION_ID: rawExtensionId } : {}),
+  ...(rawRunnerPort ? { NEXT_PUBLIC_RUNNER_PORT: rawRunnerPort } : {}),
 });
