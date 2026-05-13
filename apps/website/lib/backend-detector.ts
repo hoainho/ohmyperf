@@ -1,3 +1,5 @@
+import { PROTOCOL_VERSION } from '@ohmyperf/shared-types';
+
 import { env } from './env';
 
 export type Backend =
@@ -53,32 +55,38 @@ async function pingExtension(signal: AbortSignal): Promise<Backend | null> {
     signal.addEventListener('abort', onAbort, { once: true });
 
     try {
-      runtime.sendMessage(id, { type: 'ohmyperf/ping' }, (response: unknown) => {
-        if (settled) return;
-        settled = true;
-        signal.removeEventListener('abort', onAbort);
+      runtime.sendMessage(
+        id,
+        { protocolVersion: PROTOCOL_VERSION, type: 'ohmyperf/ping' },
+        (response: unknown) => {
+          if (settled) return;
+          settled = true;
+          signal.removeEventListener('abort', onAbort);
 
-        if (runtime.lastError) {
-          resolve(null);
-          return;
-        }
-        if (
-          response !== null &&
-          typeof response === 'object' &&
-          'ok' in response &&
-          (response as { ok: unknown }).ok === true &&
-          'version' in response &&
-          typeof (response as { version: unknown }).version === 'string'
-        ) {
-          resolve({
-            kind: 'extension',
-            extensionId: id,
-            version: (response as { version: string }).version,
-          });
-        } else {
-          resolve(null);
-        }
-      });
+          if (runtime.lastError) {
+            resolve(null);
+            return;
+          }
+          if (
+            response !== null &&
+            typeof response === 'object' &&
+            'ok' in response &&
+            (response as { ok: unknown }).ok === true &&
+            'version' in response &&
+            typeof (response as { version: unknown }).version === 'string' &&
+            'protocolVersion' in response &&
+            (response as { protocolVersion: unknown }).protocolVersion === PROTOCOL_VERSION
+          ) {
+            resolve({
+              kind: 'extension',
+              extensionId: id,
+              version: (response as { version: string }).version,
+            });
+          } else {
+            resolve(null);
+          }
+        },
+      );
     } catch {
       if (!settled) {
         settled = true;
