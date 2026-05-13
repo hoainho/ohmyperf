@@ -10,8 +10,15 @@ import { ErrorState } from '@/components/measure/error-state';
 import { SiteHeader } from '@/components/layout/site-header';
 import { useStore } from '@/lib/store';
 import { submitMeasure, streamJob, RunnerClientError, type StreamHandle } from '@/lib/runner-client';
+import {
+  startMeasure as extStartMeasure,
+  cancelJob as extCancelJob,
+  streamPort as extStreamPort,
+  ExtensionBridgeError,
+  type StreamPortHandle,
+} from '@/lib/extension-bridge';
 import { saveReport, saveJob } from '@/lib/storage';
-import type { MeasureRequest } from '@ohmyperf/shared-types';
+import type { MeasureRequest, Report } from '@ohmyperf/shared-types';
 
 function MeasureContent() {
   const searchParams = useSearchParams();
@@ -19,20 +26,160 @@ function MeasureContent() {
   const url = searchParams.get('url') ?? '';
 
   const { backend, currentJob, setJobSubmitting, setJobStreaming, appendJobEvent, setJobDone, setJobError, setJobCancelled, setJobIdle, prependReport } = useStore();
-  const streamHandleRef = useRef<StreamHandle | null>(null);
+  const runnerHandleRef = useRef<StreamHandle | null>(null);
+  const extensionHandleRef = useRef<StreamPortHandle | null>(null);
+  const extensionJobIdRef = useRef<string | null>(null);
 
   const handleCancel = useCallback(() => {
-    streamHandleRef.current?.cancel();
-    streamHandleRef.current = null;
+    if (runnerHandleRef.current) {
+      runnerHandleRef.current.cancel();
+      runnerHandleRef.current = null;
+      return;
+    }
+    if (extensionHandleRef.current) {
+      extensionHandleRef.current.close();
+      extensionHandleRef.current = null;
+      const jobId = extensionJobIdRef.current;
+      extensionJobIdRef.current = null;
+      if (jobId) {
+        void extCancelJob(jobId).catch(() => undefined);
+      }
+    }
   }, []);
+
+  const persistReport = useCallback(async (jobId: string, measureUrl: string, report: Report) => {
+    const reportId = await saveReport(report);
+    setJobDone(jobId, reportId);
+    prependReport({
+      id: report.meta.measurementId,
+      url: report.meta.url,
+      createdAt: Date.now(),
+      mode: report.meta.mode as 'real' | 'ci-stable',
+      sizeBytes: new TextEncoder().encode(JSON.stringify(report)).length,
+      report,
+    });
+    await saveJob({ id: jobId, url: measureUrl, status: 'done', startedAt: Date.now(), reportId });
+    router.push(`/report/?id=${reportId}`);
+  }, [setJobDone, prependReport, router]);
+
+  const runViaRunner = useCallback(async (
+    baseUrl: string,
+    measureUrl: string,
+    request: MeasureRequest,
+  ) => {
+    let jobId: string;
+    try {
+      jobId = await submitMeasure({ baseUrl }, request);
+    } catch (err) {
+      const code = err instanceof RunnerClientError ? err.code : 'internal/error';
+      const message = err instanceof Error ? err.message : String(err);
+      setJobError(code, message);
+      return;
+    }
+
+    setJobStreaming(jobId);
+    await saveJob({ id: jobId, url: measureUrl, status: 'running', startedAt: Date.now() });
+
+    const handle = streamJob({ baseUrl }, jobId, (event) => { appendJobEvent(event); });
+    runnerHandleRef.current = handle;
+
+    try {
+      const report = await handle.done;
+      await persistReport(jobId, measureUrl, report);
+    } catch (err) {
+      const code = err instanceof RunnerClientError ? err.code : 'internal/error';
+      const message = err instanceof Error ? err.message : String(err);
+      if (code === 'runner/cancelled') {
+        setJobCancelled();
+        await saveJob({ id: jobId, url: measureUrl, status: 'cancelled', startedAt: Date.now() });
+      } else {
+        setJobError(code, message, jobId);
+        await saveJob({ id: jobId, url: measureUrl, status: 'error', startedAt: Date.now(), error: message });
+      }
+    } finally {
+      runnerHandleRef.current = null;
+    }
+  }, [setJobError, setJobStreaming, appendJobEvent, setJobCancelled, persistReport]);
+
+  const runViaExtension = useCallback(async (
+    measureUrl: string,
+    request: MeasureRequest,
+  ) => {
+    if ((request.runs ?? 1) > 1) {
+      toast.warning('Extension supports single-run only — using runs=1. For multi-run, start the local runner.');
+    }
+    const extRequest: MeasureRequest = { ...request, runs: 1 };
+
+    let jobId: string;
+    let portName: string;
+    try {
+      const ack = await extStartMeasure(extRequest);
+      jobId = ack.jobId;
+      portName = ack.portName;
+    } catch (err) {
+      const code = err instanceof ExtensionBridgeError ? err.code : 'extension/internal';
+      const message = err instanceof Error ? err.message : String(err);
+      setJobError(code, message);
+      return;
+    }
+
+    extensionJobIdRef.current = jobId;
+    setJobStreaming(jobId);
+    await saveJob({ id: jobId, url: measureUrl, status: 'running', startedAt: Date.now() });
+
+    let handle: StreamPortHandle;
+    try {
+      handle = extStreamPort(portName);
+    } catch (err) {
+      const code = err instanceof ExtensionBridgeError ? err.code : 'extension/internal';
+      const message = err instanceof Error ? err.message : String(err);
+      setJobError(code, message, jobId);
+      return;
+    }
+    extensionHandleRef.current = handle;
+
+    let report: Report | null = null;
+    let errorEvent: { code: string; message: string } | null = null;
+
+    try {
+      for await (const event of handle.events) {
+        appendJobEvent(event);
+        if (event.type === 'complete') {
+          report = event.report;
+        } else if (event.type === 'error') {
+          errorEvent = { code: event.code, message: event.message };
+        }
+      }
+    } catch (err) {
+      const code = err instanceof ExtensionBridgeError ? err.code : 'extension/internal';
+      const message = err instanceof Error ? err.message : String(err);
+      errorEvent = { code, message };
+    } finally {
+      extensionHandleRef.current = null;
+      extensionJobIdRef.current = null;
+    }
+
+    if (report) {
+      await persistReport(jobId, measureUrl, report);
+      return;
+    }
+    if (errorEvent) {
+      if (errorEvent.code === 'job/cancelled') {
+        setJobCancelled();
+        await saveJob({ id: jobId, url: measureUrl, status: 'cancelled', startedAt: Date.now() });
+      } else {
+        setJobError(errorEvent.code, errorEvent.message, jobId);
+        await saveJob({ id: jobId, url: measureUrl, status: 'error', startedAt: Date.now(), error: errorEvent.message });
+      }
+      return;
+    }
+    setJobError('extension/internal', 'Extension closed without delivering a report.', jobId);
+    await saveJob({ id: jobId, url: measureUrl, status: 'error', startedAt: Date.now(), error: 'no report' });
+  }, [setJobError, setJobStreaming, appendJobEvent, setJobCancelled, persistReport]);
 
   const handleMeasure = useCallback(async (measureUrl: string, options?: Partial<MeasureRequest>) => {
     if (backend.kind === 'none') {
       toast.error('No backend detected. Install the extension or start the local runner.');
-      return;
-    }
-    if (backend.kind !== 'runner') {
-      toast.error('Extension path not yet implemented. Please use the local runner.');
       return;
     }
 
@@ -45,63 +192,15 @@ function MeasureContent() {
       cacheMode: options?.cacheMode ?? 'cold-then-warm',
     };
 
-    let jobId: string;
-    try {
-      jobId = await submitMeasure({ baseUrl: backend.baseUrl }, request);
-    } catch (err) {
-      const code = err instanceof RunnerClientError ? err.code : 'internal/error';
-      const message = err instanceof Error ? err.message : String(err);
-      setJobError(code, message);
+    if (backend.kind === 'runner') {
+      await runViaRunner(backend.baseUrl, measureUrl, request);
       return;
     }
-
-    setJobStreaming(jobId);
-
-    await saveJob({
-      id: jobId,
-      url: measureUrl,
-      status: 'running',
-      startedAt: Date.now(),
-    });
-
-    const handle = streamJob(
-      { baseUrl: backend.baseUrl },
-      jobId,
-      (event) => { appendJobEvent(event); },
-    );
-    streamHandleRef.current = handle;
-
-    try {
-      const report = await handle.done;
-      const reportId = await saveReport(report);
-      setJobDone(jobId, reportId);
-
-      const stored = {
-        id: report.meta.measurementId,
-        url: report.meta.url,
-        createdAt: Date.now(),
-        mode: report.meta.mode as 'real' | 'ci-stable',
-        sizeBytes: new TextEncoder().encode(JSON.stringify(report)).length,
-        report,
-      };
-      prependReport(stored);
-
-      await saveJob({ id: jobId, url: measureUrl, status: 'done', startedAt: Date.now(), reportId });
-      router.push(`/report/?id=${reportId}`);
-    } catch (err) {
-      const code = err instanceof RunnerClientError ? err.code : 'internal/error';
-      const message = err instanceof Error ? err.message : String(err);
-      if (code === 'runner/cancelled') {
-        setJobCancelled();
-        await saveJob({ id: jobId, url: measureUrl, status: 'cancelled', startedAt: Date.now() });
-      } else {
-        setJobError(code, message, jobId);
-        await saveJob({ id: jobId, url: measureUrl, status: 'error', startedAt: Date.now(), error: message });
-      }
-    } finally {
-      streamHandleRef.current = null;
+    if (backend.kind === 'extension') {
+      await runViaExtension(measureUrl, request);
+      return;
     }
-  }, [backend, setJobSubmitting, setJobStreaming, appendJobEvent, setJobDone, setJobError, setJobCancelled, prependReport, router]);
+  }, [backend, setJobSubmitting, runViaRunner, runViaExtension]);
 
   return (
     <>

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { type Backend, detectBackend } from '@/lib/backend-detector';
+import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -13,22 +14,26 @@ interface Props {
 }
 
 export function BackendCard({ className }: Props) {
-  const [backend, setBackend] = useState<Backend | null>(null);
+  const [backend, setLocalBackend] = useState<Backend | null>(null);
   const [detecting, setDetecting] = useState(true);
+  const setStoreBackend = useStore((s) => s.setBackend);
 
   useEffect(() => {
     const ac = new AbortController();
     detectBackend(ac.signal)
       .then((b) => {
-        setBackend(b);
+        setLocalBackend(b);
+        setStoreBackend(b);
         setDetecting(false);
       })
       .catch(() => {
-        setBackend({ kind: 'none' });
+        const none: Backend = { kind: 'none' };
+        setLocalBackend(none);
+        setStoreBackend(none);
         setDetecting(false);
       });
     return () => { ac.abort(); };
-  }, []);
+  }, [setStoreBackend]);
 
   if (detecting) {
     return (
