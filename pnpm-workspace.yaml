@@ -3,6 +3,22 @@ packages:
   - "apps/*"
   - "tests/*"
 
+onlyBuiltDependencies:
+  - "@tailwindcss/oxide"
+  - "esbuild"
+  - "sharp"
+  - "@img/sharp-libvips-darwin-arm64"
+  - "@img/sharp-libvips-darwin-x64"
+  - "@img/sharp-libvips-linux-x64"
+  - "@img/sharp-libvips-linux-arm64"
+  - "@next/swc-darwin-arm64"
+  - "@next/swc-darwin-x64"
+  - "@next/swc-linux-x64-gnu"
+  - "@next/swc-linux-arm64-gnu"
+  - "@parcel/watcher"
+  - "playwright-core"
+  - "playwright"
+
 catalog:
   playwright: ^1.49.1
   "@playwright/test": ^1.49.1
@@ -23,7 +39,7 @@ catalog:
   next: ^15.1.4
   "next-intl": ^3.26.3
   "next-themes": ^0.4.4
-  tailwindcss: ^4.0.0-beta.8
+  tailwindcss: ^4.1.13
   zustand: ^5.0.2
   idb: ^8.0.1
   uplot: ^1.6.0
