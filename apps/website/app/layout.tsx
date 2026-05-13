@@ -66,10 +66,13 @@ export const viewport: Viewport = {
   ],
 };
 
+const PROCESS_SHIM = `if(typeof window!=='undefined'&&typeof window.process==='undefined'){window.process={env:{NODE_ENV:'${process.env.NODE_ENV ?? 'development'}'},browser:true,version:'',versions:{},nextTick:function(f){setTimeout(f,0)}}}`;
+
 export default function RootLayout({ children }: { readonly children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning className={inter.variable}>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: PROCESS_SHIM }} />
         <meta httpEquiv="Content-Security-Policy" content={CSP} />
         <meta name="referrer" content="no-referrer" />
       </head>
