@@ -23,6 +23,7 @@
   "devDependencies": {
     "@ohmyperf/core": "workspace:*",
     "@ohmyperf/driver-extension": "workspace:*",
+    "@ohmyperf/shared-types": "workspace:*",
     "@ohmyperf/viewer": "workspace:*",
     "esbuild": "^0.24.0",
     "vitest": "catalog:"

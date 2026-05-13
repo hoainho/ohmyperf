@@ -9,6 +9,7 @@
   "references": [
     { "path": "../../packages/core" },
     { "path": "../../packages/driver-extension" },
+    { "path": "../../packages/shared-types" },
     { "path": "../../packages/viewer" }
   ],
   "include": ["src/**/*"],

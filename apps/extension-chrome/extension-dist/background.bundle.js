@@ -139,10 +139,10 @@ var cwvCollectorFactory = {
         runImmediately: true
       });
       installed = true;
-    } catch (err) {
+    } catch (err2) {
       ctx.logger.debug("cwv-collector: install failed", {
         frameId: ctx.frameId,
-        error: errMessage(err)
+        error: errMessage(err2)
       });
     }
     return {
@@ -178,8 +178,8 @@ var cwvCollectorFactory = {
             resources: [],
             available: true
           };
-        } catch (err) {
-          return emptyCollectorResult(`cwv-finalize-error: ${errMessage(err)}`);
+        } catch (err2) {
+          return emptyCollectorResult(`cwv-finalize-error: ${errMessage(err2)}`);
         }
       },
       async dispose() {
@@ -209,8 +209,8 @@ async function readSnapshot(session) {
     return void 0;
   }
 }
-function errMessage(err) {
-  return err instanceof Error ? err.message : String(err);
+function errMessage(err2) {
+  return err2 instanceof Error ? err2.message : String(err2);
 }
 
 // ../../packages/core/dist/collectors-impl/loading-collector.js
@@ -232,10 +232,10 @@ var loadingCollectorFactory = {
       await session.send("Page.setLifecycleEventsEnabled", { enabled: true });
       await session.send("Performance.enable");
       installed = true;
-    } catch (err) {
+    } catch (err2) {
       ctx.logger.debug("loading-collector: install failed", {
         frameId: ctx.frameId,
-        error: errMessage2(err)
+        error: errMessage2(err2)
       });
     }
     session.on("Page.lifecycleEvent", (raw) => {
@@ -276,9 +276,9 @@ var loadingCollectorFactory = {
         }
         try {
           await session.send("Performance.getMetrics");
-        } catch (err) {
+        } catch (err2) {
           ctx.logger.debug("loading-collector: Performance.getMetrics failed", {
-            error: errMessage2(err)
+            error: errMessage2(err2)
           });
         }
         return { metrics, longTasks: [], resources: [], available: true };
@@ -289,8 +289,8 @@ var loadingCollectorFactory = {
     };
   }
 };
-function errMessage2(err) {
-  return err instanceof Error ? err.message : String(err);
+function errMessage2(err2) {
+  return err2 instanceof Error ? err2.message : String(err2);
 }
 
 // ../../packages/core/dist/collectors-impl/longtask-collector.js
@@ -322,10 +322,10 @@ var longTaskCollectorFactory = {
         runImmediately: true
       });
       installed = true;
-    } catch (err) {
+    } catch (err2) {
       ctx.logger.debug("longtask-collector: install failed", {
         frameId: ctx.frameId,
-        error: errMessage3(err)
+        error: errMessage3(err2)
       });
     }
     return {
@@ -353,8 +353,8 @@ var longTaskCollectorFactory = {
             resources: [],
             available: true
           };
-        } catch (err) {
-          return emptyCollectorResult(`longtask-finalize-error: ${errMessage3(err)}`);
+        } catch (err2) {
+          return emptyCollectorResult(`longtask-finalize-error: ${errMessage3(err2)}`);
         }
       },
       async dispose() {
@@ -383,8 +383,8 @@ async function readLongTasks(session) {
     return void 0;
   }
 }
-function errMessage3(err) {
-  return err instanceof Error ? err.message : String(err);
+function errMessage3(err2) {
+  return err2 instanceof Error ? err2.message : String(err2);
 }
 
 // ../../packages/core/dist/collectors-impl/resource-collector.js
@@ -398,10 +398,10 @@ var resourceCollectorFactory = {
     try {
       await session.send("Network.enable", { maxResourceBufferSize: 5e6 });
       installed = true;
-    } catch (err) {
+    } catch (err2) {
       ctx.logger.debug("resource-collector: Network.enable failed", {
         frameId: ctx.frameId,
-        error: errMessage4(err)
+        error: errMessage4(err2)
       });
     }
     session.on("Network.requestWillBeSent", (raw) => {
@@ -527,8 +527,8 @@ function clampNonNegative(value) {
     return 0;
   return value;
 }
-function errMessage4(err) {
-  return err instanceof Error ? err.message : String(err);
+function errMessage4(err2) {
+  return err2 instanceof Error ? err2.message : String(err2);
 }
 
 // ../../packages/core/dist/calibration.js
@@ -634,10 +634,10 @@ async function applyEmulation(session, calibration, logger) {
   if (calibration.throttleRate > 1) {
     try {
       await session.send("Emulation.setCPUThrottlingRate", { rate: calibration.throttleRate });
-    } catch (err) {
+    } catch (err2) {
       logger.warn("calibration: setCPUThrottlingRate failed", {
         rate: calibration.throttleRate,
-        error: err instanceof Error ? err.message : String(err)
+        error: err2 instanceof Error ? err2.message : String(err2)
       });
     }
   }
@@ -650,10 +650,10 @@ async function applyEmulation(session, calibration, logger) {
         downloadThroughput: profile.downloadThroughput,
         uploadThroughput: profile.uploadThroughput
       });
-    } catch (err) {
+    } catch (err2) {
       logger.warn("calibration: emulateNetworkConditions failed", {
         profile: calibration.networkProfile,
-        error: err instanceof Error ? err.message : String(err)
+        error: err2 instanceof Error ? err2.message : String(err2)
       });
     }
   }
@@ -724,9 +724,9 @@ async function writeCachedCalibration(cacheDir, fingerprint, result, logger) {
       storedAt: Date.now()
     });
     await writeFile(path, JSON.stringify(filtered, null, 2), "utf8");
-  } catch (err) {
+  } catch (err2) {
     logger.debug("calibration: cache write failed", {
-      error: err instanceof Error ? err.message : String(err)
+      error: err2 instanceof Error ? err2.message : String(err2)
     });
   }
 }
@@ -899,10 +899,10 @@ function createPluginRuntime(opts) {
           continue;
         try {
           await invokeOne(plugin, "teardown", () => plugin.teardown(ctx));
-        } catch (err) {
+        } catch (err2) {
           logger.warn("plugin-runtime: teardown threw, continuing", {
             pluginId: plugin.id,
-            error: errMessage5(err)
+            error: errMessage5(err2)
           });
         }
       }
@@ -923,8 +923,8 @@ async function invokeHook(plugin, hookName, fn, logger, timeoutMs) {
   let timer;
   try {
     const racePromise = new Promise((resolve, reject) => {
-      Promise.resolve().then(fn).then(resolve, (err) => {
-        reject(err instanceof Error ? err : new Error(String(err)));
+      Promise.resolve().then(fn).then(resolve, (err2) => {
+        reject(err2 instanceof Error ? err2 : new Error(String(err2)));
       });
       timer = setTimeout(() => {
         reject(new PluginHookTimeout(`plugin ${plugin.id} hook ${hookName} timed out after ${String(timeoutMs)}ms`));
@@ -932,23 +932,23 @@ async function invokeHook(plugin, hookName, fn, logger, timeoutMs) {
     });
     const out = await racePromise;
     return out;
-  } catch (err) {
-    if (err instanceof PluginHookTimeout) {
-      throw err;
+  } catch (err2) {
+    if (err2 instanceof PluginHookTimeout) {
+      throw err2;
     }
     logger.warn("plugin-runtime: hook threw", {
       pluginId: plugin.id,
       hook: hookName,
-      error: errMessage5(err)
+      error: errMessage5(err2)
     });
-    throw err;
+    throw err2;
   } finally {
     if (timer !== void 0)
       clearTimeout(timer);
   }
 }
-function errMessage5(err) {
-  return err instanceof Error ? err.message : String(err);
+function errMessage5(err2) {
+  return err2 instanceof Error ? err2.message : String(err2);
 }
 
 // ../../packages/core/dist/engine.js
@@ -1017,9 +1017,9 @@ async function runEngine(input) {
           if (result.exceptionDetails)
             return void 0;
           return result.result?.value;
-        } catch (err) {
+        } catch (err2) {
           logger.debug("engine: evaluateInPage failed", {
-            error: err instanceof Error ? err.message : String(err)
+            error: err2 instanceof Error ? err2.message : String(err2)
           });
           return void 0;
         }
@@ -1056,10 +1056,10 @@ async function runEngine(input) {
       });
       try {
         await pageCtx.waitForLoadIdle(LOAD_IDLE_TIMEOUT_MS);
-      } catch (err) {
+      } catch (err2) {
         logger.debug("engine: load-idle wait timed out", {
           runIndex: i,
-          error: err instanceof Error ? err.message : String(err)
+          error: err2 instanceof Error ? err2.message : String(err2)
         });
       }
       await pluginRuntime.onLoad(runCtx);
@@ -1114,9 +1114,9 @@ async function runEngine(input) {
     } finally {
       try {
         await pageCtx.close();
-      } catch (err) {
+      } catch (err2) {
         logger.debug("engine: pageCtx.close threw", {
-          error: err instanceof Error ? err.message : String(err)
+          error: err2 instanceof Error ? err2.message : String(err2)
         });
       }
     }
@@ -1176,11 +1176,11 @@ async function installCollectorsOn(session, ctx, factories, driver, logger) {
     try {
       const handle = await factory.create(session, ctx);
       handles.push(handle);
-    } catch (err) {
+    } catch (err2) {
       logger.warn("engine: collector create() threw", {
         collectorId: factory.id,
         frameId: ctx.frameId,
-        error: err instanceof Error ? err.message : String(err)
+        error: err2 instanceof Error ? err2.message : String(err2)
       });
     }
   }
@@ -1191,8 +1191,8 @@ async function finalizeAll(handles) {
   for (const h of handles) {
     try {
       results.push(await h.finalize());
-    } catch (err) {
-      results.push(emptyCollectorResult(`${h.id}: ${err instanceof Error ? err.message : String(err)}`));
+    } catch (err2) {
+      results.push(emptyCollectorResult(`${h.id}: ${err2 instanceof Error ? err2.message : String(err2)}`));
     }
     try {
       await h.dispose();
@@ -1483,6 +1483,9 @@ function wrapChromeDebuggerSession(target) {
   };
 }
 
+// ../../packages/shared-types/dist/index.js
+var PROTOCOL_VERSION = 1;
+
 // dist/background.js
 var VIEWER_PATH = "viewer.html";
 async function setRunningBadge(tabId) {
@@ -1561,8 +1564,8 @@ async function handleActionClick(tab) {
     await chrome.tabs.create({
       url: chrome.runtime.getURL(`${VIEWER_PATH}?m=${measurementId}`)
     });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+  } catch (err2) {
+    const message = err2 instanceof Error ? err2.message : String(err2);
     await chrome.storage.session.set({
       [`measurement:${String(tabId)}`]: {
         status: "error",
@@ -1581,6 +1584,448 @@ async function handleActionClick(tab) {
 if (typeof chrome !== "undefined" && chrome.action) {
   chrome.action.onClicked.addListener((tab) => {
     void handleActionClick(tab);
+  });
+}
+var BRIDGE_CAPABILITIES = [
+  "single-run",
+  "real-mode",
+  "ci-stable-mode",
+  "progress-port-v1"
+];
+var REPLAY_BUFFER_LIMIT = 50;
+var TAB_LOAD_TIMEOUT_MS = 15e3;
+var PORT_PAYLOAD_WARN_BYTES = 10 * 1024 * 1024;
+var MANIFEST_MATCH_PATTERNS = [
+  /^https:\/\/ohmyperf\.dev$/,
+  /^https:\/\/[a-z0-9-]+\.ohmyperf\.dev$/,
+  /^http:\/\/localhost:3000$/,
+  /^http:\/\/127\.0\.0\.1:3000$/
+];
+var activeJobs = /* @__PURE__ */ new Map();
+function isAllowedOrigin(origin) {
+  if (!origin)
+    return false;
+  return MANIFEST_MATCH_PATTERNS.some((re) => re.test(origin));
+}
+function err(code, message, retriable = false) {
+  return { code, message, retriable };
+}
+function nowEvent() {
+  return Date.now();
+}
+function bufferEvent(job, ev) {
+  job.replay.push(ev);
+  if (job.replay.length > REPLAY_BUFFER_LIMIT) {
+    job.replay.splice(0, job.replay.length - REPLAY_BUFFER_LIMIT);
+  }
+}
+function emit(job, ev) {
+  bufferEvent(job, ev);
+  if (!job.port)
+    return;
+  try {
+    const size = JSON.stringify(ev).length;
+    if (size > PORT_PAYLOAD_WARN_BYTES) {
+      console.warn(`[ohmyperf bridge] port event ${ev.type} is ${size} bytes`);
+    }
+    job.port.postMessage(ev);
+  } catch {
+  }
+}
+async function teardown(job) {
+  job.finished = true;
+  if (job.cleanupTabRemoved) {
+    try {
+      job.cleanupTabRemoved();
+    } catch {
+    }
+    job.cleanupTabRemoved = null;
+  }
+  if (job.driverCleanup) {
+    try {
+      await job.driverCleanup();
+    } catch {
+    }
+    job.driverCleanup = null;
+  }
+  if (job.port) {
+    try {
+      job.port.disconnect();
+    } catch {
+    }
+    job.port = null;
+  }
+  activeJobs.delete(job.id);
+}
+function failJob(job, error) {
+  emit(job, {
+    protocolVersion: PROTOCOL_VERSION,
+    type: "error",
+    jobId: job.id,
+    error,
+    ts: nowEvent()
+  });
+  void teardown(job);
+}
+function exactUrlMatch(a, b) {
+  try {
+    const ua = new URL(a);
+    const ub = new URL(b);
+    return ua.origin === ub.origin && ua.pathname === ub.pathname && ua.search === ub.search;
+  } catch {
+    return false;
+  }
+}
+function mapEngineError(message) {
+  if (/another debugger|already attached/i.test(message)) {
+    return err("extension/devtools-attached", "DevTools or another debugger is attached to the target tab. Close DevTools and retry.", true);
+  }
+  if (/detached|target closed|disconnected/i.test(message)) {
+    return err("extension/debugger-detached", message, true);
+  }
+  return err("extension/engine-error", message, false);
+}
+function genJobId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `job_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+function isProtocolMatch(msg) {
+  return typeof msg === "object" && msg !== null && msg.protocolVersion === PROTOCOL_VERSION;
+}
+function makeErrorResponse(error) {
+  return {
+    protocolVersion: PROTOCOL_VERSION,
+    type: "ohmyperf/error",
+    ok: false,
+    error
+  };
+}
+function handlePing(_req) {
+  return {
+    protocolVersion: PROTOCOL_VERSION,
+    type: "ohmyperf/ping/response",
+    ok: true,
+    version: chrome.runtime.getManifest().version,
+    capabilities: BRIDGE_CAPABILITIES
+  };
+}
+function handleCancel(req) {
+  const job = activeJobs.get(req.jobId);
+  if (!job) {
+    return {
+      protocolVersion: PROTOCOL_VERSION,
+      type: "ohmyperf/cancel/response",
+      ok: false
+    };
+  }
+  job.cancelled = true;
+  failJob(job, err("extension/cancelled", "Measurement cancelled by SPA request.", false));
+  return {
+    protocolVersion: PROTOCOL_VERSION,
+    type: "ohmyperf/cancel/response",
+    ok: true
+  };
+}
+function validateMeasureRequest(req, origin) {
+  if (req.runs !== 1) {
+    return err("extension/unsupported-runs", "Extension path supports single-run only in v1. Use the runner backend for multi-run.", false);
+  }
+  let parsed;
+  try {
+    parsed = new URL(req.url);
+  } catch {
+    return err("extension/invalid-request", `Invalid URL: ${req.url}`, false);
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return err("extension/invalid-request", `Unsupported protocol: ${parsed.protocol}`, false);
+  }
+  if (req.mode !== "real" && req.mode !== "ci-stable") {
+    return err("extension/invalid-request", `Unsupported mode: ${req.mode}`, false);
+  }
+  if (exactUrlMatch(req.url, origin)) {
+    return err("extension/self-measurement-refused", "Refusing to measure the SPA's own URL.", false);
+  }
+  return null;
+}
+async function waitForTabComplete(tabId, timeoutMs) {
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      reject(new Error("tab load timeout"));
+    }, timeoutMs);
+    const onUpdated = (updatedTabId, info) => {
+      if (updatedTabId !== tabId)
+        return;
+      if (info.status === "complete") {
+        clearTimeout(timer);
+        chrome.tabs.onUpdated.removeListener(onUpdated);
+        resolve();
+      }
+    };
+    chrome.tabs.onUpdated.addListener(onUpdated);
+  });
+}
+async function runMeasurement(job) {
+  emit(job, {
+    protocolVersion: PROTOCOL_VERSION,
+    type: "queued",
+    jobId: job.id,
+    ts: nowEvent()
+  });
+  let targetTab;
+  try {
+    targetTab = await chrome.tabs.create({
+      url: job.request.url,
+      active: false,
+      pinned: false,
+      ...job.openerTabId !== void 0 ? { openerTabId: job.openerTabId } : {}
+    });
+  } catch (e) {
+    failJob(job, err("extension/tab-create-failed", e instanceof Error ? e.message : String(e), false));
+    return;
+  }
+  if (targetTab.id === void 0) {
+    failJob(job, err("extension/tab-create-failed", "Tab created without id", false));
+    return;
+  }
+  job.targetTabId = targetTab.id;
+  const onRemoved = (removedTabId) => {
+    if (removedTabId !== job.targetTabId)
+      return;
+    if (job.finished)
+      return;
+    failJob(job, err("extension/target-tab-closed", "Target tab was closed before measurement completed.", true));
+  };
+  chrome.tabs.onRemoved.addListener(onRemoved);
+  job.cleanupTabRemoved = () => {
+    chrome.tabs.onRemoved.removeListener(onRemoved);
+  };
+  try {
+    await waitForTabComplete(targetTab.id, TAB_LOAD_TIMEOUT_MS);
+  } catch {
+  }
+  if (job.cancelled || job.finished)
+    return;
+  emit(job, {
+    protocolVersion: PROTOCOL_VERSION,
+    type: "run-start",
+    jobId: job.id,
+    runIndex: 0,
+    totalRuns: 1,
+    ts: nowEvent()
+  });
+  emit(job, {
+    protocolVersion: PROTOCOL_VERSION,
+    type: "navigation",
+    jobId: job.id,
+    runIndex: 0,
+    phase: "committed",
+    ts: nowEvent()
+  });
+  const driver = createExtensionDriver({ tabId: targetTab.id });
+  let report;
+  try {
+    const adapter = {
+      async launchPageWithCdp() {
+        const browser = await driver.launch({ mode: "headful" });
+        const page = await driver.newPage(browser);
+        const target = pageHandleAsTargetExtension(page);
+        const rootSession = await driver.attachCDP(target);
+        return {
+          browserVersion: driver.browserVersion || "chrome.debugger",
+          browserSource: "extension-host",
+          rootSession,
+          attachedFrames: [],
+          async goto(_url) {
+            emit(job, {
+              protocolVersion: PROTOCOL_VERSION,
+              type: "navigation",
+              jobId: job.id,
+              runIndex: 0,
+              phase: "loaded",
+              ts: nowEvent()
+            });
+          },
+          async waitForLoadIdle(_timeoutMs) {
+            await new Promise((r) => setTimeout(r, 800));
+            emit(job, {
+              protocolVersion: PROTOCOL_VERSION,
+              type: "navigation",
+              jobId: job.id,
+              runIndex: 0,
+              phase: "idle",
+              ts: nowEvent()
+            });
+          },
+          async close() {
+            try {
+              await rootSession.detach();
+            } catch {
+            }
+          }
+        };
+      }
+    };
+    job.driverCleanup = async () => {
+    };
+    report = await runEngine({
+      opts: { url: job.request.url, runs: 1, mode: job.request.mode },
+      driver,
+      adapter
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    failJob(job, mapEngineError(message));
+    return;
+  }
+  if (job.cancelled || job.finished)
+    return;
+  for (const r of report.runs) {
+    emit(job, {
+      protocolVersion: PROTOCOL_VERSION,
+      type: "run-complete",
+      jobId: job.id,
+      runIndex: 0,
+      ts: nowEvent()
+    });
+    for (const [name, m] of Object.entries(r.metrics)) {
+      emit(job, {
+        protocolVersion: PROTOCOL_VERSION,
+        type: "metric",
+        jobId: job.id,
+        runIndex: 0,
+        name,
+        value: m.value,
+        ts: nowEvent()
+      });
+    }
+  }
+  emit(job, {
+    protocolVersion: PROTOCOL_VERSION,
+    type: "complete",
+    jobId: job.id,
+    report,
+    ts: nowEvent()
+  });
+  await teardown(job);
+}
+function handleMeasureRequest(req, sender, sendResponse) {
+  const origin = sender.origin ?? "";
+  const validationError = validateMeasureRequest(req, origin);
+  if (validationError) {
+    sendResponse(makeErrorResponse(validationError));
+    return;
+  }
+  const jobId = genJobId();
+  const portName = `ohmyperf/job/${jobId}`;
+  const job = {
+    id: jobId,
+    portName,
+    request: req,
+    openerTabId: sender.tab?.id,
+    origin,
+    port: null,
+    targetTabId: null,
+    driverCleanup: null,
+    cleanupTabRemoved: null,
+    cancelled: false,
+    finished: false,
+    replay: []
+  };
+  activeJobs.set(jobId, job);
+  const ack = {
+    protocolVersion: PROTOCOL_VERSION,
+    type: "ohmyperf/measure/ack",
+    ok: true,
+    jobId,
+    portName
+  };
+  sendResponse(ack);
+  setTimeout(() => {
+    void runMeasurement(job);
+  }, 0);
+}
+if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessageExternal) {
+  chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
+    if (!isAllowedOrigin(sender.origin)) {
+      sendResponse(makeErrorResponse(err("extension/invalid-request", "Origin not allowed.", false)));
+      return false;
+    }
+    if (!isProtocolMatch(msg)) {
+      sendResponse(makeErrorResponse(err("extension/invalid-request", `protocolVersion mismatch; extension expects ${String(PROTOCOL_VERSION)}.`, false)));
+      return false;
+    }
+    const envelope = msg;
+    switch (envelope.type) {
+      case "ohmyperf/ping": {
+        const resp = handlePing(envelope);
+        sendResponse(resp);
+        return false;
+      }
+      case "ohmyperf/measure": {
+        handleMeasureRequest(envelope, sender, sendResponse);
+        return true;
+      }
+      case "ohmyperf/cancel": {
+        const resp = handleCancel(envelope);
+        sendResponse(resp);
+        return false;
+      }
+      default: {
+        sendResponse(makeErrorResponse(err("extension/invalid-request", "Unknown message type.", false)));
+        return false;
+      }
+    }
+  });
+}
+var PORT_NAME_RE = /^ohmyperf\/job\/([0-9a-f-]{8,})$/i;
+if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onConnectExternal) {
+  chrome.runtime.onConnectExternal.addListener((port) => {
+    if (!isAllowedOrigin(port.sender?.origin)) {
+      try {
+        port.disconnect();
+      } catch {
+      }
+      return;
+    }
+    const m = PORT_NAME_RE.exec(port.name);
+    if (!m) {
+      try {
+        port.disconnect();
+      } catch {
+      }
+      return;
+    }
+    const jobId = m[1] ?? "";
+    const job = activeJobs.get(jobId);
+    if (!job) {
+      try {
+        port.postMessage({
+          protocolVersion: PROTOCOL_VERSION,
+          type: "error",
+          jobId,
+          error: err("extension/invalid-request", "Unknown jobId.", false),
+          ts: nowEvent()
+        });
+        port.disconnect();
+      } catch {
+      }
+      return;
+    }
+    job.port = port;
+    for (const ev of job.replay) {
+      try {
+        port.postMessage(ev);
+      } catch {
+        break;
+      }
+    }
+    port.onDisconnect.addListener(() => {
+      if (job.port === port)
+        job.port = null;
+    });
   });
 }
 export {
