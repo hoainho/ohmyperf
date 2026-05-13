@@ -17,7 +17,7 @@ const inter = Inter({
 // origin is fully trusted to ship its own scripts; primary XSS protection comes from React's
 // default escaping + no dangerouslySetInnerHTML in the codebase.
 const SCRIPT_SRC =
-  process.env.NODE_ENV === 'production'
+  (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production')
     ? "'self' 'unsafe-inline'"
     : "'self' 'unsafe-inline' 'unsafe-eval'";
 

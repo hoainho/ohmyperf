@@ -8,10 +8,21 @@ const envSchema = z.object({
   NEXT_PUBLIC_RUNNER_PORT: z.string().regex(/^\d{2,5}$/).default('5174'),
 });
 
-const rawExtensionId = process.env.NEXT_PUBLIC_EXTENSION_ID;
-const rawRunnerPort = process.env.NEXT_PUBLIC_RUNNER_PORT;
+function readRawEnv(): Record<string, string> {
+  const out: Record<string, string> = {};
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      if (process.env.NEXT_PUBLIC_EXTENSION_ID) {
+        out.NEXT_PUBLIC_EXTENSION_ID = process.env.NEXT_PUBLIC_EXTENSION_ID;
+      }
+      if (process.env.NEXT_PUBLIC_RUNNER_PORT) {
+        out.NEXT_PUBLIC_RUNNER_PORT = process.env.NEXT_PUBLIC_RUNNER_PORT;
+      }
+    }
+  } catch {
+    /* process undefined in browser if DefinePlugin substitution missed — fall through */
+  }
+  return out;
+}
 
-export const env = envSchema.parse({
-  ...(rawExtensionId ? { NEXT_PUBLIC_EXTENSION_ID: rawExtensionId } : {}),
-  ...(rawRunnerPort ? { NEXT_PUBLIC_RUNNER_PORT: rawRunnerPort } : {}),
-});
+export const env = envSchema.parse(readRawEnv());
