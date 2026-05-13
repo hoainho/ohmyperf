@@ -23,4 +23,5 @@ trace.json.gz
 .env
 .env.local
 .dev-keys/
+.build-cache/
 .env.*.local

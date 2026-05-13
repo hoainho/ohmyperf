@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdir, cp, writeFile, readFile } from "node:fs/promises";
+import { mkdir, cp, writeFile, readFile, readdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
@@ -11,6 +11,15 @@ const staticDir = join(root, "static");
 const pemPath = join(root, ".dev-keys", "extension.pem");
 
 await mkdir(out, { recursive: true });
+
+if (existsSync(out)) {
+  for (const entry of await readdir(out)) {
+    if (entry.startsWith("_") && entry !== "_locales" && entry !== "_metadata") {
+      await rm(join(out, entry), { recursive: true, force: true });
+      console.log(`[bundle-extension] removed reserved-name leftover: ${entry}`);
+    }
+  }
+}
 
 await cp(join(staticDir, "viewer.html"), join(out, "viewer.html"));
 
@@ -38,7 +47,7 @@ if (!esbuild) {
   process.exit(0);
 }
 
-const stubDir = join(out, "_stubs");
+const stubDir = join(root, ".build-cache", "stubs");
 await mkdir(stubDir, { recursive: true });
 const nodeStub = "export default {};\nexport const randomUUID = () => Math.random().toString(36).slice(2) + Date.now().toString(36);\nexport const arch = () => 'browser';\nexport const platform = () => 'browser';\nexport const release = () => '';\nexport const homedir = () => '';\nexport const hostname = () => 'extension';\nexport const totalmem = () => 0;\nexport const createHash = () => ({ update() { return this; }, digest() { return ''; } });\nexport const readFile = async () => { throw new Error('node:fs/promises not available in browser bundle'); };\nexport const writeFile = async () => undefined;\nexport const mkdir = async () => undefined;\nexport const unlink = async () => undefined;\nexport const existsSync = () => false;\nexport const join = (...p) => p.join('/');\nexport const dirname = (p) => p.split('/').slice(0, -1).join('/');\nexport const resolve = (...p) => p.join('/');\n";
 await writeFile(join(stubDir, "node-stub.mjs"), nodeStub);
