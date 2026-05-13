@@ -15,6 +15,7 @@
   },
   "scripts": {
     "build": "tsc -b && node scripts/bundle-extension.mjs",
+    "setup-dev": "node scripts/setup-dev-extension.mjs",
     "typecheck": "tsc -b",
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests",

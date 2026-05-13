@@ -22,4 +22,5 @@ trace.json.gz
 # Secrets
 .env
 .env.local
+.dev-keys/
 .env.*.local

@@ -1,18 +1,26 @@
 #!/usr/bin/env node
 import { mkdir, cp, writeFile, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const out = join(root, "extension-dist");
 const staticDir = join(root, "static");
+const pemPath = join(root, ".dev-keys", "extension.pem");
 
 await mkdir(out, { recursive: true });
 
-for (const name of ["manifest.json", "viewer.html"]) {
-  await cp(join(staticDir, name), join(out, name));
+await cp(join(staticDir, "viewer.html"), join(out, "viewer.html"));
+
+const manifest = JSON.parse(await readFile(join(staticDir, "manifest.json"), "utf8"));
+if (existsSync(pemPath)) {
+  const pubDer = execSync(`openssl rsa -in "${pemPath}" -pubout -outform DER 2>/dev/null`);
+  manifest.key = pubDer.toString("base64");
+  console.log("[bundle-extension] injected dev key from .dev-keys/extension.pem");
 }
+await writeFile(join(out, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
 
 const esbuild = await import("esbuild").catch(() => null);
 if (!esbuild) {
