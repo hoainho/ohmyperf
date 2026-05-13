@@ -1,15 +1,37 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "./src",
-    "outDir": "./dist",
+    "jsx": "preserve",
+    "moduleResolution": "Bundler",
+    "module": "ESNext",
+    "target": "ES2022",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "types": []
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "composite": false,
+    "incremental": true,
+    "types": ["node"],
+    "allowJs": true,
+
+    "paths": {
+      "@/*": ["./*"],
+      "@/components/*": ["./components/*"],
+      "@/lib/*": ["./lib/*"],
+      "@/app/*": ["./app/*"],
+      "@/i18n/*": ["./i18n/*"]
+    },
+
+    "plugins": [{ "name": "next" }]
   },
-  "references": [
-    { "path": "../../packages/core" },
-    { "path": "../../packages/viewer" }
+  "include": [
+    "next-env.d.ts",
+    "types/**/*.d.ts",
+    "app/**/*",
+    "components/**/*",
+    "lib/**/*",
+    "i18n/**/*",
+    ".next/types/**/*.ts"
   ],
-  "include": ["src/**/*"],
-  "exclude": ["dist", "node_modules", "site-dist", "**/*.test.ts"]
+  "exclude": ["node_modules", ".next", "out", "tests/**/*", "playwright.config.ts"]
 }

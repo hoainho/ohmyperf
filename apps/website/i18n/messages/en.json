@@ -1,0 +1,19 @@
+{
+  "landing": {
+    "lede": "Real-machine, real-browser web performance measurement with ~99% cross-origin iframe coverage. Runs on your hardware, not a synthetic datacenter CPU.",
+    "capabilities": {
+      "heading": "What you get",
+      "realNumbers": { "title": "Real numbers from real browsers", "body": "Chromium runs on your machine; no synthetic CPU throttle by default." },
+      "iframeCoverage": { "title": "Cross-origin iframe deep-inspection", "body": "CDP Target.setAutoAttach delivers ~99% measurable signals across OOPIFs." },
+      "pluginFirst": { "title": "Plugin-first", "body": "Every metric, audit, reporter is a plugin: web-vitals, axe-core, custom metrics." },
+      "honestVariance": { "title": "Honest variance", "body": "Every report carries CoV. Unstable runs (CoV>20%) get a visible banner." },
+      "ciStable": { "title": "CI-Stable mode", "body": "Pre-flight CPU calibration so numbers compare across runners." },
+      "inertShares": { "title": "Inert shared reports", "body": "Public viewers never re-execute plugin code." }
+    },
+    "install": {
+      "cli": { "title": "Install the CLI" },
+      "extension": { "title": "Chrome extension", "body": "Install the extension, click the toolbar icon on any tab to measure it.", "cta": "Get it" },
+      "runner": { "title": "Self-hosted runner" }
+    }
+  }
+}

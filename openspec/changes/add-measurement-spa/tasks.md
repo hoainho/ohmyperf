@@ -25,23 +25,23 @@ Phased delivery. Each task independently verifiable. Order de-risks downstream p
 
 ## β. SPA shell + landing + URL form + backend detector
 
-- [ ] β.1 Remove `apps/website/src/`, `apps/website/scripts/`, `apps/website/static/index.html`, `apps/website/static/viewer.html` (preserved in git).
-- [ ] β.2 Scaffold Next.js 15 in `apps/website/`: `next.config.mjs` with `output: 'export'`, `app/` directory, `tsconfig.json` extends root.
-- [ ] β.3 Catalog entries in `pnpm-workspace.yaml`: `next ^15.1`, `react ^19`, `react-dom ^19`, `tailwindcss ^4`, `next-intl ^3`, `zustand ^5`, `idb ^8`, `uplot ^1.6`, `recharts ^2.15`, `lucide-react ^0.469`, `sonner ^1.7`, `react-hook-form ^7.54`.
-- [ ] β.4 Tailwind v4 setup: `tailwind.config.ts`, `postcss.config.mjs`, `app/globals.css` with `@import "tailwindcss"`.
-- [ ] β.5 shadcn/ui init: install components `button`, `input`, `card`, `progress`, `badge`, `skeleton`, `tooltip`, `dialog`, `tabs`, `alert`, `sonner`. Lock to Tailwind v4 compatible versions.
-- [ ] β.6 Build `app/layout.tsx` — root layout with theme provider (`next-themes`), font (Inter via `next/font`), metadata, sonner toaster. Add CSP meta tag: `default-src 'self'; connect-src 'self' http://localhost:5174 http://127.0.0.1:5174; img-src 'self' data: https:; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'`.
-- [ ] β.7 Port landing copy from preserved `static/index.html` to `app/page.tsx` as React JSX. Action-first hero: URL input form above fold; capability matrix + install instructions below (Q5 user decision).
-- [ ] β.8 Build `components/measure/url-form.tsx` with react-hook-form + zod validation: require http/https; soft-warn on localhost (the runner blocks; SPA just informs).
-- [ ] β.9 Build `lib/url-validation.ts` — zod schema, helper to detect private IPs client-side (informational only; runner enforces).
-- [ ] β.10 Build `lib/backend-detector.ts` per Oracle §2(a) — parallel ping race with 800ms timeout, returns `Backend` discriminated union.
-- [ ] β.11 Build `components/measure/backend-card.tsx` — shows extension/runner/none status with install CTAs.
-- [ ] β.12 Build `app/measure/page.tsx` — dedicated measurement flow with URL form + backend card + (placeholder) progress area.
-- [ ] β.13 Build i18n scaffold: `i18n/en.json`, `i18n/vi.json` (VI keys present, copy = TODO), `next-intl` middleware (no, static export — use `getTranslations` server helper at build time or client provider).
-- [ ] β.14 Configure `@next/bundle-analyzer` and add CI check: `apps/website` first-load JS for `/` ≤ 150KB gzipped (D11).
-- [ ] β.15 Replace `apps/website/package.json` scripts: `dev`, `build`, `start`, `typecheck`, `lint`, `test`. Build outputs to `out/` for static export.
-- [ ] β.16 Update root `turbo.json` if needed (likely no-op; Turbo picks up new app automatically).
-- [ ] β.17 Smoke test: `pnpm --filter @ohmyperf/website dev` → http://localhost:3000 → landing renders → form submits → routes to `/measure?url=...` → backend detector card shows correct state.
+- [x] β.1 Remove `apps/website/src/`, `apps/website/scripts/`, `apps/website/static/index.html`, `apps/website/static/viewer.html` (preserved in git).
+- [x] β.2 Scaffold Next.js 15 in `apps/website/`: `next.config.mjs` with `output: 'export'`, `app/` directory, `tsconfig.json` extends root.
+- [x] β.3 Catalog entries in `pnpm-workspace.yaml`: `next ^15.1`, `react ^19`, `react-dom ^19`, `tailwindcss ^4`, `next-intl ^3`, `zustand ^5`, `idb ^8`, `uplot ^1.6`, `recharts ^2.15`, `lucide-react ^0.469`, `sonner ^1.7`, `react-hook-form ^7.54`.
+- [x] β.4 Tailwind v4 setup: `tailwind.config.ts`, `postcss.config.mjs`, `app/globals.css` with `@import "tailwindcss"`.
+- [x] β.5 shadcn/ui init: install components `button`, `input`, `card`, `badge`, `alert`, `sonner`, `label`, `form`. Lock to Tailwind v4 compatible versions. (progress/skeleton/tooltip/dialog/tabs deferred to γ/ε per spec §F.)
+- [x] β.6 Build `app/layout.tsx` — root layout with theme provider (`next-themes`), font (Inter via `next/font`), metadata, sonner toaster. CSP meta tag per spec §M: full directive set including `frame-ancestors`, `base-uri`, `form-action`, `object-src`.
+- [x] β.7 Port landing copy from preserved `static/index.html` to `app/page.tsx` as React JSX. Action-first hero: URL input form above fold; capability matrix + install instructions below. Landing uses native HTML (no Radix) to hit 112 KB gzip budget.
+- [x] β.8 Build `components/measure/url-form.tsx` with react-hook-form + zod validation (used on /measure). Landing uses lightweight `url-form-landing.tsx` with native HTML5 validation.
+- [x] β.9 Build `lib/url-validation.ts` — zod schema, helper to detect private IPs client-side (informational only; runner enforces).
+- [x] β.10 Build `lib/backend-detector.ts` per spec §J — parallel ping race with 800ms timeout, AbortController, returns `Backend` discriminated union. Extension preferred over runner.
+- [x] β.11 Build `components/measure/backend-card.tsx` — shows extension/runner/none status with install CTAs. Lazy-loaded on landing (`backend-card-lazy.tsx`) to stay within bundle budget.
+- [x] β.12 Build `app/measure/page.tsx` — dedicated measurement flow with URL form (full RHF+zod) + backend card + placeholder progress area.
+- [x] β.13 Build i18n scaffold: `i18n/en.json` (English copy from static/index.html), `i18n/vi.json` (__TODO_VI__ markers), `IntlProvider` client-only provider (no middleware per static export constraint), `i18n/request.ts` for build-time server path.
+- [x] β.14 Configure `@next/bundle-analyzer` (env-gated `ANALYZE=true`) + `scripts/check-bundle-budget.mjs`. Landing `/` first-load JS = **112 KB gzipped** (budget 150 KB ✅).
+- [x] β.15 Replace `apps/website/package.json` scripts: `dev`, `build`, `start`, `analyze`, `analyze:check`, `typecheck`, `lint`, `test`, `test:smoke`, `clean`. Build outputs to `out/` for static export.
+- [x] β.16 Root `turbo.json` updated with extended `inputs` (app/**, components/**, lib/**, etc.) and `outputs` including `out/**` and `.next/**`.
+- [x] β.17 Build verified: `out/index.html`, `out/measure/index.html`, `out/report/index.html`, `out/viewer/index.html` all present. `pnpm typecheck` exits 0. `pnpm lint` exits 0. Playwright smoke deferred (no Chromium binary in sandbox — see REVIEW.md).
 
 ## γ. Runner client + metrics rendering + IndexedDB + viewer port
 

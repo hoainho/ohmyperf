@@ -1,31 +1,52 @@
 {
   "name": "@ohmyperf/website",
   "version": "0.0.0-pre",
-  "description": "ohmyperf.dev landing + drag-drop viewer + extension download + hosted share UI.",
-  "license": "Apache-2.0",
+  "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "browser": "./dist/index.js"
-    }
-  },
+  "description": "ohmyperf.dev landing, measurement SPA, drag-drop viewer, hosted share UI.",
+  "license": "Apache-2.0",
   "scripts": {
-    "build": "tsc -b && node scripts/bundle-site.mjs",
-    "dev": "tsc -b && node scripts/dev.mjs",
-    "typecheck": "tsc -b",
-    "lint": "eslint src",
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start",
+    "analyze": "ANALYZE=true next build",
+    "analyze:check": "ANALYZE=true next build && node scripts/check-bundle-budget.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "next lint --max-warnings=0",
     "test": "vitest run --passWithNoTests",
-    "clean": "rimraf dist .turbo site-dist *.tsbuildinfo"
+    "test:smoke": "playwright test",
+    "clean": "rimraf .next out .turbo *.tsbuildinfo node_modules/.cache"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "3.10.0",
+    "@ohmyperf/shared-types": "workspace:*",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "lucide-react": "0.469.0",
+    "next": "15.1.4",
+    "next-intl": "3.26.3",
+    "next-themes": "0.4.4",
+    "radix-ui": "^1.4.3",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-hook-form": "7.54.2",
+    "sonner": "1.7.2",
+    "tailwind-merge": "2.6.0",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@ohmyperf/core": "workspace:*",
-    "@ohmyperf/viewer": "workspace:*",
-    "esbuild": "^0.24.0",
+    "@next/bundle-analyzer": "15.1.4",
+    "@playwright/test": "catalog:",
+    "@tailwindcss/postcss": "4.0.0-beta.8",
+    "@types/node": "^22.10.5",
+    "@types/react": "19.0.4",
+    "@types/react-dom": "19.0.2",
+    "eslint": "^9.18.0",
+    "eslint-config-next": "15.1.4",
+    "postcss": "8.4.49",
+    "rimraf": "^6.0.1",
+    "tailwindcss": "4.0.0-beta.8",
+    "typescript": "^5.7.3",
     "vitest": "catalog:"
-  },
-  "private": true
+  }
 }

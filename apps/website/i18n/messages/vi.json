@@ -1,0 +1,19 @@
+{
+  "landing": {
+    "lede": "__TODO_VI__",
+    "capabilities": {
+      "heading": "__TODO_VI__",
+      "realNumbers": { "title": "__TODO_VI__", "body": "__TODO_VI__" },
+      "iframeCoverage": { "title": "__TODO_VI__", "body": "__TODO_VI__" },
+      "pluginFirst": { "title": "__TODO_VI__", "body": "__TODO_VI__" },
+      "honestVariance": { "title": "__TODO_VI__", "body": "__TODO_VI__" },
+      "ciStable": { "title": "__TODO_VI__", "body": "__TODO_VI__" },
+      "inertShares": { "title": "__TODO_VI__", "body": "__TODO_VI__" }
+    },
+    "install": {
+      "cli": { "title": "__TODO_VI__" },
+      "extension": { "title": "__TODO_VI__", "body": "__TODO_VI__", "cta": "__TODO_VI__" },
+      "runner": { "title": "__TODO_VI__" }
+    }
+  }
+}
