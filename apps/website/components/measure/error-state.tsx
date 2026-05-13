@@ -34,8 +34,13 @@ function getErrorInfo(code: AnyErrorCode, message: string): ErrorInfo {
     case 'rate-limit/exceeded':
       return { title: 'Rate Limit Exceeded', guidance: 'Too many measurements. Wait a minute and try again.' };
     case 'runner/network-error':
-    case 'internal/error':
       return { title: 'Runner Offline', guidance: 'Cannot reach the local runner. Make sure it is running: docker compose up -d.' };
+    case 'internal/error':
+      return { title: 'Internal Error', guidance: 'An unexpected error occurred. See the message and DevTools Console for details.' };
+    case 'persist/failed':
+      return { title: 'Could Not Save Report', guidance: 'Measurement succeeded but saving to local storage failed. See the message below and DevTools Console for stack trace.' };
+    case 'extension/internal':
+      return { title: 'Extension Error', guidance: 'The Chrome extension reported an internal error. See the message below.' };
     case 'runner/cors-blocked':
     case 'runner/pna-blocked':
       return { title: 'CORS / Private Network Access Blocked', guidance: 'The browser blocked the connection to the local runner. Ensure the runner version supports PNA headers.' };
@@ -67,14 +72,20 @@ export function ErrorState({ code, message, onRetry }: Props) {
     <div className="rounded-lg border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/20 p-5 space-y-3">
       <div className="flex items-start gap-2">
         <span className="text-red-500 mt-0.5 text-lg">✕</span>
-        <div>
+        <div className="flex-1">
           <p className="font-semibold text-red-900 dark:text-red-300">{info.title}</p>
           <p className="text-sm text-red-700 dark:text-red-400 mt-0.5">{info.guidance}</p>
+          <p className="text-xs text-red-500 dark:text-red-500 mt-1 font-mono">
+            <code>code: {String(code)}</code>
+          </p>
           {message !== info.guidance && (
-            <p className="text-xs text-red-500 dark:text-red-500 mt-1 font-mono">
+            <p className="text-xs text-red-500 dark:text-red-500 mt-1 font-mono break-all">
               <code>{message}</code>
             </p>
           )}
+          <p className="text-xs text-red-400 dark:text-red-500 mt-2">
+            Check DevTools Console for the full stack trace.
+          </p>
         </div>
       </div>
       <div className="flex gap-2">

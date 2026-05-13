@@ -151,6 +151,7 @@ function MeasureContent() {
         }
       }
     } catch (err) {
+      console.error('[measure] extension stream error', err);
       const code = err instanceof ExtensionBridgeError ? err.code : 'extension/internal';
       const message = err instanceof Error ? err.message : String(err);
       errorEvent = { code, message };
@@ -160,7 +161,14 @@ function MeasureContent() {
     }
 
     if (report) {
-      await persistReport(jobId, measureUrl, report);
+      try {
+        await persistReport(jobId, measureUrl, report);
+      } catch (err) {
+        console.error('[measure] persistReport failed', err);
+        const message = err instanceof Error ? `${err.message} (at ${err.stack?.split('\n')[1]?.trim() ?? 'unknown'})` : String(err);
+        setJobError('persist/failed', message, jobId);
+        await saveJob({ id: jobId, url: measureUrl, status: 'error', startedAt: Date.now(), error: message });
+      }
       return;
     }
     if (errorEvent) {

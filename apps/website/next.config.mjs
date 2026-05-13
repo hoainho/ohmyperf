@@ -19,9 +19,17 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react'],
   },
-  webpack(config, { isServer }) {
+  webpack(config, { isServer, webpack }) {
     if (!isServer) {
-      config.resolve.fallback = { ...config.resolve.fallback, process: false };
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        process: 'process/browser',
+      };
+      config.plugins.push(
+        new webpack.ProvidePlugin({
+          process: 'process/browser',
+        }),
+      );
     }
     return config;
   },
