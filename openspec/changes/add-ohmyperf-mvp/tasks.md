@@ -2,6 +2,16 @@
 
 Phased delivery aligned with the design's 5-phase plan. Each task is independently verifiable. Group ordering reflects dependency.
 
+## 0. Reconcile audit — tick what's already coded (POST-AUDIT, must do first)
+
+**Context (Sisyphus 2026-05-17 audit)**: this `tasks.md` currently has 1 task ticked but the engine, runner, SPA, extension, and CLI are all partially or fully built. Most of the 152 `[ ]` items below are likely either (a) already coded but never ticked, or (b) intentionally deferred to v1.1, or (c) genuinely missing. We cannot plan A/B/C tracks reliably until tasks.md reflects ground truth. This must run before Tracks A/B/C.
+
+- [ ] 0.1 Walk every package under `packages/` and `apps/` and grep for the file/feature each task in §1–§15 references. Tick `[x]` when an artifact matches the task description; leave `[ ]` when missing or stubbed. Use the four-agent audit report from `2026-05-17` (Track-A/B/C proposals reference these findings) as ground-truth input.
+- [ ] 0.2 For each `[ ]` that survives 0.1, annotate inline with one of three tags: `**(SUPERSEDED by add-metric-accuracy task A?)**`, `**(SUPERSEDED by add-diagnostic-insights task B?)**`, `**(SUPERSEDED by add-share-export-ui task C?)**`, or `**(v1.1 deferred)**`, or `**(GENUINELY MISSING — needs new openspec change)**`. This routes orphan work to the right new change instead of letting it rot here.
+- [ ] 0.3 For SUPERSEDED tasks: cross-link from the task in `add-ohmyperf-mvp/tasks.md` to the matching task ID in the relevant track (e.g. `→ A1.3`).
+- [ ] 0.4 For GENUINELY MISSING tasks NOT covered by A/B/C: open a fourth change (proposed name `add-mvp-leftovers`) OR fold them into an existing track as an addendum, whichever has lower overhead. Decision made per-item with the user.
+- [ ] 0.5 Acceptance: after 0.1–0.4, every `[ ]` in this file is either ticked, annotated with a routing tag, or moved to a target change. The count of unannotated `[ ]` is zero.
+
 ## 1. P0 Day-1 — Project setup, audit, license
 
 - [ ] 1.1 Run trademark audit: USPTO + EUIPO search for "OhMyPerf" / "Oh My Perf" / "ohmyperf"; pause and surface findings if a conflicting mark exists in classes 9 / 35 / 42.
