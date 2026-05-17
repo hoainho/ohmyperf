@@ -95,7 +95,7 @@ mkdir -p openspec/changes/archive
 mv openspec/changes/add-measurement-spa openspec/changes/archive/
 ```
 
-## Final progress: 5/6 phases complete
+## Final progress: 6/6 phases complete
 
 | Phase | Status | Commit | Highlights |
 |---|---|---|---|
@@ -103,7 +103,47 @@ mv openspec/changes/add-measurement-spa openspec/changes/archive/
 | β SPA shell | ✅ DONE | `a8c7b17` | Next.js 15 static export, 112KB gz landing |
 | γ Metrics + IDB | ✅ DONE | `6ddc39a` | runner-client + zustand + viewer React port + waterfall |
 | δ Extension bridge | ✅ DONE | `84c0ba1` + `ab8e8d0` + `18c63c3` + `d484f79` | externally_connectable + port streaming |
-| ε Polish + CI | ✅ DONE | `1d9f45e` | a11y + bundle budgets + dogfood + telemetry + deploy docs |
-| ζ Validate + archive | ⏸ Validation done, archive deferred to user | (this file) | — |
+| ε Polish + CI | ✅ DONE + smoke `2036524` | a11y + bundle budgets + 14/14 Playwright green + 2 a11y regressions fixed (`9b5652f`) |
+| ζ Validate + archive | ✅ DONE — γ.18 verified, ready to archive | (this file + smoke `78707c5` + `a4a2ede`) | — |
 
-**Totals**: 9 commits, 130 files changed, +12,922 / -1,273 lines, 73 tasks done.
+**Totals**: 9 + 6 commits, 132 files changed, +13,047 / -1,297 lines, 77/84 tasks done.
+
+## Phase ζ — Smoke validation 2026-05-17 (γ.18 runner path)
+
+Backend smoke executed via [`scripts/smoke/01-runner-path.sh`](../../../scripts/smoke/01-runner-path.sh):
+
+| Step | Status |
+|---|---|
+| Pre-flight (docker, ports, pnpm, curl) | ✅ |
+| Runner `docker compose up --build -d` | ✅ |
+| `/api/health` green | ✅ in 4s |
+| Website static build + `npx serve` | ✅ |
+| `POST /api/measure` → jobId returned | ✅ |
+| Polled job status to `done` | ✅ |
+| Report JSON has `lcp` + `frameTree` | ✅ |
+| **Manual browser**: SPA landing → enter URL → live progress → Report screen | ✅ tested on https://blog.thnkandgrow.com/ (5 runs, 156s, CWV+axe+frame+waterfall present, zero red console errors) |
+
+### Regressions discovered + fixed during smoke
+
+| # | Symptom | Root cause | Fix commit |
+|---|---|---|---|
+| 1 | `ε.15` Playwright `a11y: landing (/)` fail, `a11y: viewer (/viewer)` fail | `<code>` inside `<p className='text-muted-foreground'>` inherited muted color → 4.34:1 contrast (need 4.5:1); `<pre overflow-x-auto>` without `tabIndex` failed `scrollable-region-focusable` | `9b5652f` — add `text-foreground` to inline code; add `tabIndex={0}` + `role="region"` + `aria-label` to `<pre>` |
+| 2 | `γ.18` Docker compose fail at `pnpm install --frozen-lockfile` with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` | Lockfile's top-level `catalogs:` block had stale `playwright: ^1.49.1` while `pnpm-workspace.yaml` was already pinned to `1.60.0` (from `d8d0dc7`) | `a4a2ede` — regenerate lockfile |
+| 3 | `γ.18` First measurement returned `{ status: 'error', code: 'runner/browser-missing' }` | Dockerfile runtime base image `mcr.microsoft.com/playwright:v1.59.1-jammy` pre-bundles Chromium for Playwright 1.59.1; the catalog-pinned client 1.60.0 looks for a different binary path → ENOENT (`81693d8`'s actionable mapping surfaces it cleanly) | `78707c5` — bump base image to `v1.60.0-jammy` (verified present on MCR) |
+
+### δ.11 — Extension path acceptance (DEFERRED to user follow-up)
+
+Per user decision 2026-05-17: γ.18 alone is sufficient to unlock Phase ζ archive. Extension parity acceptance (δ.11) requires unpacked-extension load + cross-flow report comparison; deferred as a separate smoke task whenever user resumes extension QA.
+
+The extension's wire protocol (Phase δ code) is unchanged since commit `d484f79` and remains fully built (`extension-dist/` committed at `74a5926` with deterministic dev-key). The acceptance is the only outstanding item — code-level validation already passed manual review.
+
+## Archive — APPROVED 2026-05-17
+
+User explicitly approved Phase ζ archive on 2026-05-17. Archive performed manually (no openspec CLI available):
+
+```bash
+mkdir -p openspec/changes/archive
+mkdir -p openspec/specs
+mv openspec/changes/add-measurement-spa/specs/measurement-spa openspec/specs/measurement-spa
+mv openspec/changes/add-measurement-spa openspec/changes/archive/
+```

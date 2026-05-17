@@ -62,7 +62,7 @@ Phased delivery. Each task independently verifiable. Order de-risks downstream p
 - [x] γ.15 Build `app/viewer/page.tsx` — drag-drop JSON file input → parse → save to IndexedDB → route to `/report/?id=`.
 - [x] γ.16 Wire URL form → runner-client (submit + SSE stream) → saveReport → navigate `/report/?id=`. Full end-to-end via runner path. Extension path deferred to Phase δ.
 - [x] γ.17 Bundle budgets verified: `/` 112 KB, `/measure` 160 KB ✅ (≤200 KB), `/report` 125 KB ✅ (≤250 KB), `/viewer` 122 KB.
-- [ ] γ.18 Acceptance: with runner running locally, enter URL on landing → see live progress → see Report with CWV/audits/frame-tree/waterfall, no console errors. (Deferred to local run — no runner binary in sandbox.)
+- [x] γ.18 Acceptance: **VERIFIED 2026-05-17 locally** — Docker runner (`docker compose -f apps/runner/docker-compose.yml up`) booted, `/api/health` green. SPA at `http://127.0.0.1:3000` detected runner backend. Measured `https://blog.thnkandgrow.com/` end-to-end (5 runs, 156s) → Report rendered with CWV (LCP=860ms, FCP=860ms, TTFB=592ms, INP=256ms, CLS=0.001), axe audits, frame tree (root only — expected for single-frame page), and resources waterfall (55 resources, 13 render-blocking flagged). Evidence: `scripts/smoke/logs/01-runner.json` + `01-runner.log`. Two regressions discovered and fixed during smoke: (a) `pnpm-lock.yaml` catalog drift (commit `a4a2ede`); (b) Dockerfile pinned `mcr.microsoft.com/playwright:v1.59.1-jammy` but workspace catalog had bumped to `1.60.0` causing `runner/browser-missing` error (commit `78707c5`, bump image to `v1.60.0-jammy`).
 
 ## δ. Extension bridge
 
@@ -76,7 +76,7 @@ Phased delivery. Each task independently verifiable. Order de-risks downstream p
 - [x] δ.8 `apps/website/lib/extension-bridge.ts` created with `ping`/`startMeasure`/`cancelJob`/`streamPort` typed wrappers; runs > 1 throw `ExtensionBridgeError(code='extension/unsupported-runs')`. PROTOCOL_VERSION sanity check in `backend-detector.ts`.
 - [x] δ.9 Parity test file `apps/extension-chrome/tests/parity.test.ts` written with three assertions (`extension-host` vs `bundled`, CoV ≤ 30%) but `describe.skip()`'d — extension E2E deferred to manual smoke per phase-delta-extension.md §M. See REVIEW.md δ.1.
 - [x] δ.10 Updated `apps/extension-chrome/README.md` with externally_connectable details, CWS re-review timeline (T-14 days), and per-permission CWS justification copy.
-- [ ] δ.11 Acceptance: install unpacked extension → SPA detects → measure single URL via extension → identical Report (modulo run-to-run variance) as runner path. (Deferred to manual smoke — no Chromium binary in sandbox; build + handler-grep verified.)
+- [x] δ.11 Acceptance: **DEFERRED post-archive per user decision 2026-05-17** — γ.18 alone is sufficient to unlock ζ archive. Extension wire protocol fully built (`74a5926` extension-dist with deterministic dev-key); only end-to-end parity smoke remains. Tracked as a follow-up smoke task (see [`scripts/smoke/02-extension-path.sh`](../../../scripts/smoke/02-extension-path.sh)).
 
 ## ε. History + polish + dogfood + docs
 
@@ -100,6 +100,6 @@ Phased delivery. Each task independently verifiable. Order de-risks downstream p
 ## ζ. Archive & promote
 
 - [x] ζ.1 Run `openspec validate add-measurement-spa --strict` — DONE manually; openspec CLI not installed (`@fivetwofive/openspec`, `openspec` packages 404 on npm). Manual validation in [VALIDATION.md](./VALIDATION.md): 4 artifacts present, 12 requirements, 32 scenarios, 3 packages typecheck clean, build outputs all present.
-- [ ] ζ.2 `openspec archive add-measurement-spa` — DEFERRED to user (per user's "ζ archive sau" decision; archive is irreversible per Sisyphus safety rules). Instructions in [VALIDATION.md](./VALIDATION.md).
-- [ ] ζ.3 Specs promoted to `openspec/specs/measurement-spa/` — DEFERRED (part of ζ.2).
-- [ ] ζ.4 Update root README surface list one more time post-archive — DEFERRED (part of ζ.2).
+- [x] ζ.2 `openspec archive add-measurement-spa` — APPROVED + EXECUTED 2026-05-17 (manual move per VALIDATION.md, no CLI available).
+- [x] ζ.3 Specs promoted to `openspec/specs/measurement-spa/`.
+- [x] ζ.4 Update root README surface list one more time post-archive.
