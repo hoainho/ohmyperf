@@ -39,6 +39,11 @@
       "inputs": ["fixtures/**", "expectations/**", "src/**"],
       "outputs": []
     },
+    "test:parity": {
+      "dependsOn": ["^build"],
+      "inputs": ["fixtures/**", "*.ts", "package.json"],
+      "outputs": []
+    },
     "api:check": {
       "dependsOn": ["build"],
       "inputs": ["dist/**", "api-extractor.json"],

@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Parity: long-task-bomb</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>body{font-family:system-ui;margin:0;padding:2rem}</style>
+</head>
+<body>
+<h1>long-task-bomb</h1>
+<p>This page intentionally runs five ~200ms synchronous JS tasks to inflate TBT.</p>
+<script>
+function busy(ms) {
+  const stop = performance.now() + ms;
+  while (performance.now() < stop) { Math.sqrt(Math.random()); }
+}
+for (let i = 0; i < 5; i++) {
+  setTimeout(() => busy(200), 50 + i * 40);
+}
+</script>
+</body>
+</html>

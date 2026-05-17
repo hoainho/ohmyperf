@@ -49,18 +49,18 @@
 
 ## A4. Lighthouse parity test harness
 
-- [ ] A4.1 Add `lighthouse@^13.3.0` to root `devDependencies`. Add `puppeteer-core` if not pulled transitively.
-- [ ] A4.2 Create `tests/parity/fixtures/` with 3 self-hosted HTML fixtures: (a) simple-static (no JS), (b) image-heavy-lcp (one large `<img>`), (c) long-task-bomb (5×200ms blocking JS).
-- [ ] A4.3 Create `tests/parity/lighthouse-parity.test.ts`:
+- [x] A4.1 Add `lighthouse@^13.3.0` to root `devDependencies`. Add `puppeteer-core` if not pulled transitively.
+- [x] A4.2 Create `tests/parity/fixtures/` with 3 self-hosted HTML fixtures: (a) simple-static (no JS), (b) image-heavy-lcp (one large `<img>`), (c) long-task-bomb (5×200ms blocking JS).
+- [x] A4.3 Create `tests/parity/lighthouse-parity.test.ts`:
   - Launch a SEPARATE Chromium instance for Lighthouse (not the runner's CDP session — reusing causes attach conflicts on `Page`/`Network`/`Performance`). Use a fresh `--remote-debugging-port` for each fixture.
   - Run OhMyPerf against each fixture URL.
   - In parallel, run `lighthouse(url, { port: <lighthouse-only port>, output: 'json', onlyCategories: ['performance'] })`.
   - Assert: `|ohmyperfLcp - lighthouseLcp| / lighthouseLcp < 0.10`.
   - Same for FCP, TTFB.
   - **TBT assertion DEFERRED**: TBT parity needs Track B's CDP-trace-based long-task data (current PO-based longtasks ≠ Lighthouse's trace-based TBT). TBT parity test moves to `tests/parity/tbt-parity.test.ts` and is owned by Track B (B7) gated on B1's trace collector. Document in `tests/parity/README.md`.
-- [ ] A4.4 Add `pnpm test:parity` script to root `package.json` (NOT in default `pnpm test` because of ~30s runtime). Add corresponding `test:parity` task to `turbo.json` so the script is cached and pipelineable.
-- [ ] A4.5 Add `parity` matrix entry to CI (`.github/workflows/ci.yml`) — runs only on `main` push, not on every PR.
-- [ ] A4.6 Drop the `lint:claims` static-check requirement from spec (`tools that parse README accuracy claims against fixture results` is over-engineered for v1). Replace with a manual code-review checklist note in `docs/accuracy.md` (A6.4).
+- [x] A4.4 Add `pnpm test:parity` script to root `package.json` (NOT in default `pnpm test` because of ~30s runtime). Add corresponding `test:parity` task to `turbo.json` so the script is cached and pipelineable.
+- [x] A4.5 Add `parity` matrix entry to CI (`.github/workflows/ci.yml`) — runs only on `main` push, not on every PR.
+- [x] A4.6 Drop the `lint:claims` static-check requirement from spec (`tools that parse README accuracy claims against fixture results` is over-engineered for v1). Replace with a manual code-review checklist note in `docs/accuracy.md` (A6.4).
 
 ## A5. OOPIF corpus expansion (9 new fixtures + metric assertions)
 

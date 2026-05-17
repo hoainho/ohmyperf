@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "./dist",
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "references": [
+    { "path": "../../packages/core" },
+    { "path": "../../packages/driver-playwright" },
+    { "path": "../../packages/plugins-builtin" }
+  ],
+  "include": ["*.ts", "fixtures/**/*"],
+  "exclude": ["dist", "node_modules"]
+}
