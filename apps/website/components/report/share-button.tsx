@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Loader2, Share2 } from 'lucide-react';
 import type { Report } from '@ohmyperf/core';
 import {
   uploadReport,
@@ -17,6 +18,9 @@ interface Props {
 type Status = 'idle' | 'pending' | 'leak-prompt';
 
 export function ShareButton({ report }: Props) {
+  // SPA path: env-secret scan is a no-op (browser has no env). The
+  // ShareSecretLeakError branch is defensive for CLI-style usage and tests
+  // that mock the redaction pipeline; in production browser it never fires.
   const endpoint = getShareEndpoint();
   const [status, setStatus] = useState<Status>('idle');
   const [leakKeys, setLeakKeys] = useState<ReadonlyArray<string>>([]);
@@ -68,6 +72,7 @@ export function ShareButton({ report }: Props) {
           className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm hover:bg-muted transition-colors"
           aria-expanded={popoverOpen}
         >
+          <Share2 className="h-4 w-4" aria-hidden />
           Share
         </button>
         {popoverOpen && (
@@ -132,6 +137,11 @@ export function ShareButton({ report }: Props) {
       onClick={() => doUpload(false)}
       className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm hover:bg-muted disabled:opacity-50 transition-colors"
     >
+      {status === 'pending' ? (
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+      ) : (
+        <Share2 className="h-4 w-4" aria-hidden />
+      )}
       {status === 'pending' ? 'Sharing…' : 'Share'}
     </button>
   );

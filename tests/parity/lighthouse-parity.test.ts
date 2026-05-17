@@ -17,13 +17,14 @@ const FIXTURES = [
   { name: "long-task-bomb", file: "long-task-bomb.html", tbt: true },
 ] as const;
 
-const REL_TOLERANCE = { lcp: 0.1, fcp: 0.1, ttfb: 0.1 };
+const REL_TOLERANCE = { lcp: 0.1, fcp: 0.1, ttfb: 0.1, tbt: 0.15 };
 const ABS_FLOOR_MS = 30;
 
 interface LighthouseAudits {
   "largest-contentful-paint"?: { numericValue?: number };
   "first-contentful-paint"?: { numericValue?: number };
   "server-response-time"?: { numericValue?: number };
+  "total-blocking-time"?: { numericValue?: number };
 }
 
 interface LighthouseResult {
@@ -81,6 +82,10 @@ describe.each(FIXTURES)("parity vs Lighthouse — $name", (fixture) => {
     compareMs("lcp", our.lcp, lh.lcp, REL_TOLERANCE.lcp);
     compareMs("fcp", our.fcp, lh.fcp, REL_TOLERANCE.fcp);
     compareMs("ttfb", our.ttfb, lh.ttfb, REL_TOLERANCE.ttfb);
+
+    if (fixture.tbt) {
+      compareMs("tbt", our.tbt, lh.tbt, REL_TOLERANCE.tbt);
+    }
   }, 90_000);
 });
 
@@ -99,7 +104,12 @@ function compareMs(metric: string, ours: number | undefined, lh: number | undefi
   ).toBeLessThanOrEqual(tol);
 }
 
-interface OurMetrics { lcp: number | undefined; fcp: number | undefined; ttfb: number | undefined }
+interface OurMetrics {
+  lcp: number | undefined;
+  fcp: number | undefined;
+  ttfb: number | undefined;
+  tbt: number | undefined;
+}
 
 async function measureWithOhMyPerf(url: string): Promise<OurMetrics> {
   const logger = createSilentLogger();
@@ -112,7 +122,14 @@ async function measureWithOhMyPerf(url: string): Promise<OurMetrics> {
   let report: Report;
   try {
     report = await runEngine({
-      opts: { url, runs: 3, mode: "real", headless: "headless", plugins: [cwvPlugin()] },
+      opts: {
+        url,
+        runs: 3,
+        mode: "real",
+        headless: "headless",
+        plugins: [cwvPlugin()],
+        collectTrace: true,
+      },
       driver,
       adapter,
       logger,
@@ -124,6 +141,7 @@ async function measureWithOhMyPerf(url: string): Promise<OurMetrics> {
     lcp: report.aggregated["lcp"]?.median,
     fcp: report.aggregated["fcp"]?.median,
     ttfb: report.aggregated["ttfb"]?.median,
+    tbt: report.aggregated["tbt"]?.median,
   };
 }
 
@@ -147,6 +165,7 @@ async function measureWithLighthouse(url: string): Promise<OurMetrics> {
       lcp: a["largest-contentful-paint"]?.numericValue,
       fcp: a["first-contentful-paint"]?.numericValue,
       ttfb: a["server-response-time"]?.numericValue,
+      tbt: a["total-blocking-time"]?.numericValue,
     };
   } finally {
     await browser.close();

@@ -183,3 +183,19 @@ NEXT_PUBLIC_SHARE_ENDPOINT=https://share.example.com
 ```
 
 The header pill flips to "Share connected" and the Share button on `/report` becomes interactive. With no endpoint set, the button opens a popover linking back to this guide.
+
+---
+
+## Bundle baseline (2026-05-17)
+
+After Tracks A/B/C land. Measured via `pnpm --filter @ohmyperf/website build`:
+
+| Route | Route size | First Load JS | Budget | Status |
+|---|---|---|---|---|
+| `/` | 3.02 KB | **112 KB** | 150 KB | ✓ |
+| `/_not-found` | 137 B | 106 KB | — | ✓ |
+| `/measure` | 32.7 KB | **164 KB** | 200 KB | ✓ |
+| `/report/[[...id]]` | 15.4 KB | **147 KB** | 250 KB | ✓ (headroom 103 KB) |
+| `/viewer` | 3.99 KB | **136 KB** | 200 KB | ✓ |
+
+Shared chunks: 106 KB. The `/report` route was 126 KB before Track B's insights components landed; the 7 new components + storage v2 + share-client + reporter-markdown added ~21 KB net (helped by `metric-row.tsx` removal and `uplot` dep removal). The 250 KB gate in `.github/workflows/website-budgets.yml` has ample headroom.

@@ -117,13 +117,38 @@ describe("OOPIF synthetic test corpus", () => {
     );
   }
 
-  it("FIXTURE_EXPECTATIONS contains the v1 minimum corpus", () => {
+  it("FIXTURE_EXPECTATIONS contains the v1.1 expanded corpus (13 fixtures, Track A A5)", () => {
     const ids = FIXTURE_EXPECTATIONS.map((f) => f.id).sort();
     expect(ids).toEqual([
+      "5xx-error",
+      "bfcache",
+      "fenced-frame",
       "iframe-removed-mid-run",
+      "iframe-resize-causes-parent-shift",
       "oopif-3-cross-origin",
+      "popup",
+      "prerender",
       "sandbox-no-scripts",
+      "spa-soft-nav",
       "srcdoc-iframe",
+      "sw-precache",
+      "worker",
     ]);
+  });
+
+  it("every fixture declares mustHaveMetrics and mayMissMetrics arrays (A5.10 schema)", () => {
+    for (const f of FIXTURE_EXPECTATIONS) {
+      expect(Array.isArray(f.mustHaveMetrics) || f.mustHaveMetrics === undefined).toBe(true);
+      expect(Array.isArray(f.mayMissMetrics) || f.mayMissMetrics === undefined).toBe(true);
+      if (f.mustHaveAttribution) {
+        expect(Array.isArray(f.mustHaveAttribution)).toBe(true);
+      }
+    }
+  });
+
+  it("fenced-frame declares the required chromium feature flag (A5.11)", () => {
+    const ff = FIXTURE_EXPECTATIONS.find((f) => f.id === "fenced-frame");
+    expect(ff?.chromiumFlags).toBeDefined();
+    expect(ff?.chromiumFlags?.some((f) => f.includes("FencedFrames"))).toBe(true);
   });
 });

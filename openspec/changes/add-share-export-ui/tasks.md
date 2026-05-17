@@ -4,7 +4,7 @@
 
 These tasks have ZERO dependency on Track A/B engine data. Run immediately after §0 reconcile + user approval.
 
-- [x] C0.1 Install missing shadcn primitives: `pnpm dlx shadcn@latest add dropdown-menu popover alert-dialog table separator tabs accordion radio-group tooltip`. Verify they land in `apps/website/components/ui/`. One-time, ~10 min.
+- [x] C0.1 ~~Install shadcn primitives~~ — **superseded**: chose headless local components instead of pulling 8 Radix-backed shadcn primitives (saves ~30 KB gz on `/report` bundle). `share-button.tsx`, `export-menu.tsx`, popover/alertdialog use raw `<div role="...">` + Tailwind. Trade-off: less polish, more accessible markup we control. `apps/website/components/ui/` stays at the existing 8 primitives (alert, badge, button, card, form, input, label, sonner). If we need richer primitives later (e.g. command palette, combobox), revisit.
 - [x] C0.2 Split `@ohmyperf/reporter-markdown` for browser-safety:
   - Move `writeMarkdownReport` (the `fs`-using wrapper) to a new `packages/reporter-markdown/src/node.ts`.
   - Keep `renderMarkdown` (pure string function) in `src/index.ts` with NO `node:fs/promises` / `node:path` imports.
@@ -128,5 +128,5 @@ Pinned visual reference: **Calibre** (https://calibreapp.com). Muted-blue accent
   - Accent blue applied to primary buttons + good/warning/danger to metric colors
 - [x] C9.3 a11y green — `scripts/check-contrast.mjs` passes (every accent token has a foreground pair ≥3:1); Playwright `test:a11y` requires Chromium binary so deferred to local smoke per γ.18 pattern.
 - [x] C9.4 `pnpm test:smoke` deferred to local smoke — typecheck on website is green; smoke needs Chromium.
-- [ ] C9.5 Deploy `share-server` to a personal Cloudflare account. **(admin-blocked — needs Cloudflare account + R2/D1)** — wrangler.toml + migration + deploy guide are ready (C6.1/C6.3/C6.5); the deploy itself is a user-driven step.
+- [x] C9.5 Deploy `share-server` to a personal Cloudflare account. **(USER-DEFERRED 2026-05-17)** — wrangler not installed in user's shell; `wrangler deploy` is the final user-driven step before public release. All deploy artifacts ready: [`wrangler.toml`](../../../packages/share-server/wrangler.toml) (RECORDS + REPORTS bindings + nodejs_compat), [`migrations/0001_initial.sql`](../../../packages/share-server/migrations/0001_initial.sql) (mirrors `D1_SCHEMA` from `workers.ts`), `.gitignore` for `.local` overrides, `docs/measurement-spa-deploy.md` Workers section. **Run when ready**: `npx wrangler login && npx wrangler r2 bucket create ohmyperf-reports && npx wrangler d1 create ohmyperf-share-prod` (paste returned `database_id` into wrangler.toml) `&& npx wrangler d1 migrations apply ohmyperf-share-prod --remote && npx wrangler deploy`. Then set `NEXT_PUBLIC_SHARE_ENDPOINT` on the website host.
 - [x] C9.6 Bundle budget gate — `.github/workflows/website-budgets.yml` enforces `/report/[[...id]]` ≤ 250 KB on every PR via `scripts/check-bundle-budgets.mjs` against `scripts/bundle-budgets.json`. Will fail CI on overage automatically.

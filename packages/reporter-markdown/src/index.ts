@@ -153,7 +153,7 @@ function renderInsightsSection(
   );
   if (!hasInsight) return;
 
-  lines.push("### Insights");
+  lines.push("## Insights");
   lines.push("");
 
   if (lcp?.attribution) {
