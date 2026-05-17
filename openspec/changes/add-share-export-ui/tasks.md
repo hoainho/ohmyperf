@@ -11,8 +11,9 @@ These tasks have ZERO dependency on Track A/B engine data. Run immediately after
   - Add `"./node"` to `package.json` `exports` map; root `.` only re-exports `renderMarkdown`.
   - Update CLI `apps/cli/src/commands/run.ts` to `import { writeMarkdownReport } from "@ohmyperf/reporter-markdown/node"` (was `import { writeMarkdownReport } from "@ohmyperf/reporter-markdown"`).
   - `pnpm typecheck` clean.
-- [ ] C0.3 Capture baseline bundle size for `/report` BEFORE any C/B changes: `pnpm --filter @ohmyperf/website analyze`. Record number in `docs/measurement-spa-deploy.md` "Bundle baseline 2026-05-XX" section. Threshold gate for B7.6/C9.6 is 250 KB gzip; baseline is ~126 KB.
+- [ ] C0.3 Verify (not capture) the existing bundle-budget infrastructure: `scripts/bundle-budgets.json` already defines `/report/[[...id]]` at 250 KB. `.github/workflows/website-budgets.yml` runs `scripts/check-bundle-budgets.mjs` on every PR. Action: run `pnpm --filter @ohmyperf/website analyze` once, record CURRENT actual gzipped size for `/report/[[...id]]` in `docs/measurement-spa-deploy.md` "Bundle baseline 2026-05-XX" section. **The CI gate already exists** — no new workflow step needed.
 - [ ] C0.4 Remove `uplot` from `apps/website/package.json` (confirmed unused via `git grep uplot` returning zero hits today). `pnpm install`.
+- [ ] C0.5 Reconcile bundle-budget script naming. Verified 2026-05-17: `apps/website/package.json` line 13 invokes `scripts/check-bundle-budget.mjs` (singular) but the canonical CI script is `scripts/check-bundle-budgets.mjs` (plural, referenced by `.github/workflows/website-budgets.yml`). Both files currently exist. Determine which is canonical (likely plural, given CI uses it); update `apps/website/package.json` `analyze:check` script to invoke the plural version; delete the orphan singular file.
 
 ## C1. Wire @ohmyperf/share-client into the SPA
 
@@ -94,6 +95,7 @@ Pinned visual reference: **Calibre** (https://calibreapp.com). Muted-blue accent
   - Replace hardcoded `#0cce6b`, `#ffa400`, `#ff4e42` with `var(--color-accent-success/warning/danger)`.
   - Where Tailwind class is needed, expose via `bg-[var(--color-accent-success)]` etc.
 - [ ] C7.3 Re-run `pnpm test:a11y`; fix any new contrast violations BEFORE merging.
+- [ ] C7.4 Add `scripts/check-contrast.mjs`: small node script using `culori` to compute APCA / WCAG-2.1 contrast for each `--color-accent-*` against `oklch(1 0 0)` (light bg) and `oklch(0.15 0 0)` (dark bg). Fail with non-zero exit if any ratio < 4.5:1 for text use cases. Wire as a `pretest:a11y` script so the contrast check runs before axe. Otherwise WCAG verification is "hope, not check."
 
 ## C8. (MERGED with B4.9) Consolidated ReportViewer refactor — one PR at B→C boundary
 
@@ -106,7 +108,7 @@ Pinned visual reference: **Calibre** (https://calibreapp.com). Muted-blue accent
   - Replace render-blocking yellow span with shadcn `Badge` with `--color-accent-warning` bg.
 - [ ] C8.2 Replace inline `UnstableBanner` with `<VarianceBanner runs={report.runs.length} />` (component already exists; uses `{runs: number}` signature — DO NOT refactor to `{report}`).
 - [ ] C8.3 Replace inline `FrameNodeItem` recursion with `<FrameTree nodes={report.frames.nodes} root={report.frames.root} />` (component already exists with collapse toggle in `components/metrics/frame-tree.tsx`; uses `{nodes, root}` signature; `report.frames` is the correct path, NOT `report.frameTree`).
-- [ ] C8.4 Add `<Waterfall resources={firstWarmRun.resources} />` (from `components/metrics/waterfall.tsx`) below the ResourcesTable. Select `firstWarmRun` from `report.runs.find(r => !r.cold) ?? report.runs[0]`.
+- [ ] C8.4 Add `<Waterfall resources={firstWarmRun.resources} />` (from `components/metrics/waterfall.tsx`) below the ResourcesTable. Verified 2026-05-17 `RunReport.cold: boolean` exists at `packages/core/src/types.ts:174`. Select via `const firstWarmRun = report.runs.find(r => !r.cold) ?? report.runs[0];`. Defensive: if `report.runs` is empty, render nothing (Waterfall is skipped, no error).
 - [ ] C8.5 Replace inline `AuditsList` (the function in report-viewer.tsx:105-139) with the orphan `<AuditsList audits={report.audits} />` from `components/metrics/audits-list.tsx`.
 - [ ] C8.6 Audit: zero unused components in `components/metrics/` after this change. Delete `MetricRow` if it remains orphaned (Track B's `InsightsSection` may already absorb its use case via `MetricTiles`).
 - [ ] C8.7 (Moved to C0.4): `uplot` already removed during C-prep.

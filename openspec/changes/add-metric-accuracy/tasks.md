@@ -5,7 +5,7 @@
 - [ ] A0.1 Bump root `package.json` `engines.node` to `">=22.0.0"`. Add same `engines` field to all publishable workspace packages (`@ohmyperf/core`, `@ohmyperf/cli`, `@ohmyperf/share-client`, etc.).
 - [ ] A0.2 Update `.github/workflows/ci.yml` matrix: replace any Node 20 entry with Node 22. Add Node 24 (current latest) as a parallel matrix.
 - [ ] A0.3 In `apps/website/components/viewer/report-viewer.tsx` (and CLI HTML reporter `packages/viewer/src/render.ts`), audit every `report.metrics.X.attribution.Y` and `report.runs[].longTasks[].attribution.Y` access; ensure defensive `?.` chain for fields A2 / B will add. Goal: a v1.0 Report rendered by v1.1+ viewer never throws on missing optional fields.
-- [ ] A0.4 Confirm `web-vitals: ^4.2.4` is moved from `devDependencies` to `dependencies` of `packages/plugins-builtin/package.json`. The §0 reconcile audit owns this — verify before A1.2 starts.
+- [ ] A0.4 Move `"web-vitals": "catalog:"` from `devDependencies` to `dependencies` in `packages/plugins-builtin/package.json` (verified 2026-05-17 currently in devDependencies, line 47). `pnpm install`; `pnpm api:check --filter @ohmyperf/plugins-builtin` clean. **A1.2 depends on this — fix BEFORE A1.2 starts.** (§0 reconcile no longer owns this — moved to A direct ownership for clarity.)
 
 ## A1. INP correctness fix
 
@@ -83,6 +83,7 @@
 - [ ] A6.2 Update `packages/core/etc/core.api.md` snapshot.
 - [ ] A6.3 Update `README.md` "Accuracy" section: replace marketing claims with concrete "TBT within ±5% of Lighthouse on fixtures X/Y/Z" + link to parity test.
 - [ ] A6.4 Add `docs/accuracy.md` explaining the parity methodology, known deltas (e.g. headless vs headed paint timing), and how to reproduce locally.
+- [ ] A6.5 If a generated JSON schema exists for the Report (`schemas/report.schema.json` or generated via `ts-json-schema-generator`), regenerate it and diff against the previous version. Verify it's additive-only (no `-` lines for existing properties). If no schema exists, this is a gap — flag for v1.1 schema-generation track.
 
 ## A7. Acceptance
 

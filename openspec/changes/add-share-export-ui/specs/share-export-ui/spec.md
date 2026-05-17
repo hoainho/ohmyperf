@@ -23,12 +23,14 @@ The `/report/?id=<id>` route SHALL render a Share button in the toolbar.
 - **AND** the popover links to `docs/measurement-spa-deploy.md`
 - **AND** no network request is made
 
-#### Scenario: ShareSecretLeakError surfaces a confirm dialog
-- **WHEN** the redaction pipeline detects a secret in the Report
+#### Scenario: ShareSecretLeakError surfaces a confirm dialog (defensive path)
+- **WHEN** a test harness mocks `redaction.scanEnvSecrets()` to return `['ENV_SECRET_KEY']` (or the same code path is exercised via CLI where `process.env` is real)
 - **AND** the user clicks Share
 - **THEN** an AlertDialog appears listing the leaked keys
 - **AND** the user can choose "Cancel" or "Share anyway (unsafe)"
 - **AND** "Share anyway" re-invokes `uploadReport` with `skipRedaction: true`
+
+**Note**: This dialog cannot fire in production SPA because Next.js polyfills `process.env = {}` in the browser, so `scanEnvSecrets()` always returns `[]`. The dialog code is defensive — it exists for future hardening (e.g., a "scan visible URLs for tokens" mode) and for parity with the CLI path where `process.env` IS real.
 
 ### Requirement: Report page must include an Export menu
 The Report toolbar SHALL include a DropdownMenu with four export actions.
@@ -104,7 +106,7 @@ The following `components/metrics/` components SHALL be imported by `ReportViewe
 - **THEN** the rendered banner element is from `components/metrics/variance-banner.tsx`, not the previous inline `UnstableBanner`
 
 ### Requirement: share-server must ship a wrangler.toml
-`packages/share-server/wrangler.toml` SHALL exist with placeholder bindings for D1 + R2, and `wrangler.example.toml` SHALL document the deploy.
+`packages/share-server/wrangler.toml` SHALL exist with placeholder bindings for D1 + R2 (single committed file with `REPLACE_AFTER_wrangler_d1_create` placeholders + inline comments — no separate `wrangler.example.toml`).
 
 #### Scenario: wrangler.toml exists
 - **WHEN** a self-hoster clones the repo
@@ -115,10 +117,10 @@ The following `components/metrics/` components SHALL be imported by `ReportViewe
 - **THEN** the migration file `migrations/0001_initial.sql` applies cleanly
 - **AND** the resulting schema matches `D1_SCHEMA` from `workers.ts`
 
-### Requirement: Bundle budget for /report must remain under 250 KB gzip
-The SPA `/report` route SHALL stay under 250 KB First Load JS (gzipped) after adding share-client + the new toolbar + shadcn refactor.
+### Requirement: Bundle budget for /report/[[...id]] must remain under 250 KB gzip
+The SPA `/report/[[...id]]` route (the key used in `scripts/bundle-budgets.json`) SHALL stay under 250 KB First Load JS (gzipped) after adding share-client + the new toolbar + shadcn refactor.
 
 #### Scenario: Bundle budget check passes
 - **WHEN** `pnpm --filter @ohmyperf/website analyze:check` runs after this change
-- **THEN** the `/report` route bundle is ≤ 250 KB gzip
-- **AND** the build fails CI if it exceeds
+- **THEN** the `/report/[[...id]]` route bundle is ≤ 250 KB gzip
+- **AND** the existing CI gate (`.github/workflows/website-budgets.yml` running `scripts/check-bundle-budgets.mjs`) fails the build on overage

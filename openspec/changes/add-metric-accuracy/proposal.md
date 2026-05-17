@@ -52,6 +52,8 @@ This change fixes the correctness bug, populates attribution, captures the free 
 - **TBT parity acceptance split**: A4 ships LCP/FCP/TTFB at ±10% in this track. TBT ±5% acceptance moves to a new B7 task gated on Track B's trace collector — preserves "no defer" by *tightening achievable acceptance*, not dropping it.
 - **Schema stays `1.0.0`**: all type changes additive optional. `LongTask.attribution: string` stays as-is; Track B will add a sibling `attributionRich?` field rather than break the existing one. ReportViewer must use defensive `?.` chains for legacy reports lacking attribution.
 - **Lighthouse parity runs in a SEPARATE Chromium**: don't reuse the runner's session (CDP attach conflict risk). The 30s parity test cost is acceptable for a gated `pnpm test:parity` suite.
+- **i18n contract boundary**: this track may NOT edit `apps/website/messages/vi.json`; the `__TODO_VI__` placeholder is the v1.1 i18n track's responsibility.
+- **UI color hardcoding forbidden**: any UI change (e.g. new INP interactionType badge) must use `--color-accent-*` CSS vars (defined by Track C's C7.1). No hex/rgb literals in component styles.
 
 ## Success criteria
 

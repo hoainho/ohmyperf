@@ -16,14 +16,21 @@
   - **DO NOT MODIFY** the existing `attribution: string` field (that would break the frozen 1.0 API).
   - Reader pattern in viewer: `const a = lt.attributionRich ?? { invoker: lt.attribution }; const url = a.url; const invoker = a.invoker;`
 - [ ] B1.6 Gate behind `MeasureOptions.collectTrace` (default: `true` for SPA + extension, `false` for `ohmyperf run` unless `--collect-trace`).
-- [ ] B1.7 Thread `collectTrace` flag through: `apps/runner/src/runner.ts` (request → engine), `apps/cli/src/commands/run.ts` (CLI `--collect-trace`), `apps/extension-chrome/src/background.ts` (bridge), `apps/mcp-server/src/tools/measure.ts` (MCP arg), `packages/driver-playwright/src/index.ts` + `packages/driver-extension/src/index.ts` (driver capability flag). Each one is a 1-2 line plumbing change but they're easy to miss.
+- [ ] B1.7 Thread `collectTrace` flag through: `apps/runner/src/runner.ts` (request → engine), `apps/cli/src/commands/run.ts` (CLI `--collect-trace`), `apps/extension-chrome/src/background.ts` (bridge), `apps/mcp-server/src/server.ts` (MCP measure tool definition — single file, no `tools/` directory), `packages/driver-playwright/src/index.ts` + `packages/driver-extension/src/index.ts` (driver capability flag). Each one is a 1-2 line plumbing change but they're easy to miss.
 - [ ] B1.8 Bypass tracing entirely when `mode: "ci-stable"` is active in the engine's calibration phase — calibration measures a fixed-source JS loop and trace overhead would pollute the throttle-rate computation.
+- [ ] B1.9 Trace artifact storage in SPA: when SPA receives a Report with `artifacts.traceRef`, store the trace blob in a SEPARATE IndexedDB store `report-artifacts` (keyed by report id), NOT inline in the report record. The artifact counts toward the existing 200MB total IndexedDB quota (measurement-spa contract R119-140) and is evicted with the parent report. Without this, a single 100MB trace can blow the 200MB total cap. Update `apps/website/lib/storage.ts` schema to v2 (idb upgrade callback adds the new store).
 
 ## B2. Render-blocking opportunity computation
 
 - [ ] B2.1 Add `render-blocking-collector.ts`:
   - Subscribe to existing resource entries (no new CDP calls).
-  - **Time-base alignment**: `cwv-collector` returns FCP as `DOMHighResTimeStamp` (ms since navStart). `resource-collector` returns `responseAt` as CDP `MonotonicTime` (seconds since arbitrary epoch). These DO NOT subtract directly. Capture `Network.requestWillBeSent.timestamp` for the main document as the nav-start anchor; convert FCP into CDP-seconds via `navStartCdp + fcpDomHr/1000`; then `wastedMs = max(0, (fcpCdp - resource.responseAt) * 1000)`.
+  - **Time-base alignment**: `cwv-collector` returns FCP as `DOMHighResTimeStamp` (ms since navStart). `resource-collector` returns `responseAt` as CDP `MonotonicTime` (seconds since arbitrary epoch). These DO NOT subtract directly. Concrete formula (use exactly):
+    ```ts
+    const navStartCdpSeconds = mainDocReq.timestamp;          // CDP seconds at navigationStart
+    const fcpCdpSeconds = navStartCdpSeconds + fcpDomHr / 1000; // fcpDomHr is ms since navStart
+    const wastedMs = Math.max(0, (fcpCdpSeconds - resource.responseAt) * 1000);
+    ```
+    `mainDocReq` is the `Network.requestWillBeSent` event whose `requestId` matches the page's main document; capture it at the start of the run and store on the collector context.
   - For each `renderBlocking: true` resource, compute `wastedMs` per the formula above.
   - Emit a single `Opportunity` named `render-blocking-resources` with `details.items[]` sorted by `wastedMs DESC`.
 - [ ] B2.2 Add `Opportunity` type to `types.ts`:
@@ -78,11 +85,7 @@
 - [ ] B4.8 Create `apps/website/components/insights/insights-section.tsx`:
   - Orchestrates: filter pills → conditional render of B4.2–B4.7 based on `selectedMetric` and data presence
   - "Flagged / Informational / Passed" three-clump layout per Lighthouse pattern
-- [ ] B4.9 (MERGED with Track C's C8) Refactor `apps/website/components/viewer/report-viewer.tsx` as a single consolidated PR landing at the B→C boundary:
-  - Replace flat `AuditsList` + `ResourcesTable` blocks with `<InsightsSection>` (new) + collapsible `<details>` for "All audits" + "All resources" + "Frame tree" (current detail level preserved but de-emphasized).
-  - Wire 3 orphan components from `components/metrics/` (`VarianceBanner`, `FrameTree`, `Waterfall`) with their existing signatures (do NOT refactor them to take `report`). Delete `MetricRow` if unused after merge.
-  - Wrap sections in shadcn `Card`/`CardHeader`/`CardContent`. Use shadcn `Table` for tabular data. (Both Track B's insight components AND Track C's existing-section refactor land here.)
-  - Why merged: both B and C edit the same 286-line file; doing serially doubles diff + introduces merge hell.
+- [ ] B4.9 **OWNED BY Track C's C8** — see `add-share-export-ui/tasks.md` C8 for the consolidated PR. Track B's responsibility here is to PROVIDE the `InsightsSection` component (B4.1–B4.8 above) ready-to-import. The ReportViewer wiring is C8's job at the B→C boundary. (Splitting ownership avoids two assignees both thinking the other is doing it.)
 
 ## B5. Reporter parity
 

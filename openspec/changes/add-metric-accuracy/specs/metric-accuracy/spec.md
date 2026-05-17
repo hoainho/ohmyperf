@@ -9,10 +9,10 @@ The engine MUST compute INP using the official `web-vitals/attribution` library,
 - **WHEN** a user clicks one button that runs a 240ms event handler
 - **THEN** the Report's `metrics.inp.value` equals the value reported by `web-vitals` `onINP({ reportAllChanges: true })` within ±2ms
 
-#### Scenario: Multiple interactions choose the 98th percentile
+#### Scenario: Multiple interactions follow web-vitals worst-case rule
 - **WHEN** the user performs 10 interactions with durations [50, 60, 80, 100, 120, 150, 200, 250, 300, 800] ms
-- **THEN** the Report's `metrics.inp.value` ≥ 300 (because 800ms is the worst, 300ms is the 98th percentile of 10 samples per web-vitals)
-- **AND** the value matches `web-vitals` `onINP` reference within ±2ms
+- **THEN** the Report's `metrics.inp.value` equals `800` (web-vitals returns the worst when n < 50; the "drop 1 per 50 interactions" rule only kicks in at higher sample counts)
+- **AND** the value matches `web-vitals` `onINP({ reportAllChanges: true })` reference within ±2ms
 
 #### Scenario: INP attribution exposes interaction details
 - **WHEN** the worst interaction is a pointer click on `<button id="submit">` taking 280ms (input 30ms / processing 200ms / presentation 50ms)

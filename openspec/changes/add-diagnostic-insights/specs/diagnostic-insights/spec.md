@@ -96,10 +96,10 @@ The long-tasks table SHALL apply visual emphasis to tasks ≥ 100ms (amber) and 
 - **THEN** the output contains `## Insights` as an H2 header
 - **AND** within it: subsections for LCP breakdown, top 5 long tasks, top 5 render-blocking, top 5 third parties (when each is non-empty)
 
-### Requirement: Bundle budget for /report must remain under 250 KB gzip
-The SPA `/report` route SHALL stay under 250 KB First Load JS (gzipped).
+### Requirement: Bundle budget for /report/[[...id]] must remain under 250 KB gzip
+The SPA `/report/[[...id]]` route (the key used in `scripts/bundle-budgets.json`) SHALL stay under 250 KB First Load JS (gzipped).
 
 #### Scenario: Bundle budget check passes
 - **WHEN** `pnpm --filter @ohmyperf/website analyze:check` runs after this change
-- **THEN** the `/report` route bundle is ≤ 250 KB gzip
-- **AND** the build fails CI if it exceeds
+- **THEN** the `/report/[[...id]]` route bundle is ≤ 250 KB gzip
+- **AND** the existing CI gate (`.github/workflows/website-budgets.yml`) fails the build on overage

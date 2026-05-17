@@ -78,6 +78,7 @@ User chose **Calibre / SpeedCurve** as the visual direction: perf-tool aesthetic
 - **`wrangler.toml` D1 binding name**: `RECORDS` (matches existing `WorkersBindings.RECORDS` in `workers.ts`), NOT `DB`. The current proposal `tasks.md` C6.1 said `DB` — this is a bug; fix during refinement.
 - **Single `wrangler.toml`** (with `REPLACE_AFTER_wrangler_d1_create` placeholders), **commit `.local` gitignored**. Drop the redundant `wrangler.example.toml`.
 - **C8 + B4.9 MERGED into one ReportViewer refactor PR** at the B→C boundary.
+- **i18n contract boundary**: this track may NOT edit `apps/website/messages/vi.json`; the `__TODO_VI__` placeholder is the v1.1 i18n track's responsibility.
 
 ## Success criteria
 

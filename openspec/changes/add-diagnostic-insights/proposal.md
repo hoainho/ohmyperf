@@ -58,6 +58,8 @@ This change builds the engine-side data + the SPA-side UI to surface diagnostics
 - **Long-task attribution shape**: flat `{ url, invoker, frameId }` for v1 (NOT richer `{longestScript, contributors[≤5]}` — that's a follow-up if user demand surfaces).
 - **B4.9 ReportViewer refactor MERGES with Track C's C8** into one consolidated PR at the B→C boundary. Same file, doing it serially doubles the diff.
 - **B7 owns TBT parity test** (`tests/parity/tbt-parity.test.ts`) — split out from Track A's A4.3 since TBT requires trace-based long-tasks that only land in B1.
+- **i18n contract boundary**: this track may NOT edit `apps/website/messages/vi.json`; the `__TODO_VI__` placeholder is the v1.1 i18n track's responsibility.
+- **UI color hardcoding forbidden**: all 8 new insight components must use `--color-accent-*` CSS vars (defined by Track C's C7.1). No hex/rgb literals.
 
 ## Success criteria
 
