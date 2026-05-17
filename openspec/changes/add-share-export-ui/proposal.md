@@ -62,6 +62,22 @@ User chose **Calibre / SpeedCurve** as the visual direction: perf-tool aesthetic
 - Workspaces / team sharing.
 - Trend sparklines / history charts (require share-server-side storage of historical runs; deferred to v1.2 once we know real usage).
 - The 5 stub reporters (csv/har/junit/lh-compat/trace) — Track D candidate.
+- i18n strings for new UI — English only; defer to v1.1 i18n track.
+
+## Pinned design decisions (Phase 2 synthesis 2026-05-17)
+
+- **`reporter-markdown` browser-safety fix = split package**: Add `./node` subpath export for `writeMarkdownReport` (fs-using wrapper). Keep `renderMarkdown` in root `./index` with no `node:*` imports. SPA imports `renderMarkdown` from `@ohmyperf/reporter-markdown`; CLI imports `writeMarkdownReport` from `@ohmyperf/reporter-markdown/node`. Cleanest boundary; no inline reimplementation in SPA.
+- **Visual reference PINNED**: Calibre (https://calibreapp.com homepage + product screenshots). Muted-blue accent, clean perf-tool aesthetic. NOT SpeedCurve (which is more chart-heavy and multi-accent — looser fit for OhMyPerf's report-centric UX).
+- **Track C-prep parallel lane**: tasks C0/C1/C6/C7 + shadcn-add + uplot-removal + reporter-markdown-split START IMMEDIATELY in parallel with Track A. Zero engine dependency. Saves ~1 day wall-clock.
+- **OKLCH palette WCAG-verified values**:
+  - `--color-accent-primary: oklch(0.50 0.18 245)` (NOT 0.55 — that fails 4.5:1 for text on white)
+  - `--color-accent-success: oklch(0.55 0.17 145)` (≈4.6:1 on white)
+  - `--color-accent-warning: oklch(0.55 0.16 70)` (darker variant for text; `0.70 0.18 70` only for backgrounds)
+  - `--color-accent-danger: oklch(0.55 0.22 25)` (≈5.0:1 on white)
+  - Run a contrast checker before merge — these are computed approximations.
+- **`wrangler.toml` D1 binding name**: `RECORDS` (matches existing `WorkersBindings.RECORDS` in `workers.ts`), NOT `DB`. The current proposal `tasks.md` C6.1 said `DB` — this is a bug; fix during refinement.
+- **Single `wrangler.toml`** (with `REPLACE_AFTER_wrangler_d1_create` placeholders), **commit `.local` gitignored**. Drop the redundant `wrangler.example.toml`.
+- **C8 + B4.9 MERGED into one ReportViewer refactor PR** at the B→C boundary.
 
 ## Success criteria
 

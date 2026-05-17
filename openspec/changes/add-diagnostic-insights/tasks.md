@@ -2,24 +2,29 @@
 
 ## B1. Trace collection + long-task attribution
 
-- [ ] B1.1 Vendor `@paulirish/trace_engine` (or equivalent — verify SHA + license) into `packages/trace-utils/vendor/`. Add NOTICE entry.
-- [ ] B1.2 Implement `parseTrace(events): MainThreadTask[]` in `packages/trace-utils/src/index.ts` — bottom-up task aggregation per the DevTools algorithm.
-- [ ] B1.3 Implement `attributeTask(task, jsURLs): { url?, invoker? }` — port `getAttributableURLForTask` from Lighthouse 13 (`core/lib/tracehouse/main-thread-tasks.js`).
-- [ ] B1.4 Add `trace-collector.ts` to `packages/core/src/collectors-impl/`:
-  - On `onSetup`: `Tracing.start({ categories: ['devtools.timeline','v8.execute','disabled-by-default-devtools.timeline','loading'] })`
-  - On `onIdle`: `Tracing.end`, then receive `Tracing.tracingComplete` event with `stream` handle.
-  - Read stream via `IO.read` chunks → JSON parse → hand to `parseTrace`.
-  - Map each task ≥ 50ms to an enriched `LongTaskEntry` with `attribution.url`, `attribution.invoker`.
+- [ ] B1.1 Vendor Lighthouse 13's `core/lib/tracehouse/main-thread-tasks.js` + `getAttributableURLForTask` into `packages/trace-utils/vendor/`. Pin a specific SHA from `googlechrome/lighthouse` and record it. Update root `NOTICE` file with Apache-2.0 attribution. Do NOT vendor `@paulirish/trace_engine` — too large, too fast-moving.
+- [ ] B1.2 Implement `parseTrace(events): MainThreadTask[]` in `packages/trace-utils/src/index.ts` by re-exporting / lightly adapting the vendored Lighthouse code.
+- [ ] B1.3 Implement `attributeTask(task, jsURLs): { url?, invoker? }` — port `getAttributableURLForTask` from the vendored Lighthouse source.
+- [ ] B1.4 Add `trace-collector.ts` to `packages/core/src/collectors-impl/` using the collector framework's `create`/`finalize` lifecycle (NOT plugin `onSetup`/`onIdle` hooks — those are for plugins, this is engine-built-in):
+  - In `create(session, ctx)`: `await session.send('Tracing.start', { categories: '...', transferMode: 'ReturnAsStream' })` BEFORE the engine's navigate.
+  - In `finalize()`: `await session.send('Tracing.end')`, listen for `Tracing.tracingComplete` event with `stream` handle.
+  - Read stream via `IO.read` chunks; track cumulative bytes. Warn-log at 25MB; HARD REFUSE at 100MB (emit `error: 'trace-too-large'`, fall back to existing PerformanceObserver-based long-tasks for this run).
+  - JSON parse synchronously (V8 handles 100MB in ~1s — no worker thread needed).
+  - Hand parsed events to `parseTrace`. Map each task ≥ 50ms to a `LongTaskEntry` with `attributionRich: { url, invoker, frameId }`.
 - [ ] B1.5 Update `LongTaskEntry` type in `types.ts`:
-  - Add `attribution: { url?: string, invoker?: string, frameId: string }` (replacing the current string).
-  - Backward-compat: keep string in legacy reports via discriminated union in viewer.
+  - **ADD** sibling field `attributionRich?: { url?: string, invoker?: string, frameId: string }` (optional).
+  - **DO NOT MODIFY** the existing `attribution: string` field (that would break the frozen 1.0 API).
+  - Reader pattern in viewer: `const a = lt.attributionRich ?? { invoker: lt.attribution }; const url = a.url; const invoker = a.invoker;`
 - [ ] B1.6 Gate behind `MeasureOptions.collectTrace` (default: `true` for SPA + extension, `false` for `ohmyperf run` unless `--collect-trace`).
+- [ ] B1.7 Thread `collectTrace` flag through: `apps/runner/src/runner.ts` (request → engine), `apps/cli/src/commands/run.ts` (CLI `--collect-trace`), `apps/extension-chrome/src/background.ts` (bridge), `apps/mcp-server/src/tools/measure.ts` (MCP arg), `packages/driver-playwright/src/index.ts` + `packages/driver-extension/src/index.ts` (driver capability flag). Each one is a 1-2 line plumbing change but they're easy to miss.
+- [ ] B1.8 Bypass tracing entirely when `mode: "ci-stable"` is active in the engine's calibration phase — calibration measures a fixed-source JS loop and trace overhead would pollute the throttle-rate computation.
 
 ## B2. Render-blocking opportunity computation
 
 - [ ] B2.1 Add `render-blocking-collector.ts`:
   - Subscribe to existing resource entries (no new CDP calls).
-  - For each `renderBlocking: true` resource, compute `wastedMs = max(0, fcp - resource.responseReceivedTime)`.
+  - **Time-base alignment**: `cwv-collector` returns FCP as `DOMHighResTimeStamp` (ms since navStart). `resource-collector` returns `responseAt` as CDP `MonotonicTime` (seconds since arbitrary epoch). These DO NOT subtract directly. Capture `Network.requestWillBeSent.timestamp` for the main document as the nav-start anchor; convert FCP into CDP-seconds via `navStartCdp + fcpDomHr/1000`; then `wastedMs = max(0, (fcpCdp - resource.responseAt) * 1000)`.
+  - For each `renderBlocking: true` resource, compute `wastedMs` per the formula above.
   - Emit a single `Opportunity` named `render-blocking-resources` with `details.items[]` sorted by `wastedMs DESC`.
 - [ ] B2.2 Add `Opportunity` type to `types.ts`:
   ```ts
@@ -61,7 +66,7 @@
   - Each item: element selector + score + SVG before/after rect overlay
 - [ ] B4.5 Create `apps/website/components/insights/long-tasks-table.tsx`:
   - Sortable table: URL (truncated, mono) | Start (ms) | Duration (ms)
-  - Color bands: duration > 100ms amber, > 300ms red
+  - Color bands: duration > 100ms amber, > 300ms red — **AND** text labels ("amber", "red", or icon w/ aria-label) so a11y doesn't depend solely on color (WCAG 1.4.1)
   - Top 20 only; "View all (N)" expand button
 - [ ] B4.6 Create `apps/website/components/insights/render-blocking-table.tsx`:
   - Columns: URL | Transfer Size | Wasted ms
@@ -73,8 +78,11 @@
 - [ ] B4.8 Create `apps/website/components/insights/insights-section.tsx`:
   - Orchestrates: filter pills → conditional render of B4.2–B4.7 based on `selectedMetric` and data presence
   - "Flagged / Informational / Passed" three-clump layout per Lighthouse pattern
-- [ ] B4.9 Refactor `apps/website/components/viewer/report-viewer.tsx`:
+- [ ] B4.9 (MERGED with Track C's C8) Refactor `apps/website/components/viewer/report-viewer.tsx` as a single consolidated PR landing at the B→C boundary:
   - Replace flat `AuditsList` + `ResourcesTable` blocks with `<InsightsSection>` (new) + collapsible `<details>` for "All audits" + "All resources" + "Frame tree" (current detail level preserved but de-emphasized).
+  - Wire 3 orphan components from `components/metrics/` (`VarianceBanner`, `FrameTree`, `Waterfall`) with their existing signatures (do NOT refactor them to take `report`). Delete `MetricRow` if unused after merge.
+  - Wrap sections in shadcn `Card`/`CardHeader`/`CardContent`. Use shadcn `Table` for tabular data. (Both Track B's insight components AND Track C's existing-section refactor land here.)
+  - Why merged: both B and C edit the same 286-line file; doing serially doubles diff + introduces merge hell.
 
 ## B5. Reporter parity
 
@@ -103,4 +111,6 @@
 - [ ] B7.3 Metric filter pills: click "LCP" → only LCP-affecting insights remain visible.
 - [ ] B7.4 Markdown report contains `## Insights` with same data.
 - [ ] B7.5 `pnpm test:smoke` and `pnpm test:a11y` still green (no regression in Playwright).
-- [ ] B7.6 Bundle budget for `/report` route remains < 250 KB gzip (current: 126 KB; insights add ≤ 100 KB).
+- [ ] B7.6 Bundle budget for `/report` route remains < 250 KB gzip (current: 126 KB; insights add ≤ 100 KB). **Baseline measurement was captured during C-prep day 1**; this acceptance is the final gate.
+- [ ] B7.7 TBT parity test `tests/parity/tbt-parity.test.ts` (split out from Track A's A4.3): asserts `|ohmyperfTbt - lighthouseTbt| / lighthouseTbt < 0.05` on the `long-task-bomb` fixture, using Track B's trace-based long-tasks. Adds `tbt-parity` to the gated `pnpm test:parity` matrix.
+- [ ] B7.8 A→B integration test: re-run Track A's parity fixture report through B's `InsightsSection`, assert the LCP-breakdown-card renders 4 sub-part bars from `metrics.lcp.attribution.subparts` (validates A→B data contract).

@@ -19,13 +19,13 @@ This change builds the engine-side data + the SPA-side UI to surface diagnostics
 
 ### Added (engine layer)
 
-- `packages/trace-utils/src/index.ts` — promote from 2-line stub to actual implementation. Bundle the `@paulirish/trace_engine` MainThreadTasks parser (vendored Apache-2.0). Expose:
+- `packages/trace-utils/src/index.ts` — promote from 2-line stub to actual implementation. **Vendor only Lighthouse 13's `core/lib/tracehouse/main-thread-tasks.js` + `getAttributableURLForTask`** (~300-500 LOC, Apache-2.0, self-contained). Do NOT vendor the full `@paulirish/trace_engine` — its import graph is fast-moving and ~150KB; the Lighthouse subset is stable and sufficient. Expose:
   - `parseTrace(traceEvents: TraceEvent[]): MainThreadTask[]`
-  - `attributeTask(task, jsURLs): { url?: string, invoker?: string }` (port of Lighthouse's `getAttributableURLForTask`)
-- `packages/core/src/collectors-impl/trace-collector.ts` — NEW. Starts `Tracing.start` with category set `['devtools.timeline', 'v8.execute', 'disabled-by-default-devtools.timeline', 'loading']`, captures the trace, hands it to `trace-utils` for parsing, emits enriched long-task entries with `attribution.url`.
+  - `attributeTask(task, jsURLs): { url?: string, invoker?: string }`
+- `packages/core/src/collectors-impl/trace-collector.ts` — NEW. **Greenfield work** (CDP `Tracing` domain is not used anywhere in the codebase today; this is not "promote a stub"). Lifecycle hooks: `create(session, ctx)` calls `Tracing.start` with category set `['devtools.timeline', 'v8.execute', 'disabled-by-default-devtools.timeline', 'loading']` BEFORE navigate; `finalize()` calls `Tracing.end` + reads via `IO.read` chunks. Hard cap: refuse traces > 100MB (emit `error: 'trace-too-large'` and fall back to PerformanceObserver-based long-tasks). Warn threshold: log at 25MB. Store raw trace as a side artifact (`Report.artifacts.traceRef`), NOT inline in Report. Parse trace synchronously in main thread (V8 handles 100MB JSON in ~1s; worker-thread is over-engineering for v1).
 - `packages/core/src/collectors-impl/render-blocking-collector.ts` — NEW. Cross-references resources' `responseReceived.timing.receiveHeadersEnd` with the FCP timestamp; computes `wastedMs` per render-blocking resource as `max(0, fcp - receiveHeadersEnd)`. Surfaces in `RunReport.opportunities[]`.
 - `packages/plugins-builtin/src/third-parties.ts` — NEW reference plugin. Embeds the `third-party-web` nostats-subset dataset. After `onIdle`, groups resources by `getEntity(url)`, sums `transferSize` and `mainThreadTime` per entity, emits an `audit` named `third-parties` with `details.items[]`.
-- `packages/core/src/types.ts` — add `Opportunity` shape (`{ id, title, description, metric: 'lcp' | 'fcp' | 'tbt' | 'inp' | 'cls', wastedMs?, wastedBytes?, items: Array<unknown> }`) and `RunReport.opportunities[]`.
+- `packages/core/src/types.ts` — add `Opportunity` shape (`{ id, title, description, metric: 'lcp' | 'fcp' | 'tbt' | 'inp' | 'cls', wastedMs?, wastedBytes?, items: Array<unknown> }`) and `RunReport.opportunities[]` (optional, backward compat). Also add `LongTask.attributionRich?: { url?: string, invoker?: string, frameId: string }` as a NEW optional sibling field — DO NOT change `LongTask.attribution: string` (that would be a breaking type change to a frozen API). Reader pattern: `attributionRich ?? { invoker: attribution }`. Schema stays at `1.0.0`.
 
 ### Added (SPA layer)
 
@@ -49,6 +49,15 @@ This change builds the engine-side data + the SPA-side UI to surface diagnostics
 - **Filmstrip** (screenshot timeline) — requires a screenshot collector at fixed intervals; deferred to v1.2 unless trivial to add via `Page.startScreencast`.
 - **Performance Insights v2** (Lighthouse 13's `@paulirish/trace_engine` insights like `lcp-discovery-insight`) — we ship `lcp-breakdown` + `inp-breakdown` + `render-blocking` + `third-parties` + `cls-culprits` + `long-tasks`. Other insights deferred.
 - **Trend / history sparklines** — requires share-server-side historical storage; Track C dependency.
+- **i18n for new strings** — English only in this track; defer to v1.1 i18n track (consistent with `messages/vi.json` already being `__TODO_VI__`).
+
+## Pinned design decisions (Phase 2 synthesis 2026-05-17)
+
+- **trace-utils source**: Lighthouse 13 `core/lib/tracehouse/main-thread-tasks.js` vendored as-is. NOT `@paulirish/trace_engine`.
+- **`LongTask.attribution` stays a `string`** for backward-compat; new info goes in sibling `attributionRich?` field. Schema version stays `1.0.0`.
+- **Long-task attribution shape**: flat `{ url, invoker, frameId }` for v1 (NOT richer `{longestScript, contributors[≤5]}` — that's a follow-up if user demand surfaces).
+- **B4.9 ReportViewer refactor MERGES with Track C's C8** into one consolidated PR at the B→C boundary. Same file, doing it serially doubles the diff.
+- **B7 owns TBT parity test** (`tests/parity/tbt-parity.test.ts`) — split out from Track A's A4.3 since TBT requires trace-based long-tasks that only land in B1.
 
 ## Success criteria
 

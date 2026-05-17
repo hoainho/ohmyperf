@@ -67,13 +67,10 @@ The repo SHALL ship a parity test harness that compares OhMyPerf output against 
 - **THEN** `|ohmyperf.lcp - lighthouse.lcp| / lighthouse.lcp` is less than 0.10
 - **AND** the same bound holds for FCP and TTFB
 
-#### Scenario: TBT within ±5% of Lighthouse
-- **WHEN** `pnpm test:parity` runs against fixture `long-task-bomb`
-- **THEN** `|ohmyperf.tbt - lighthouse.tbt| / lighthouse.tbt` is less than 0.05
-
-#### Scenario: Parity test gates README claim
-- **WHEN** README claims TBT accuracy without a corresponding green parity test
-- **THEN** CI fails on `lint:claims` (a static check parsing the README accuracy section against the parity test fixtures)
+#### Scenario: TBT parity test deferred to Track B
+- **WHEN** Track A ships
+- **THEN** TBT parity acceptance is owned by `tests/parity/tbt-parity.test.ts` (Track B B7), NOT `lighthouse-parity.test.ts`
+- **AND** the deferral is documented in `tests/parity/README.md` with the rationale (TBT requires trace-based long-tasks, which Track B introduces)
 
 ### Requirement: OOPIF corpus must cover 13 scenarios with metric assertions
 The OOPIF corpus SHALL include 13 fixtures, each with explicit metric-availability and attribution assertions.
