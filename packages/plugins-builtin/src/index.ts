@@ -6,3 +6,7 @@ export {
   customMetricExamplePlugin,
   type CustomMetricExampleOptions,
 } from "./custom-metric-example.js";
+export {
+  thirdPartiesPlugin,
+  type ThirdPartiesPluginOptions,
+} from "./third-parties.js";

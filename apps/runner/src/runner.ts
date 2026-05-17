@@ -1,6 +1,6 @@
 import { runEngine, type EngineLaunchAdapter, type Logger, type Report } from "@ohmyperf/core";
 import { createPlaywrightAdapter } from "@ohmyperf/driver-playwright";
-import { axePlugin, cwvPlugin } from "@ohmyperf/plugins-builtin";
+import { axePlugin, cwvPlugin, thirdPartiesPlugin } from "@ohmyperf/plugins-builtin";
 import type { ProgressEvent } from "@ohmyperf/shared-types";
 import type { Job } from "./queue.js";
 
@@ -93,7 +93,7 @@ export const executeJob: EngineRunner = async (job, emit) => {
       mode,
       headless,
       collectTrace,
-      plugins: [cwvPlugin(), axePlugin()],
+      plugins: [cwvPlugin(), axePlugin(), thirdPartiesPlugin()],
     },
     driver,
     adapter: wrappedAdapter,

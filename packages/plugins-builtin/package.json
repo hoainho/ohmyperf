@@ -40,6 +40,9 @@
     "test": "vitest run --passWithNoTests",
     "clean": "rimraf dist .turbo *.tsbuildinfo"
   },
+  "dependencies": {
+    "third-party-web": "^0.29.2"
+  },
   "peerDependencies": {
     "@ohmyperf/core": "workspace:*"
   },

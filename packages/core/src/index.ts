@@ -99,6 +99,7 @@ export type {
   MetricAttribution,
   Mode,
   NavigationEvent,
+  Opportunity,
   PageHandle,
   ParityInfo,
   Plugin,

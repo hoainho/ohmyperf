@@ -489,6 +489,12 @@ export interface LongTask {
     // (undocumented)
     readonly attribution: string;
     // (undocumented)
+    readonly attributionRich?: {
+        readonly url?: string;
+        readonly invoker?: string;
+        readonly frameId: string;
+    };
+    // (undocumented)
     readonly duration: number;
     // (undocumented)
     readonly startTime: number;
@@ -524,6 +530,8 @@ export interface MeasureOptions {
     readonly calibration?: {
         readonly recalibrate?: boolean;
     };
+    // (undocumented)
+    readonly collectTrace?: boolean;
     // (undocumented)
     readonly driver?: DriverRef;
     // (undocumented)
@@ -672,6 +680,28 @@ export const NETWORK_PROFILES: {
 
 // @public (undocumented)
 export type NetworkProfileName = keyof typeof NETWORK_PROFILES;
+
+// @public (undocumented)
+export interface Opportunity {
+    // (undocumented)
+    readonly description?: string;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly items: ReadonlyArray<{
+        readonly url: string;
+        readonly wastedMs?: number;
+        readonly wastedBytes?: number;
+    }>;
+    // (undocumented)
+    readonly metric: "lcp" | "fcp" | "tbt" | "inp" | "cls";
+    // (undocumented)
+    readonly title: string;
+    // (undocumented)
+    readonly wastedBytes?: number;
+    // (undocumented)
+    readonly wastedMs?: number;
+}
 
 // @public (undocumented)
 export const PACKAGE_NAME: "@ohmyperf/core";
@@ -849,6 +879,8 @@ interface Report_2 {
     // (undocumented)
     readonly meta: ReportMeta;
     // (undocumented)
+    readonly opportunities?: ReadonlyArray<Opportunity>;
+    // (undocumented)
     readonly pluginData: Readonly<Record<string, unknown>>;
     // (undocumented)
     readonly runs: readonly RunReport[];
@@ -1014,6 +1046,8 @@ export interface RunReport {
     };
     // (undocumented)
     readonly metrics: Readonly<Record<string, Metric>>;
+    // (undocumented)
+    readonly opportunities?: ReadonlyArray<Opportunity>;
     // (undocumented)
     readonly resources: readonly Resource[];
     // (undocumented)

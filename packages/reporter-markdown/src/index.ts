@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import type { AggregatedMetric, Report } from "@ohmyperf/core";
+import type { AggregatedMetric, Metric, Report, RunReport } from "@ohmyperf/core";
 
 export const REPORTER_ID = "markdown" as const;
 
@@ -81,6 +81,9 @@ export function renderMarkdown(report: Report, opts: MarkdownReporterOptions = {
   }
 
   const sourceRun = report.runs.find((r) => !r.cold) ?? report.runs[0];
+
+  renderInsightsSection(lines, report, sourceRun);
+
   if (sourceRun && sourceRun.resources.length > 0) {
     const totalBytes = sourceRun.resources.reduce((acc, r) => acc + (r.encodedSizeBytes || 0), 0);
     const renderBlocking = sourceRun.resources.filter((r) => r.renderBlocking).length;
@@ -141,4 +144,121 @@ function formatBytes(bytes: number): string {
 
 function escapeMd(s: string): string {
   return s.replace(/[|\\`]/g, (ch) => `\\${ch}`);
+}
+
+function renderInsightsSection(
+  lines: string[],
+  report: Report,
+  sourceRun: RunReport | undefined,
+): void {
+  if (!sourceRun) return;
+  const lcp = sourceRun.metrics["lcp"];
+  const inp = sourceRun.metrics["inp"];
+  const renderBlocking = (sourceRun.opportunities ?? []).find(
+    (o) => o.id === "render-blocking-resources",
+  );
+  const longTasks = sourceRun.longTasks;
+  const thirdParty = report.audits.find((a) => a.id === "third-parties");
+
+  const hasInsight = !!(
+    lcp?.attribution?.subparts ||
+    inp?.attribution?.subparts ||
+    renderBlocking ||
+    longTasks.length > 0 ||
+    thirdParty
+  );
+  if (!hasInsight) return;
+
+  lines.push("### Insights");
+  lines.push("");
+
+  if (lcp?.attribution) {
+    lines.push(formatLcpInsight(lcp));
+    lines.push("");
+  }
+  if (inp?.attribution) {
+    lines.push(formatInpInsight(inp));
+    lines.push("");
+  }
+  if (renderBlocking) {
+    lines.push(`**Render-blocking resources** — ${(renderBlocking.wastedMs ?? 0).toFixed(0)}ms wasted on FCP`);
+    lines.push("");
+    if (renderBlocking.items.length > 0) {
+      lines.push("| Resource | Wasted (ms) | Size (KB) |");
+      lines.push("|---|---:|---:|");
+      for (const it of renderBlocking.items.slice(0, 5)) {
+        const ms = it.wastedMs !== undefined ? it.wastedMs.toFixed(0) : "—";
+        const kb = it.wastedBytes !== undefined ? (it.wastedBytes / 1024).toFixed(1) : "—";
+        lines.push(`| \`${escapeMd(truncate(it.url, 80))}\` | ${ms} | ${kb} |`);
+      }
+      lines.push("");
+    }
+  }
+  if (longTasks.length > 0) {
+    const top = [...longTasks].sort((a, b) => b.duration - a.duration).slice(0, 5);
+    lines.push(`**Top long tasks** (${String(longTasks.length)} total)`);
+    lines.push("");
+    lines.push("| URL | Start (ms) | Duration (ms) |");
+    lines.push("|---|---:|---:|");
+    for (const t of top) {
+      const url = t.attributionRich?.url ?? "(anonymous)";
+      lines.push(`| \`${escapeMd(truncate(url, 80))}\` | ${t.startTime.toFixed(0)} | ${t.duration.toFixed(0)} |`);
+    }
+    lines.push("");
+  }
+  if (thirdParty?.details) {
+    const details = thirdParty.details as { items?: Array<{ entity: string; category: string; transferSize: number; mainThreadTime: number }> };
+    const items = (details.items ?? []).slice(0, 5);
+    if (items.length > 0) {
+      lines.push(`**Third parties**`);
+      lines.push("");
+      lines.push("| Entity | Category | Transfer (KB) | Main thread (ms) |");
+      lines.push("|---|---|---:|---:|");
+      for (const it of items) {
+        lines.push(
+          `| ${escapeMd(it.entity)} | \`${escapeMd(it.category)}\` | ${(it.transferSize / 1024).toFixed(1)} | ${it.mainThreadTime.toFixed(0)} |`,
+        );
+      }
+      lines.push("");
+    }
+  }
+}
+
+function formatLcpInsight(metric: Metric): string {
+  const a = metric.attribution;
+  if (!a) return "";
+  const parts: string[] = [`**LCP** — ${metric.value.toFixed(0)}ms`];
+  if (a.element) parts.push(`element \`${escapeMd(a.element)}\``);
+  if (a.url) parts.push(`resource \`${escapeMd(truncate(a.url, 60))}\``);
+  if (a.subparts) {
+    const sp = Object.entries(a.subparts)
+      .map(([k, v]) => `${k}=${v.toFixed(0)}ms`)
+      .join(" · ");
+    parts.push(`sub-parts: ${sp}`);
+  }
+  return `- ${parts.join(" · ")}`;
+}
+
+function formatInpInsight(metric: Metric): string {
+  const a = metric.attribution;
+  if (!a) return "";
+  const parts: string[] = [`**INP** — ${metric.value.toFixed(0)}ms`];
+  if (a.element) parts.push(`target \`${escapeMd(a.element)}\``);
+  if (a.interactionType) parts.push(`${a.interactionType}`);
+  if (a.subparts) {
+    const sp = Object.entries(a.subparts)
+      .map(([k, v]) => `${k}=${v.toFixed(0)}ms`)
+      .join(" · ");
+    parts.push(`sub-parts: ${sp}`);
+  }
+  if (a.longestScript) {
+    parts.push(
+      `longest script: \`${escapeMd(truncate(a.longestScript.url ?? "(anonymous)", 60))}\` (${a.longestScript.duration.toFixed(0)}ms)`,
+    );
+  }
+  return `- ${parts.join(" · ")}`;
+}
+
+function truncate(s: string, n: number): string {
+  return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }

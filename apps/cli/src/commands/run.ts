@@ -15,6 +15,7 @@ import {
   axePlugin,
   cwvPlugin,
   customMetricExamplePlugin,
+  thirdPartiesPlugin,
 } from "@ohmyperf/plugins-builtin";
 import { writeCsvReport } from "@ohmyperf/reporter-csv";
 import { writeHtmlReport } from "@ohmyperf/reporter-html";
@@ -290,10 +291,10 @@ function resolvePluginSet(name: string, logger: Logger): ReadonlyArray<Plugin> {
     case "cwv+axe":
       return [cwvPlugin(), axePlugin()];
     case "all":
-      return [cwvPlugin(), axePlugin(), customMetricExamplePlugin()];
+      return [cwvPlugin(), axePlugin(), thirdPartiesPlugin(), customMetricExamplePlugin()];
     default:
       logger.warn(`unknown --plugins value '${name}'; defaulting to 'all'`);
-      return [cwvPlugin(), axePlugin(), customMetricExamplePlugin()];
+      return [cwvPlugin(), axePlugin(), thirdPartiesPlugin(), customMetricExamplePlugin()];
   }
 }
 
