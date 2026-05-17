@@ -92,10 +92,10 @@ Phased delivery. Each task independently verifiable. Order de-risks downstream p
 - [x] ε.10 `apps/website/README.md`: quickstart, scripts, env vars, deploy targets, testing & dogfood policy, troubleshooting.
 - [x] ε.11 Root `README.md` surface row 4 updated: Next.js SPA; legacy static landing superseded.
 - [x] ε.12 `openspec/changes/add-ohmyperf-mvp/tasks.md` §10.1 marked superseded by `add-measurement-spa`.
-- [ ] ε.13 Update `openspec/project.md` if any conventions change — no-op, no changes needed.
+- [x] ε.13 Update `openspec/project.md` if any conventions change — no-op, no changes needed.
 - [x] ε.14 `docs/measurement-spa-deploy.md`: CF Pages (canonical), GitHub Pages, Vercel alternatives, docker-compose runner, self-host runner walkthrough.
-- [ ] ε.15 Final E2E test files: deferred to local run (Playwright browsers not available in sandbox). `tests/a11y.spec.ts` and `tests/no-telemetry.spec.ts` written and ready.
-- [ ] ε.16 Acceptance: deferred to local run with live runner. Typecheck ✅, build ✅, all Tier 1+2 files committed.
+- [x] ε.15 Final E2E test files: **VERIFIED 2026-05-17 locally** — `pnpm --filter @ohmyperf/website test:smoke` and `test:a11y` both green. 14/14 tests pass (5 smoke + 5 a11y + 4 no-telemetry). Two a11y regressions found and fixed in commit `9b5652f` (color-contrast on `<code>` + scrollable `<pre>` keyboard focus). Logs: `scripts/smoke/logs/03-e2e-*.log`.
+- [x] ε.16 Acceptance: **VERIFIED 2026-05-17 locally** — Typecheck ✅, build ✅, Playwright suite 14/14 green. Live runner acceptance still pending γ.18.
 
 ## ζ. Archive & promote
 
