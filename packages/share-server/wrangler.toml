@@ -1,0 +1,16 @@
+name = "ohmyperf-share"
+main = "src/workers.ts"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+OHMYPERF_PUBLIC_BASE_URL = "https://share.ohmyperf.dev"
+
+[[d1_databases]]
+binding = "RECORDS"
+database_name = "ohmyperf-share-prod"
+database_id = "REPLACE_AFTER_wrangler_d1_create"
+
+[[r2_buckets]]
+binding = "REPORTS"
+bucket_name = "ohmyperf-reports"

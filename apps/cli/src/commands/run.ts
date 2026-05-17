@@ -21,7 +21,7 @@ import { writeCsvReport } from "@ohmyperf/reporter-csv";
 import { writeHtmlReport } from "@ohmyperf/reporter-html";
 import { writeJsonReport } from "@ohmyperf/reporter-json";
 import { writeJunitReport } from "@ohmyperf/reporter-junit";
-import { writeMarkdownReport } from "@ohmyperf/reporter-markdown";
+import { writeMarkdownReport } from "@ohmyperf/reporter-markdown/node";
 import { EXIT_CODES } from "../exit-codes.js";
 
 const SUPPORTED_FORMATS = ["json", "html", "markdown", "junit", "csv"] as const;

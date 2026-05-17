@@ -142,3 +142,44 @@ For teams or shared CI environments:
 | `NEXT_PUBLIC_RUNNER_EXT_ID` | _(unset)_ | Bundled extension ID for externally_connectable |
 | `ANALYZE` | `false` | `true` → generate `.next/analyze/` |
 | `OMO_TEST_URL` | `http://127.0.0.1:3000` | Playwright test base URL override |
+
+---
+
+## Deploy share-server (optional, for hosted Share button)
+
+The Share button on `/report` requires a running `@ohmyperf/share-server`. Two deploy paths:
+
+### Cloudflare Workers + R2 + D1 (recommended)
+
+```bash
+cd packages/share-server
+
+# 1. Create the bindings on your Cloudflare account
+wrangler r2 bucket create ohmyperf-reports
+wrangler d1 create ohmyperf-share-prod        # paste the returned database_id into wrangler.toml
+
+# 2. Apply the schema migration
+wrangler d1 migrations apply ohmyperf-share-prod --remote
+
+# 3. Deploy the Worker
+wrangler deploy
+
+# 4. Note the worker URL and set it on the website:
+#    NEXT_PUBLIC_SHARE_ENDPOINT=https://ohmyperf-share.<your-subdomain>.workers.dev
+```
+
+The committed `wrangler.toml` ships with `REPLACE_AFTER_wrangler_d1_create` as the placeholder `database_id`. For local-only dev, copy it to `wrangler.toml.local` (gitignored) and edit the IDs there.
+
+### Node self-host
+
+`packages/share-server/src/node.ts` exposes a Hono adapter backed by the filesystem. It is intended for personal self-hosting; production deploys should prefer the Workers path.
+
+### Enabling the SPA Share button
+
+Once the server is deployed, set on the host running the website:
+
+```
+NEXT_PUBLIC_SHARE_ENDPOINT=https://share.example.com
+```
+
+The header pill flips to "Share connected" and the Share button on `/report` becomes interactive. With no endpoint set, the button opens a popover linking back to this guide.

@@ -1,5 +1,3 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
 import type { AggregatedMetric, Metric, Report, RunReport } from "@ohmyperf/core";
 
 export const REPORTER_ID = "markdown" as const;
@@ -17,20 +15,6 @@ export interface MarkdownReporterResult {
 
 const HEADLINE_METRICS = ["lcp", "fcp", "ttfb", "inp", "cls", "tbt"] as const;
 const UNSTABLE_COV_THRESHOLD = 0.2;
-
-export async function writeMarkdownReport(
-  report: Report,
-  outputDir: string,
-  opts: MarkdownReporterOptions = {},
-): Promise<MarkdownReporterResult> {
-  const dir = resolve(outputDir);
-  const fileName = opts.fileName ?? "report.md";
-  const path = join(dir, fileName);
-  await mkdir(dirname(path), { recursive: true });
-  const body = renderMarkdown(report, opts);
-  await writeFile(path, body, "utf8");
-  return { path, bytes: Buffer.byteLength(body) };
-}
 
 export function renderMarkdown(report: Report, opts: MarkdownReporterOptions = {}): string {
   const title = opts.title ?? "OhMyPerf report";

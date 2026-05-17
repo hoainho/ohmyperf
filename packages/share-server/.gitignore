@@ -1,0 +1,4 @@
+wrangler.toml.local
+.dev.vars
+.wrangler/
+.ohmyperf-share-data/

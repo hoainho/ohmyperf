@@ -7,6 +7,9 @@ import { toast } from 'sonner';
 import { SiteHeader } from '@/components/layout/site-header';
 import { ReportViewer } from '@/components/viewer/report-viewer';
 import { CwvGauge } from '@/components/metrics/cwv-gauge';
+import { InsightsSection } from '@/components/insights/insights-section';
+import { ShareButton } from '@/components/report/share-button';
+import { ExportMenu } from '@/components/report/export-menu';
 import { EmptyState } from '@/components/empty-state';
 import { ReportHistoryList } from '@/components/report/report-history-list';
 import { ReportHistoryToolbar, type ModeFilter } from '@/components/report/report-history-toolbar';
@@ -70,6 +73,10 @@ function ReportDisplay({ report }: { report: Report }) {
     <>
       <SiteHeader />
       <main className="mx-auto max-w-5xl px-6 py-8 space-y-8">
+        <div className="sticky top-0 z-10 -mx-6 px-6 py-3 bg-background/90 backdrop-blur border-b flex items-center justify-end gap-2">
+          <ShareButton report={report} />
+          <ExportMenu report={report} />
+        </div>
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold truncate max-w-xl">{report.meta.url}</h1>
           <Link href="/report" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
@@ -77,6 +84,7 @@ function ReportDisplay({ report }: { report: Report }) {
           </Link>
         </div>
         <CwvGauge report={report} />
+        <InsightsSection report={report} />
         <ReportViewer report={report} />
       </main>
     </>

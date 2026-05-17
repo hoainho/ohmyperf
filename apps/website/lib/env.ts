@@ -6,6 +6,7 @@ const envSchema = z.object({
     .regex(/^[a-p]{32}$/i, 'Must be a 32-char Chrome extension ID')
     .optional(),
   NEXT_PUBLIC_RUNNER_PORT: z.string().regex(/^\d{2,5}$/).default('5174'),
+  NEXT_PUBLIC_SHARE_ENDPOINT: z.string().url().optional().or(z.literal('')),
 });
 
 function readRawEnv(): Record<string, string> {
@@ -18,6 +19,9 @@ function readRawEnv(): Record<string, string> {
       if (process.env.NEXT_PUBLIC_RUNNER_PORT) {
         out.NEXT_PUBLIC_RUNNER_PORT = process.env.NEXT_PUBLIC_RUNNER_PORT;
       }
+      if (process.env.NEXT_PUBLIC_SHARE_ENDPOINT) {
+        out.NEXT_PUBLIC_SHARE_ENDPOINT = process.env.NEXT_PUBLIC_SHARE_ENDPOINT;
+      }
     }
   } catch {
     /* process undefined in browser if DefinePlugin substitution missed — fall through */
@@ -26,3 +30,8 @@ function readRawEnv(): Record<string, string> {
 }
 
 export const env = envSchema.parse(readRawEnv());
+
+export function getShareEndpoint(): string | null {
+  const v = env.NEXT_PUBLIC_SHARE_ENDPOINT;
+  return v && v.length > 0 ? v : null;
+}

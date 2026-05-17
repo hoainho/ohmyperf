@@ -33,9 +33,6 @@ catalogs:
     recharts:
       specifier: ^2.15.0
       version: 2.15.4
-    uplot:
-      specifier: ^1.6.0
-      version: 1.6.32
     vitest:
       specifier: ^2.1.8
       version: 2.1.9
@@ -234,6 +231,12 @@ importers:
       '@ohmyperf/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@ohmyperf/reporter-markdown':
+        specifier: workspace:*
+        version: link:../../packages/reporter-markdown
+      '@ohmyperf/share-client':
+        specifier: workspace:*
+        version: link:../../packages/share-client
       '@ohmyperf/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
@@ -285,9 +288,6 @@ importers:
       tailwind-merge:
         specifier: 2.6.0
         version: 2.6.0
-      uplot:
-        specifier: 'catalog:'
-        version: 1.6.32
       zod:
         specifier: 'catalog:'
         version: 3.25.76
@@ -5001,9 +5001,6 @@ packages:
 
   unrs-resolver@1.11.1:
     resolution: {integrity: sha512-bSjt9pjaEBnNiGgc9rUiHGKv5l4/TGzDmYw3RhnkJGtLhbnnA/5qJj7x3dNDCRx/PJxu774LlH8lCOlB4hEfKg==}
-
-  uplot@1.6.32:
-    resolution: {integrity: sha512-KIMVnG68zvu5XXUbC4LQEPnhwOxBuLyW1AHtpm6IKTXImkbLgkMy+jabjLgSLMasNuGGzQm/ep3tOkyTxpiQIw==}
 
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
@@ -10142,8 +10139,6 @@ snapshots:
       '@unrs/resolver-binding-win32-arm64-msvc': 1.11.1
       '@unrs/resolver-binding-win32-ia32-msvc': 1.11.1
       '@unrs/resolver-binding-win32-x64-msvc': 1.11.1
-
-  uplot@1.6.32: {}
 
   uri-js@4.4.1:
     dependencies:

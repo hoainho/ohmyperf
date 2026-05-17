@@ -1,19 +1,19 @@
 {
   "name": "@ohmyperf/website",
   "version": "0.0.0-pre",
-  "private": true,
-  "type": "module",
   "description": "ohmyperf.dev landing, measurement SPA, drag-drop viewer, hosted share UI.",
   "license": "Apache-2.0",
+  "type": "module",
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",
     "start": "next start",
     "analyze": "ANALYZE=true next build",
-    "analyze:check": "ANALYZE=true next build && node scripts/check-bundle-budget.mjs",
+    "analyze:check": "ANALYZE=true next build && node ../../scripts/check-bundle-budgets.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "next lint --max-warnings=0",
     "test": "vitest run --passWithNoTests",
+    "pretest:a11y": "node ../../scripts/check-contrast.mjs",
     "test:a11y": "playwright test tests/a11y.spec.ts",
     "test:smoke": "playwright test",
     "clean": "rimraf .next out .turbo *.tsbuildinfo node_modules/.cache"
@@ -38,9 +38,10 @@
     "recharts": "catalog:",
     "sonner": "1.7.2",
     "tailwind-merge": "2.6.0",
-    "uplot": "catalog:",
     "zod": "catalog:",
-    "zustand": "catalog:"
+    "zustand": "catalog:",
+    "@ohmyperf/share-client": "workspace:*",
+    "@ohmyperf/reporter-markdown": "workspace:*"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.1",
@@ -58,5 +59,6 @@
     "tailwindcss": "4.1.13",
     "typescript": "^5.7.3",
     "vitest": "catalog:"
-  }
+  },
+  "private": true
 }

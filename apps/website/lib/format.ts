@@ -62,7 +62,7 @@ export function rateMetric(name: string, value: number): MetricRating {
 }
 
 export const RATING_COLORS: Record<MetricRating, string> = {
-  good: '#0cce6b',
-  ni:   '#ffa400',
-  poor: '#ff4e42',
+  good: 'var(--color-accent-success)',
+  ni: 'var(--color-accent-warning)',
+  poor: 'var(--color-accent-danger)',
 };

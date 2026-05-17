@@ -1,6 +1,6 @@
 'use client';
 
-import type { Report, AggregatedMetric, AuditResult, FrameNode, RunReport } from '@ohmyperf/core';
+import type { Report, AggregatedMetric, RunReport } from '@ohmyperf/core';
 import {
   HEADLINE_METRICS,
   UNSTABLE_COV_THRESHOLD,
@@ -11,6 +11,10 @@ import {
   rateMetric,
   RATING_COLORS,
 } from '@/lib/format';
+import { VarianceBanner } from '@/components/metrics/variance-banner';
+import { AuditsList } from '@/components/metrics/audits-list';
+import { FrameTree } from '@/components/metrics/frame-tree';
+import { Waterfall } from '@/components/metrics/waterfall';
 
 export interface ReportViewerProps {
   report: Report;
@@ -18,14 +22,21 @@ export interface ReportViewerProps {
 
 export function ReportViewer({ report }: ReportViewerProps) {
   const unstable = isUnstable(report);
+  const sourceRun =
+    report.runs.find((r) => !r.cold) ?? report.runs[0];
   return (
     <div className="space-y-8">
       <ReportHeader report={report} />
-      {unstable && <UnstableBanner runs={report.runs.length} />}
+      {unstable && <VarianceBanner runs={report.runs.length} />}
       <MetricTiles report={report} />
       <AuditsList audits={report.audits} />
       <ResourcesTable report={report} />
-      <FrameTreeSection report={report} />
+      {sourceRun && sourceRun.resources.length > 0 && (
+        <Waterfall resources={sourceRun.resources} />
+      )}
+      {report.frames.root && report.frames.nodes[report.frames.root] && (
+        <FrameTree nodes={report.frames.nodes} root={report.frames.root} />
+      )}
       <RunsTable report={report} />
     </div>
   );
@@ -52,15 +63,6 @@ function MetaRow({ label, value, mono }: { label: string; value: string; mono?: 
     <div className="flex gap-2">
       <span className="w-24 shrink-0 text-muted-foreground">{label}</span>
       <span className={mono ? 'font-mono text-xs break-all' : ''}>{value}</span>
-    </div>
-  );
-}
-
-function UnstableBanner({ runs }: { runs: number }) {
-  return (
-    <div className="rounded-md border border-yellow-400 bg-yellow-50 dark:bg-yellow-950/30 px-4 py-3 text-sm text-yellow-800 dark:text-yellow-300">
-      <strong>Unstable run.</strong> At least one Core Web Vital has CoV &gt;{' '}
-      {String(UNSTABLE_COV_THRESHOLD * 100)}% across {String(runs)} run(s).
     </div>
   );
 }
@@ -98,42 +100,6 @@ function MetricTile({
       <div className="text-xs font-mono text-muted-foreground uppercase mb-1">{name}</div>
       <div className="text-xl font-bold" style={{ color }}>{display}</div>
       <div className="text-xs text-muted-foreground mt-1">cov {formatCov(agg.cov)} · n={String(agg.runs)}</div>
-    </div>
-  );
-}
-
-function AuditsList({ audits }: { audits: ReadonlyArray<AuditResult> }) {
-  if (audits.length === 0) return null;
-  const sorted = [...audits].sort((a, b) => (a.passed ? 1 : 0) - (b.passed ? 1 : 0));
-  return (
-    <div>
-      <h3 className="text-base font-semibold mb-3">Audits</h3>
-      <div className="rounded-lg border overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="text-left px-3 py-2 w-16">Status</th>
-              <th className="text-left px-3 py-2 w-48">ID</th>
-              <th className="text-left px-3 py-2">Title</th>
-              <th className="text-right px-3 py-2 w-16">Score</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((a, i) => (
-              <tr key={`${a.id}-${i}`} className="border-t">
-                <td className="px-3 py-2">
-                  <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${a.passed ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300'}`}>
-                    {a.passed ? 'PASS' : 'FAIL'}
-                  </span>
-                </td>
-                <td className="px-3 py-2 font-mono text-xs">{a.id}</td>
-                <td className="px-3 py-2">{a.title}</td>
-                <td className="px-3 py-2 text-right text-muted-foreground">{a.score === null ? '—' : String(a.score)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
@@ -192,48 +158,6 @@ function ResourcesTable({ report }: { report: Report }) {
           </p>
         )}
       </div>
-    </div>
-  );
-}
-
-function FrameTreeSection({ report }: { report: Report }) {
-  const tree = report.frames;
-  if (!tree.root || !tree.nodes[tree.root]) return null;
-  return (
-    <div>
-      <h3 className="text-base font-semibold mb-3">Frame Tree</h3>
-      <div className="rounded-lg border p-4 text-sm">
-        <FrameNodeItem nodes={tree.nodes} frameId={tree.root} depth={0} />
-      </div>
-    </div>
-  );
-}
-
-function FrameNodeItem({
-  nodes,
-  frameId,
-  depth,
-}: { nodes: Readonly<Record<string, FrameNode>>; frameId: string; depth: number }) {
-  const node = nodes[frameId];
-  if (!node) return null;
-  const tags: string[] = [];
-  if (node.isOOPIF) tags.push('OOPIF');
-  if (node.isCrossOrigin) tags.push('cross-origin');
-  if (node.isSrcdoc) tags.push('srcdoc');
-  if (node.isFenced) tags.push('fenced-frame');
-  if (node.detachedAt !== undefined) tags.push('detached');
-  return (
-    <div style={{ marginLeft: depth * 16 }} className="mb-1">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="font-mono text-xs text-muted-foreground">{frameId}</span>
-        {tags.map((t) => (
-          <span key={t} className="px-1 py-0.5 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300 text-xs">{t}</span>
-        ))}
-      </div>
-      <div className="text-xs text-muted-foreground truncate">{node.url || '(empty)'}</div>
-      {node.children.map((id) => (
-        <FrameNodeItem key={id} nodes={nodes} frameId={id} depth={depth + 1} />
-      ))}
     </div>
   );
 }
