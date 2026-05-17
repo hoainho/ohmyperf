@@ -129,10 +129,43 @@ async function clearBadge(tabId: number): Promise<void> {
   await chrome.action.setBadgeText({ text: "", tabId });
 }
 
+async function setErrorBadge(tabId: number): Promise<void> {
+  await chrome.action.setBadgeBackgroundColor({ color: "#b91c1c", tabId });
+  await chrome.action.setBadgeText({ text: "!", tabId });
+}
+
+const RESTRICTED_URL_SCHEMES = [
+  "chrome://",
+  "chrome-untrusted://",
+  "chrome-extension://",
+  "chrome-search://",
+  "edge://",
+  "about:",
+  "view-source:",
+  "devtools://",
+];
+
+function isRestrictedScheme(url: string): boolean {
+  return RESTRICTED_URL_SCHEMES.some((scheme) => url.startsWith(scheme));
+}
+
 export async function handleActionClick(tab: ChromeTab): Promise<void> {
   if (tab.id === undefined) return;
   const tabId = tab.id;
   const url = tab.url ?? "(no url)";
+
+  if (isRestrictedScheme(url)) {
+    await chrome.storage.session.set({
+      [`measurement:${String(tabId)}`]: {
+        status: "error",
+        url,
+        startedAt: Date.now(),
+        error: `OhMyPerf cannot attach to ${url}. chrome:// (and similar restricted) URLs are off-limits to chrome.debugger.`,
+      } satisfies StoredMeasurement,
+    });
+    await setErrorBadge(tabId);
+    return;
+  }
 
   await chrome.storage.session.set({
     [`measurement:${String(tabId)}`]: {

@@ -384,4 +384,7 @@ export interface MeasureOptions {
   readonly signal?: AbortSignal;
   readonly hooks?: Partial<EngineHooks>;
   readonly cacheMode?: "warm" | "cold-only" | "include-cold";
+  readonly calibration?: {
+    readonly recalibrate?: boolean;
+  };
 }

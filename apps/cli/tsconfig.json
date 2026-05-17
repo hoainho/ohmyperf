@@ -8,8 +8,10 @@
     { "path": "../../packages/core" },
     { "path": "../../packages/driver-playwright" },
     { "path": "../../packages/plugins-builtin" },
+    { "path": "../../packages/reporter-csv" },
     { "path": "../../packages/reporter-html" },
     { "path": "../../packages/reporter-json" },
+    { "path": "../../packages/reporter-junit" },
     { "path": "../../packages/reporter-markdown" },
     { "path": "../../packages/share-client" },
     { "path": "../../packages/viewer" }

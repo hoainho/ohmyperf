@@ -92,12 +92,18 @@ importers:
       '@ohmyperf/plugins-builtin':
         specifier: workspace:*
         version: link:../../packages/plugins-builtin
+      '@ohmyperf/reporter-csv':
+        specifier: workspace:*
+        version: link:../../packages/reporter-csv
       '@ohmyperf/reporter-html':
         specifier: workspace:*
         version: link:../../packages/reporter-html
       '@ohmyperf/reporter-json':
         specifier: workspace:*
         version: link:../../packages/reporter-json
+      '@ohmyperf/reporter-junit':
+        specifier: workspace:*
+        version: link:../../packages/reporter-junit
       '@ohmyperf/reporter-markdown':
         specifier: workspace:*
         version: link:../../packages/reporter-markdown
@@ -383,7 +389,11 @@ importers:
         specifier: 'catalog:'
         version: 4.2.4
 
-  packages/reporter-csv: {}
+  packages/reporter-csv:
+    devDependencies:
+      '@ohmyperf/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/reporter-har: {}
 
@@ -408,7 +418,11 @@ importers:
         specifier: 'catalog:'
         version: 2.1.9(@types/node@22.19.18)(lightningcss@1.32.0)
 
-  packages/reporter-junit: {}
+  packages/reporter-junit:
+    devDependencies:
+      '@ohmyperf/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/reporter-lh-compat: {}
 

@@ -36,6 +36,16 @@ export const diffCommand = defineCommand({
       description: "Significance level (alpha) for Mann-Whitney; default 0.05",
       default: "0.05",
     },
+    "allow-cross-source": {
+      type: "boolean",
+      description: "Bypass the same-browser-source guard (baseline.browser.source != candidate.browser.source)",
+      default: false,
+    },
+    "allow-cross-mode": {
+      type: "boolean",
+      description: "Bypass the same-mode guard (baseline.mode != candidate.mode, e.g. real vs ci-stable)",
+      default: false,
+    },
     json: {
       type: "boolean",
       description: "Print machine-readable JSON to stdout",
@@ -63,6 +73,26 @@ export const diffCommand = defineCommand({
       candidate = await loadReport(String(args.candidate));
     } catch (err) {
       logger.error(`failed to load candidate: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(EXIT_CODES.invalidUsage);
+    }
+
+    const baselineSource = baseline.meta.browser.source;
+    const candidateSource = candidate.meta.browser.source;
+    if (baselineSource !== candidateSource && !args["allow-cross-source"]) {
+      logger.error(
+        `cross-source diff refused: baseline=${baselineSource} candidate=${candidateSource}. ` +
+          "Pass --allow-cross-source to override (numbers won't be comparable).",
+      );
+      process.exit(EXIT_CODES.invalidUsage);
+    }
+
+    const baselineMode = baseline.meta.mode;
+    const candidateMode = candidate.meta.mode;
+    if (baselineMode !== candidateMode && !args["allow-cross-mode"]) {
+      logger.error(
+        `cross-mode diff refused: baseline=${baselineMode} candidate=${candidateMode}. ` +
+          "Pass --allow-cross-mode to override (calibration state differs).",
+      );
       process.exit(EXIT_CODES.invalidUsage);
     }
 

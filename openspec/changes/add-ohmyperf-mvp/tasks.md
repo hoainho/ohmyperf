@@ -24,7 +24,7 @@ Phased delivery aligned with the design's 5-phase plan. Each task is independent
 - [x] 1.8 Add NOTICE file declaring axe-core (MPL-2.0), Playwright (Apache-2.0), vendored Lighthouse audits (Apache-2.0). — present at [`NOTICE`](../../../NOTICE)
 - [x] 1.9 Initialize pnpm workspace with `package.json`, `pnpm-workspace.yaml`, Turborepo `turbo.json`, root `tsconfig.json` with project references. — confirmed in repo root
 - [x] 1.10 Configure `eslint-plugin-import` rules forbidding cross-layer imports (plugins → core/internal, viewer → drivers, CDP types → public API). — present in [`eslint.config.js`](../../../eslint.config.js) `layeringRules`
-- [ ] 1.11 Set up CI matrix (GitHub Actions): macOS arm64, macOS x64, Ubuntu 22.04, Ubuntu 24.04, Windows Server 2022 — all 5 must pass for any PR. **(PARTIAL → Phase II)** — current matrix has macos-15, macos-13, ubuntu-22.04, ubuntu-24.04 but no Windows Server 2022. Will add Windows in Phase II.
+- [x] 1.11 Set up CI matrix (GitHub Actions): macOS arm64, macOS x64, Ubuntu 22.04, Ubuntu 24.04, Windows Server 2022. — all 5 OSes present in `.github/workflows/ci.yml` matrix (macos-15, macos-13, ubuntu-24.04, ubuntu-22.04, windows-2022). Verified 2026-05-17.
 - [x] 1.12 Add `api-extractor` step to CI for `@ohmyperf/core` to detect breaking exports. — `api-freeze` job present in `.github/workflows/ci.yml` + `packages/core/api-extractor.json` exists
 - [x] 1.13 Add license-audit CI step (verifies NOTICE matches the actual dependency tree). — `pnpm license:audit` wired in CI via `scripts/license-audit.mjs`
 - [ ] 1.14 Bootstrap `docs/` site (Vitepress or Astro) with stubs for: Quickstart, CLI, Plugin API, Variance, Capability Matrix, Privacy. **(deferred to v1.1 docs track)** — only `docs/measurement-spa-deploy.md` exists; full doc site is out of v1 scope per archive of measurement-spa change.
@@ -74,8 +74,8 @@ Phased delivery aligned with the design's 5-phase plan. Each task is independent
 - [x] 5.3 Implement on-disk calibration cache (24h TTL, host-fingerprint keyed). — `cache hit / cache stale / cache write` paths in `calibration.ts`.
 - [ ] 5.4 Choose and document the default reference CPU score (record in `docs/calibration-reference.md`). **(deferred to v1.1 docs track)** — default score baked into code; standalone doc deferred.
 - [x] 5.5 Wire CI Stable mode: calibration → `Emulation.setCPUThrottlingRate` + `Network.emulateNetworkConditions` (Fast 4G) → `report.meta.calibration`. — `applyEmulation()` + `NETWORK_PROFILES` in calibration.ts.
-- [ ] 5.6 Implement `--recalibrate` flag. **(PARTIAL → Phase II)** — engine accepts `recalibrate?: boolean` in CalibrationOptions; CLI flag wiring missing. Will add in Phase II.
-- [ ] 5.7 Implement calibration-failure exit code 12 path (host too slow even at no-throttle). **(PARTIAL → Phase II)** — calibration returns result but exit code 12 mapping in CLI missing. Will add in Phase II.
+- [x] 5.6 Implement `--recalibrate` flag. — `recalibrate` flag added to `apps/cli/src/commands/run.ts` (2026-05-17, Phase II); threaded through `MeasureOptions.calibration.recalibrate` into `calibrate({ recalibrate: true })`.
+- [x] 5.7 Implement calibration-failure exit code 12 path. — `CalibrationFailedError` mapped to `EXIT_CODES.calibrationFailed = 12` in `mapErrorToExitCode` (Phase II).
 - [x] 5.8 Implement variance reporting: per-metric CoV in `aggregated`, `unstable: true` flag at CoV > 0.20. — `isReportUnstable()` + `cov` field in `aggregateRuns()`. HTML banner present in viewer.
 - [x] 5.9 Implement modified Z-score outlier rejection (threshold 3.5, only at runs ≥ 5). — `dropOutliersModifiedZScore` in engine.ts (tested in `calibration.test.ts`).
 - [x] 5.10 Implement cold-vs-warm distinction (run 1 cold, runs 2..N warm; configurable via `cacheMode`). — `cold: runIndex === 0` in engine.ts; `cacheMode?: "warm" | "cold-only" | "include-cold"` in MeasureOptions.
@@ -88,8 +88,8 @@ Phased delivery aligned with the design's 5-phase plan. Each task is independent
 - [x] 6.3 Build `@ohmyperf/reporter-json` — canonical Report JSON output. — present at [`packages/reporter-json/src/index.ts`](../../../packages/reporter-json/src/index.ts) (`writeJsonReport`, `serializeReport`).
 - [x] 6.4 Build `@ohmyperf/reporter-html` — embeds the React viewer; verify offline render. — present at [`packages/reporter-html/src/index.ts`](../../../packages/reporter-html/src/index.ts) (`writeHtmlReport` via `@ohmyperf/viewer`).
 - [x] 6.5 Build `@ohmyperf/reporter-markdown` — PR-ready summary. — present at [`packages/reporter-markdown/src/index.ts`](../../../packages/reporter-markdown/src/index.ts) (144 LOC; browser-safe split → Track C C0.2).
-- [ ] 6.6 Build `@ohmyperf/reporter-junit` — JUnit XML; one testcase per budget. **(→ Phase II)** — stub only (2 LOC). JUnit XML for budget tests is implementable as a small renderer; will add in Phase II.
-- [ ] 6.7 Build `@ohmyperf/reporter-csv` — long-format per-metric-per-run. **(→ Phase II)** — stub only. Simple renderer; will add in Phase II.
+- [x] 6.6 Build `@ohmyperf/reporter-junit` — JUnit XML; one testcase per budget. — implemented Phase II at [`packages/reporter-junit/src/index.ts`](../../../packages/reporter-junit/src/index.ts) (`writeJunitReport`, `renderJunit`); wired into CLI `--format junit`.
+- [x] 6.7 Build `@ohmyperf/reporter-csv` — long-format per-metric-per-run. — implemented Phase II at [`packages/reporter-csv/src/index.ts`](../../../packages/reporter-csv/src/index.ts) (`writeCsvReport`, `renderCsv`); wired into CLI `--format csv`. CSV columns: url, run_index, cold, metric, value, unit.
 - [ ] 6.8 Build `@ohmyperf/reporter-har` — HAR with redaction applied. **(v1.1 deferred)** — stub only. Resource collector already captures the needed fields, but HAR format is a substantial mapping surface + tests; defer until users ask for it.
 - [ ] 6.9 Build `@ohmyperf/reporter-trace` — gz-stream trace; wire into `artifacts.trace`. **(blocked on Track B — B1)** — needs trace collector (Track B B1) first. Becomes trivial once B1 lands.
 - [ ] 6.10 Build `@ohmyperf/reporter-lh-compat` — Lighthouse-compatible JSON. **(v1.1 deferred)** — stub only. Useful for migration tooling; not blocking v1.
@@ -108,24 +108,24 @@ Phased delivery aligned with the design's 5-phase plan. Each task is independent
 
 - [x] 8.1 Compile API contract — present at [`packages/core/etc/core.api.md`](../../../packages/core/etc/core.api.md) (1057 LOC, auto-generated by api-extractor; serves as the canonical signature manifest). Standalone `docs/api-contract-1.0.md` superseded by the api-extractor snapshot.
 - [ ] 8.2 Tag the engine packages `1.0.0-stable`. **(release-gated → after Tracks A/B/C ship)** — current version is `0.0.0-pre`. Tagging is the final release step.
-- [ ] 8.3 Cross-surface impact-review template added to `.github/PULL_REQUEST_TEMPLATE.md`. **(→ Phase II)** — file does not exist; will add in Phase II.
+- [x] 8.3 Cross-surface impact-review template added to `.github/PULL_REQUEST_TEMPLATE.md`. — added Phase II; template enumerates every surface + cross-surface impact-review section mandatory when `packages/core/` is touched.
 
 ## 9. P1 — CLI hardening
 
-- [x] 9.1 Build `apps/cli/` skeleton with citty subcommands. **(PARTIAL CORE)** — 6 of 10 commands shipped: `run`, `diff`, `share`, `install-browser`, `doctor`, `list-plugins`. Missing: `scenario`, `init`, `watch`, `crawl` — see 9.4/9.8/9.12/9.13. The 6 shipped cover the v1 CLI quickstart shown in README.
+- [x] 9.1 Build `apps/cli/` skeleton with citty subcommands. — 7 of 10 commands shipped: `run`, `diff`, `share`, `init`, `doctor`, `install-browser`, `list-plugins`. Remaining 3 (`scenario`, `watch`, `crawl`) are alpha features → v1.1 (see 9.4 / 9.12 / 9.13).
 - [x] 9.2 Implement exit-code mapping per spec (codes 0–12). — `EXIT_CODES` map at [`apps/cli/src/exit-codes.ts`](../../../apps/cli/src/exit-codes.ts) with all 13 codes (0 ok, 1 budgetFailure, 2 invalidUsage, 3 browserLaunchFailure, 4 navigationFailure, 5 measurementRuntimeError, 6 pluginLoadError, 7 oopifAttachOrderViolation, 8 pluginHookTimeout, 9 frozenLockfileDrift, 10 shareUploadRefused, 11 browserBinaryMissing, 12 calibrationFailed). Used via `process.exit(EXIT_CODES.X)` across all commands.
 - [x] 9.3 Implement `run` with all documented flags. — [`apps/cli/src/commands/run.ts`](../../../apps/cli/src/commands/run.ts) supports `--runs`, `--mode`, `--format`, `--frozen-lockfile`, `--out`, etc.
 - [ ] 9.4 Implement `scenario` runner: load TS file, execute steps, aggregate metrics from `measure: true` steps. **(v1.1 deferred)** — not implemented. Programmatic SDK use (`runEngine` + `defineScenario` helper) covers scripted measurement; standalone CLI scenario subcommand is v1.1.
 - [x] 9.5 Implement `diff` with Mann-Whitney U significance testing per metric. — [`apps/cli/src/commands/diff.ts`](../../../apps/cli/src/commands/diff.ts) wraps `diffReports` + noise floors from `@ohmyperf/core/diff`. Noise-floor doc deferred to v1.1 docs track.
 - [x] 9.6 Implement `share` with redaction preview + env-secret scrubber + exit code 10. — [`apps/cli/src/commands/share.ts`](../../../apps/cli/src/commands/share.ts) with `redactReport`, `--unsafe-share-with-secrets` flag, `EXIT_CODES.shareUploadRefused = 10`.
 - [x] 9.7 Implement `install-browser`, `doctor`, `list-plugins`. — all three commands present.
-- [ ] 9.8 Implement `init` with `--ci <github|gitlab|circle>` template scaffolding. **(→ Phase II)** — `templates/ci/github-actions.yml` exists; CLI `init` subcommand missing. Will add in Phase II.
-- [ ] 9.9 Implement single-run-no-budget guard. **(→ Phase II)** — small validation guard in `run.ts`. Will add.
-- [ ] 9.10 Implement cross-source diff guard (`browser.source` mismatch). **(→ Phase II)** — small validation guard in `diff.ts`. Will add.
-- [ ] 9.11 Implement cross-mode diff guard (`real` vs `ci-stable`). **(→ Phase II)** — same as 9.10.
+- [x] 9.8 Implement `init` with `--ci <github|gitlab|circle>` template scaffolding. — added Phase II at [`apps/cli/src/commands/init.ts`](../../../apps/cli/src/commands/init.ts); writes `templates/ci/<provider>.yml` to the conventional path (`.github/workflows/ohmyperf.yml`, `.gitlab-ci.ohmyperf.yml`, `.circleci/config.yml`). `--force` to overwrite. Wired into [`apps/cli/src/cli.ts`](../../../apps/cli/src/cli.ts).
+- [x] 9.9 Implement single-run-no-budget guard. — already in `run.ts`: `if (args.budget !== undefined && runs === 1 && !args["allow-single-run"]) → EXIT_CODES.invalidUsage`. Verified Phase II.
+- [x] 9.10 Implement cross-source diff guard (`browser.source` mismatch). — added Phase II to `apps/cli/src/commands/diff.ts`; refuses unless `--allow-cross-source` is passed.
+- [x] 9.11 Implement cross-mode diff guard (`real` vs `ci-stable`). — added Phase II to `apps/cli/src/commands/diff.ts`; refuses unless `--allow-cross-mode` is passed.
 - [ ] 9.12 Implement `watch` (alpha) with debounce and watchPaths config. **(v1.1 deferred)** — alpha feature; not blocking v1.
 - [ ] 9.13 Implement `crawl` (alpha) with `--max-pages`, `--depth`, `--sitemap-url`. **(v1.1 deferred)** — alpha feature; not blocking v1.
-- [ ] 9.14 Author `templates/ci/github-actions.yml`, `templates/ci/gitlab-ci.yml`, `templates/ci/circleci-config.yml`. **(PARTIAL → Phase II)** — `templates/ci/github-actions.yml` present; gitlab + circleci variants missing. Will add in Phase II.
+- [x] 9.14 Author `templates/ci/github-actions.yml`, `templates/ci/gitlab-ci.yml`, `templates/ci/circleci-config.yml`. — all three present after Phase II adds gitlab-ci.yml + circleci-config.yml.
 - [x] 9.15 Validate templates work end-to-end via dogfood: ohmyperf measures itself in CI on every PR. — [`.github/workflows/dogfood.yml`](../../../.github/workflows/dogfood.yml) runs on schedule + PR + manual dispatch.
 
 ## 10. P2 — Static website + Chrome extension MVP
@@ -137,7 +137,7 @@ Phased delivery aligned with the design's 5-phase plan. Each task is independent
 - [x] 10.5 Implement "Measure this page" button → attach → measurement → detach → open viewer. — `chrome.action.onClicked` flow in `background.ts`.
 - [ ] 10.6 Run the OOPIF corpus through the extension driver in CI; document gap-list. **(deferred-by-design)** — Playwright `--load-extension` is flaky in CI per Phase δ design notes (REVIEW.md). Corpus runs through Playwright driver only; extension driver gap-list documented in `apps/extension-chrome/README.md`.
 - [ ] 10.7 Implement profile-contamination detection + warning banner. **(v1.1 deferred)** — relevant only for users measuring their everyday browser profile; v1 extension uses dev-mode profile.
-- [ ] 10.8 Implement chrome:// graceful refusal. **(→ Phase II)** — small guard in `background.ts`. Will add.
+- [x] 10.8 Implement chrome:// graceful refusal. — `isRestrictedScheme()` guard added Phase II to `apps/extension-chrome/src/background.ts` `handleActionClick`; refuses chrome://, chrome-untrusted://, chrome-extension://, edge://, about:, devtools:// etc. with a user-visible stored error + red badge, no exception thrown.
 - [ ] 10.9 Implement service-worker termination handling. **(PARTIAL)** — `background.ts` uses `chrome.storage.session` per Phase δ; full "aborted by browser" UX deferred to v1.1.
 - [ ] 10.10 Submit to Chrome Web Store under verified publisher. **(admin-blocked — needs CWS account + final code-freeze)** — packaging works; submission is a release step.
 - [x] 10.11 Author the extension's privacy/permissions justification copy for CWS submission. — present in [`apps/extension-chrome/README.md`](../../../apps/extension-chrome/README.md) "Permission justification copy" section.
@@ -182,7 +182,7 @@ Phased delivery aligned with the design's 5-phase plan. Each task is independent
 - [ ] 13.5 Schema acceptance: validate fixture against `report.schema.1.0.0.json`; round-trip JSON. **(→ Track A — A6.5)** — `engine.test.ts` does round-trip; JSON schema generation owned by Track A A6.5.
 - [x] 13.6 Plugin lifecycle acceptance. — covered by [`packages/core/src/plugin-runtime.test.ts`](../../../packages/core/src/plugin-runtime.test.ts).
 - [ ] 13.7 Failure-mode acceptance: fixtures for infinite-redirect, renderer-crash, blocked-CSP, 5xx-error, OOM-heap. **(PARTIAL → Track A — A5.9)** — A5.9 adds 5xx-error fixture; other failure modes deferred to v1.1 (correct exit codes already mapped via §9.2).
-- [ ] 13.8 Cross-platform CI matrix: macOS arm64 + macOS x64 + Ubuntu 22.04 + Ubuntu 24.04 + Windows Server 2022. **(PARTIAL → Phase II)** — current matrix has 4/5; Windows missing. Will add in Phase II.
+- [x] 13.8 Cross-platform CI matrix: macOS arm64 + macOS x64 + Ubuntu 22.04 + Ubuntu 24.04 + Windows Server 2022. — full matrix present in `.github/workflows/ci.yml`.
 - [ ] 13.9 Capability-matrix acceptance: Firefox + WebKit drivers return `{ available: false }`. **(v1.1 deferred)** — only Chromium driver shipped; no Firefox/WebKit drivers exist to test against.
 - [x] 13.10 Redaction acceptance — covered by [`packages/share-client/src/redact.ts`](../../../packages/share-client/src/redact.ts) tests. OCR password-screenshot test **deferred to v1.1** (extreme defensive depth).
 - [x] 13.11 a11y self-audit acceptance: viewer passes axe-core at WCAG 2.1 AA in CI. — [`apps/website/tests/a11y.spec.ts`](../../../apps/website/tests/a11y.spec.ts) 14/14 green; gated via `.github/workflows/ci.yml`.
@@ -197,7 +197,7 @@ Phased delivery aligned with the design's 5-phase plan. Each task is independent
 - [ ] 14.5 Sample shareable report at `/r/sample` exists and renders. **(release-gated → after share-server deploy)** — requires running production share-server.
 - [x] 14.6 At least 3 reference plugins shipping. — `cwv`, `axe`, `custom-metric-example` all present in [`packages/plugins-builtin/src/`](../../../packages/plugins-builtin/src/).
 - [ ] 14.7 Documentation pages published for: Quickstart, CLI reference, Plugin API, Variance, Capability Matrix, Privacy. **(v1.1 docs track — depends on 1.14)**
-- [ ] 14.8 Public bug bounty / responsible-disclosure policy added to `SECURITY.md`. **(→ Phase II)** — file does not exist; will add in Phase II.
+- [x] 14.8 Public bug bounty / responsible-disclosure policy added to `SECURITY.md`. — added Phase II at [`SECURITY.md`](../../../SECURITY.md): scope, reporting channel, 90-day coordinated disclosure timeline, hardening roadmap cross-links.
 - [x] 14.9 Telemetry confirmed off-by-default; first-run banner verified. — `no-telemetry.spec.ts` green; SPA has no telemetry by design (measurement-spa contract R266-275).
 - [ ] 14.10 ARCHIVE this OpenSpec change after `pnpm test:all` passes. **(release-gated — after Tracks A/B/C ship)** — manual move per archive playbook.
 

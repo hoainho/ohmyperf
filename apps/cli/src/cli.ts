@@ -1,6 +1,7 @@
 import { defineCommand, runMain } from "citty";
 import { runCommand } from "./commands/run.js";
 import { doctorCommand } from "./commands/doctor.js";
+import { initCommand } from "./commands/init.js";
 import { listPluginsCommand } from "./commands/list-plugins.js";
 import { installBrowserCommand } from "./commands/install-browser.js";
 import { diffCommand } from "./commands/diff.js";
@@ -18,6 +19,7 @@ export const main = defineCommand({
     diff: diffCommand,
     share: shareCommand,
     doctor: doctorCommand,
+    init: initCommand,
     "list-plugins": listPluginsCommand,
     "install-browser": installBrowserCommand,
   },

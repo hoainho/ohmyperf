@@ -1,5 +1,6 @@
 import { defineCommand } from "citty";
 import {
+  CalibrationFailedError,
   createConsoleLogger,
   PluginHookTimeout,
   PluginLoadError,
@@ -15,12 +16,14 @@ import {
   cwvPlugin,
   customMetricExamplePlugin,
 } from "@ohmyperf/plugins-builtin";
+import { writeCsvReport } from "@ohmyperf/reporter-csv";
 import { writeHtmlReport } from "@ohmyperf/reporter-html";
 import { writeJsonReport } from "@ohmyperf/reporter-json";
+import { writeJunitReport } from "@ohmyperf/reporter-junit";
 import { writeMarkdownReport } from "@ohmyperf/reporter-markdown";
 import { EXIT_CODES } from "../exit-codes.js";
 
-const SUPPORTED_FORMATS = ["json", "html", "markdown"] as const;
+const SUPPORTED_FORMATS = ["json", "html", "markdown", "junit", "csv"] as const;
 type SupportedFormat = (typeof SUPPORTED_FORMATS)[number];
 
 const DEFAULT_RUNS = 5;
@@ -94,6 +97,11 @@ export const runCommand = defineCommand({
     "frozen-lockfile": {
       type: "boolean",
       description: "Refuse to start if plugin set drifts from ohmyperf.lock.json (no-op in v0)",
+      default: false,
+    },
+    recalibrate: {
+      type: "boolean",
+      description: "Force re-run of the calibration benchmark (ignores 24h cache). Only meaningful with --mode ci-stable.",
       default: false,
     },
     budget: {
@@ -178,6 +186,7 @@ export const runCommand = defineCommand({
           mode,
           headless: args.headless ? "headless" : "headful",
           plugins,
+          ...(args.recalibrate ? { calibration: { recalibrate: true } } : {}),
         },
         driver,
         adapter,
@@ -197,6 +206,8 @@ export const runCommand = defineCommand({
       json: undefined,
       html: undefined,
       markdown: undefined,
+      junit: undefined,
+      csv: undefined,
     };
     if (formats.includes("json")) {
       written.json = await writeJsonReport(report, String(args.output));
@@ -206,6 +217,12 @@ export const runCommand = defineCommand({
     }
     if (formats.includes("markdown")) {
       written.markdown = await writeMarkdownReport(report, String(args.output));
+    }
+    if (formats.includes("junit")) {
+      written.junit = await writeJunitReport(report, String(args.output));
+    }
+    if (formats.includes("csv")) {
+      written.csv = await writeCsvReport(report, String(args.output));
     }
 
     if (!args.quiet) {
@@ -275,6 +292,7 @@ function resolvePluginSet(name: string, logger: Logger): ReadonlyArray<Plugin> {
 }
 
 function mapErrorToExitCode(err: unknown): number {
+  if (err instanceof CalibrationFailedError) return EXIT_CODES.calibrationFailed;
   if (err instanceof PluginLoadError) return EXIT_CODES.pluginLoadError;
   if (err instanceof PluginHookTimeout) return EXIT_CODES.pluginHookTimeout;
   const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();

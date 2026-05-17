@@ -103,6 +103,7 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
       adapter,
       logger,
       networkProfile: "fast-4g",
+      ...(opts.calibration?.recalibrate ? { recalibrate: true } : {}),
     });
     logger.info("engine: calibration done", {
       throttleRate: calibration.throttleRate,

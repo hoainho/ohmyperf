@@ -1,0 +1,73 @@
+# OhMyPerf — CircleCI config template
+#
+# Place at `.circleci/config.yml` in your repo.
+#
+# Configure context or pipeline variables:
+#   OHMYPERF_URL   — target URL (default: http://localhost:3000)
+#   OHMYPERF_RUNS  — number of runs (default: 5)
+
+version: 2.1
+
+jobs:
+  measure:
+    docker:
+      - image: cimg/node:22.11-browsers
+    resource_class: large
+    environment:
+      OHMYPERF_URL: << pipeline.parameters.url >>
+      OHMYPERF_RUNS: "5"
+    steps:
+      - checkout
+      - run:
+          name: Install OhMyPerf CLI
+          command: |
+            npm install -g @ohmyperf/cli
+      - run:
+          name: Install Chromium for OhMyPerf
+          command: |
+            ohmyperf install-browser
+            BIN=$(find ~/.cache/ms-playwright /opt/playwright-browsers -type f \
+              -path '*/chromium-*/chrome-linux/chrome' 2>/dev/null | head -1)
+            test -n "$BIN" || (echo "Chromium binary not found after install" && exit 1)
+            echo "export OHMYPERF_CHROMIUM_PATH=$BIN" >> "$BASH_ENV"
+      - run:
+          name: Run OhMyPerf
+          command: |
+            ohmyperf run "$OHMYPERF_URL" \
+              --runs "$OHMYPERF_RUNS" \
+              --mode ci-stable \
+              --output ./perf \
+              --format json,html,markdown,junit \
+              --plugins all
+      - store_test_results:
+          path: perf/report.junit.xml
+      - store_artifacts:
+          path: perf/report.json
+          destination: ohmyperf/report.json
+      - store_artifacts:
+          path: perf/report.html
+          destination: ohmyperf/report.html
+      - store_artifacts:
+          path: perf/report.md
+          destination: ohmyperf/report.md
+      - run:
+          name: Diff vs baseline (if present)
+          command: |
+            if [ -f .ohmyperf-baseline/report.json ]; then
+              ohmyperf diff .ohmyperf-baseline/report.json perf/report.json
+            else
+              echo "No .ohmyperf-baseline/report.json found; skipping diff."
+            fi
+
+parameters:
+  url:
+    type: string
+    default: "http://localhost:3000"
+
+workflows:
+  ohmyperf:
+    jobs:
+      - measure:
+          filters:
+            branches:
+              ignore: gh-pages

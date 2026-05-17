@@ -24,5 +24,10 @@
     "lint": "eslint src",
     "clean": "rimraf dist .turbo *.tsbuildinfo"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@ohmyperf/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@ohmyperf/core": "workspace:*"
+  }
 }
