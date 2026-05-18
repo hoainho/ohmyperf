@@ -165,3 +165,13 @@ ${paletteCssVars(CALIBRE_LIGHT)}
 `;
 
 export const TOKEN_NAMES = Object.values(PROP_TO_CSS_VAR) as ReadonlyArray<string>;
+
+export {
+  BRAND_IDS,
+  BRAND_MANIFEST,
+  getBrandCss,
+  isBrandId,
+  resolveTheme,
+  type BrandId,
+  type BrandManifest,
+} from "./brands.js";

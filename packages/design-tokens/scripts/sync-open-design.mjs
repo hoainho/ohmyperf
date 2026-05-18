@@ -109,15 +109,23 @@ function precomputeColorMix(css) {
   const tokenMap = buildTokenMap(css);
   let count = 0;
   const transformed = css.replace(
-    /color-mix\(\s*in\s+(?:oklab|srgb|oklch)\s*,\s*([^,]+),\s*(black|white|#[0-9a-fA-F]{6})\s+([\d.]+)%\s*\)/g,
+    /color-mix\(\s*in\s+(?:oklab|srgb|oklch)\s*,\s*([^,]+),\s*(black|white|transparent|#[0-9a-fA-F]{6})\s+([\d.]+)%\s*\)/g,
     (match, baseExpr, mixColor, pctStr) => {
       const baseResolved = resolveVar(tokenMap, baseExpr);
       if (!baseResolved) return match;
       const baseRgb = parseHexToRgb(baseResolved);
       if (!baseRgb) return match;
+      const pct = parseFloat(pctStr) / 100;
+      if (mixColor === "transparent") {
+        const alpha = 1 - pct;
+        const r = Math.round(baseRgb.r);
+        const g = Math.round(baseRgb.g);
+        const b = Math.round(baseRgb.b);
+        count++;
+        return `rgba(${String(r)}, ${String(g)}, ${String(b)}, ${alpha.toFixed(3)}) /* was: ${match.trim()} */`;
+      }
       const mixRgbColor = mixColor === "black" ? { r: 0, g: 0, b: 0 } : mixColor === "white" ? { r: 255, g: 255, b: 255 } : parseHexToRgb(mixColor);
       if (!mixRgbColor) return match;
-      const pct = parseFloat(pctStr) / 100;
       const result = mixRgb(baseRgb, mixRgbColor, pct);
       const hex = rgbToHex(result);
       count++;

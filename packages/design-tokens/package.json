@@ -22,8 +22,8 @@
     "NOTICE"
   ],
   "scripts": {
-    "build": "tsc -b && node scripts/emit-css.mjs",
-    "typecheck": "tsc -b",
+    "build": "node scripts/emit-brand-css.mjs && tsc -b && node scripts/emit-css.mjs",
+    "typecheck": "node scripts/emit-brand-css.mjs && tsc -b",
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests",
     "clean": "rimraf dist .turbo *.tsbuildinfo"

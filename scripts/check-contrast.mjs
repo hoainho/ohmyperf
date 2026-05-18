@@ -43,6 +43,47 @@ for (const token of tokens) {
   }
 }
 
+const VENDORED_BRANDS = ["linear-app", "stripe", "vercel"];
+const VENDORED_TOKENS = ["--accent", "--success", "--warn", "--danger"];
+
+for (const brand of VENDORED_BRANDS) {
+  const brandCssPath = resolve(root, "packages/design-tokens/brands", brand, "tokens.css");
+  let brandCss;
+  try {
+    brandCss = await readFile(brandCssPath, "utf8");
+  } catch {
+    console.log(`SKIP (not vendored yet): ${brand}`);
+    continue;
+  }
+  const { fgHex, bgHex } = extractFgBgHex(brandCss);
+  if (!fgHex || !bgHex) {
+    failures.push(`${brand}: could not parse --bg / --fg hex from tokens.css`);
+    continue;
+  }
+  for (const token of VENDORED_TOKENS) {
+    const re = new RegExp(`${token}\\s*:\\s*(#[0-9a-fA-F]{6}|rgba?\\([^)]+\\))`);
+    const m = brandCss.match(re);
+    if (!m) {
+      failures.push(`${brand}: ${token} not found in tokens.css`);
+      continue;
+    }
+    const tokenColor = parseColor(m[1]);
+    if (!tokenColor) {
+      failures.push(`${brand}: ${token} = ${m[1]} could not be parsed as RGB`);
+      continue;
+    }
+    const onBg = contrastRatioRgb(tokenColor, parseColor(bgHex));
+    const onFg = contrastRatioRgb(tokenColor, parseColor(fgHex));
+    const best = Math.max(onBg, onFg);
+    const which = onBg >= onFg ? "vs bg" : "vs fg";
+    if (best < MIN_RATIO) {
+      failures.push(`${brand}/${token}: ${m[1]} → best ${best.toFixed(2)}:1 ${which} (need ≥${MIN_RATIO}:1)`);
+    } else {
+      console.log(`${brand}/${token}: ${m[1]} → ${onBg.toFixed(2)}:1 (vs bg ${bgHex}) / ${onFg.toFixed(2)}:1 (vs fg ${fgHex}) ✓`);
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error("\ncheck-contrast: FAILED");
   for (const f of failures) console.error("  " + f);
@@ -61,4 +102,40 @@ function contrastRatio(fgL, bgL) {
 
 function oklchLToRelativeLuminance(L) {
   return Math.max(0, Math.min(1, Math.pow(L, 3)));
+}
+
+function extractFgBgHex(css) {
+  const bg = css.match(/--bg:\s*(#[0-9a-fA-F]{6})/);
+  const fg = css.match(/--fg:\s*(#[0-9a-fA-F]{6})/);
+  return { fgHex: fg?.[1], bgHex: bg?.[1] };
+}
+
+function parseColor(s) {
+  const t = String(s).trim();
+  const hex = t.match(/^#([0-9a-fA-F]{6})$/);
+  if (hex) {
+    const n = parseInt(hex[1], 16);
+    return { r: (n >> 16) & 0xff, g: (n >> 8) & 0xff, b: n & 0xff };
+  }
+  const rgba = t.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (rgba) {
+    return { r: Number(rgba[1]), g: Number(rgba[2]), b: Number(rgba[3]) };
+  }
+  return null;
+}
+
+function rgbToRelativeLuminance({ r, g, b }) {
+  const ch = (v) => {
+    const n = v / 255;
+    return n <= 0.03928 ? n / 12.92 : Math.pow((n + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b);
+}
+
+function contrastRatioRgb(a, b) {
+  const la = rgbToRelativeLuminance(a);
+  const lb = rgbToRelativeLuminance(b);
+  const hi = Math.max(la, lb);
+  const lo = Math.min(la, lb);
+  return (hi + 0.05) / (lo + 0.05);
 }
