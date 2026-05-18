@@ -154,7 +154,7 @@ export const runCommand = defineCommand({
       if (typeof args.mode === "string") initial.mode = args.mode;
       if (typeof args.runs === "string") initial.runs = Number(args.runs);
       if (typeof args.format === "string") initial.format = args.format;
-      if (typeof args["browser-path"] === "string") initial.browserPath = args["browser-path"];
+      if (typeof args["browser-path"] === "string" && args["browser-path"].length > 0) initial.browserPath = args["browser-path"];
       if (typeof args.output === "string") initial.output = args.output;
       const answers = await promptInteractive(initial);
       if (!answers) {
