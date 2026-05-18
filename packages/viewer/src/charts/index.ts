@@ -1,4 +1,4 @@
-export { renderDonut, donutColorAt, type DonutSlice, type DonutOptions } from "./donut.js";
+export { renderDonut, donutColorSlot, DONUT_SLICE_COUNT, type DonutSlice, type DonutOptions } from "./donut.js";
 export { renderCwvCard, type CwvCardOptions } from "./cwv-traffic-light.js";
 export {
   classifyCwv,

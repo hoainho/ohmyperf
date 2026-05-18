@@ -1,5 +1,5 @@
 import type { Report } from "@ohmyperf/core";
-import { donutColorAt, renderDonut } from "../charts/donut.js";
+import { donutColorSlot, renderDonut } from "../charts/donut.js";
 import { escapeHtml } from "../escape.js";
 import { renderEmptyState } from "./empty-state.js";
 
@@ -24,10 +24,9 @@ ${renderEmptyState("Third-party scripts not measured — re-run with plugins=['t
     sliced.push({ name: `+ ${String(others.length)} more`, transferBytes: othersBytes, mainThreadMs: othersMs });
   }
 
-  const slices = sliced.map((v, i) => ({
+  const slices = sliced.map((v) => ({
     label: v.name,
     value: v.transferBytes,
-    color: donutColorAt(i),
   }));
   const donutSvg = renderDonut(slices, {
     size: 220,
@@ -39,7 +38,7 @@ ${renderEmptyState("Third-party scripts not measured — re-run with plugins=['t
     .map((v, i) => {
       const pct = total > 0 ? ((v.transferBytes / total) * 100).toFixed(1) : "0.0";
       const kb = (v.transferBytes / 1024).toFixed(1);
-      return `<li><span class="swatch" style="background:${donutColorAt(i)}"></span><span class="label">${escapeHtml(v.name)}</span><span class="pct">${escapeHtml(`${kb} KB · ${pct}%`)}</span></li>`;
+      return `<li><span class="swatch" data-donut-slice="${String(donutColorSlot(i))}"></span><span class="label">${escapeHtml(v.name)}</span><span class="pct">${escapeHtml(`${kb} KB · ${pct}%`)}</span></li>`;
     })
     .join("");
 

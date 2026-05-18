@@ -40,7 +40,8 @@
     "clean": "rimraf dist .turbo *.tsbuildinfo"
   },
   "peerDependencies": {
-    "@ohmyperf/core": "workspace:*"
+    "@ohmyperf/core": "workspace:*",
+    "@ohmyperf/design-tokens": "workspace:*"
   },
   "devDependencies": {
     "@ohmyperf/core": "workspace:*",

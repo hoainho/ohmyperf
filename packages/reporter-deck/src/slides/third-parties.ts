@@ -1,5 +1,5 @@
 import type { Report } from "@ohmyperf/core";
-import { donutColorAt, renderDonut } from "@ohmyperf/viewer/charts";
+import { donutColorSlot, renderDonut } from "@ohmyperf/viewer/charts";
 import { escapeHtml } from "@ohmyperf/viewer/escape";
 import { slideWrapper } from "../deck-shell.js";
 import { renderEmptyStateSlide } from "./empty-slide.js";
@@ -22,13 +22,13 @@ export function renderThirdPartiesSlide(report: Report): string {
   }
   const total = vendors.reduce((s, v) => s + v.transferBytes, 0) || 1;
   const top = vendors.slice(0, 5);
-  const slices = top.map((v, i) => ({ label: v.name, value: v.transferBytes, color: donutColorAt(i) }));
+  const slices = top.map((v) => ({ label: v.name, value: v.transferBytes }));
   const donut = renderDonut(slices, { size: 320, thickness: 48, ariaLabel: "Third-party transfer size distribution" });
   const legend = top
     .map((v, i) => {
       const pct = ((v.transferBytes / total) * 100).toFixed(1);
       const kb = (v.transferBytes / 1024).toFixed(0);
-      return `<li><span class="swatch" style="background:${donutColorAt(i)}"></span><span style="flex:1">${escapeHtml(v.name)}</span><span class="pct">${escapeHtml(`${kb} KB · ${pct}%`)}</span></li>`;
+      return `<li><span class="swatch" data-donut-slice="${String(donutColorSlot(i))}"></span><span style="flex:1">${escapeHtml(v.name)}</span><span class="pct">${escapeHtml(`${kb} KB · ${pct}%`)}</span></li>`;
     })
     .join("");
 

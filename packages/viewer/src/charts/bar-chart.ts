@@ -1,4 +1,3 @@
-import { CALIBRE_LIGHT } from "@ohmyperf/design-tokens";
 import { escapeHtml, safeNumeric } from "../escape.js";
 
 export interface BarItem {
@@ -11,7 +10,6 @@ export interface HorizontalBarOptions {
   readonly width?: number;
   readonly barHeight?: number;
   readonly gap?: number;
-  readonly color?: string;
   readonly ariaLabel?: string;
 }
 
@@ -22,7 +20,6 @@ export function renderHorizontalBars(
   const width = safeNumeric(opts.width, 600);
   const barHeight = safeNumeric(opts.barHeight, 22);
   const gap = safeNumeric(opts.gap, 6);
-  const color = opts.color ?? CALIBRE_LIGHT.accentPrimary;
   const ariaLabel = escapeHtml(opts.ariaLabel ?? "Horizontal bar chart");
   if (items.length === 0) return "";
 
@@ -41,15 +38,15 @@ export function renderHorizontalBars(
       const label = escapeHtml(truncate(item.label, 32));
       const valueText = escapeHtml(`${v.toFixed(v < 10 ? 1 : 0)}${suffix}`);
       return `<g>
-  <text x="0" y="${(y + barHeight * 0.65).toFixed(1)}" font-size="12" fill="${CALIBRE_LIGHT.foreground}">${label}</text>
-  <rect x="${String(labelWidth)}" y="${String(y)}" width="${String(trackWidth)}" height="${String(barHeight)}" rx="3" fill="${CALIBRE_LIGHT.muted}" />
-  <rect x="${String(labelWidth)}" y="${String(y)}" width="${w.toFixed(2)}" height="${String(barHeight)}" rx="3" fill="${color}" />
-  <text x="${String(labelWidth + trackWidth + 10)}" y="${(y + barHeight * 0.65).toFixed(1)}" font-size="12" fill="${CALIBRE_LIGHT.mutedForeground}" font-variant-numeric="tabular-nums">${valueText}</text>
+  <text x="0" y="${(y + barHeight * 0.65).toFixed(1)}" font-size="12" data-bar="label">${label}</text>
+  <rect x="${String(labelWidth)}" y="${String(y)}" width="${String(trackWidth)}" height="${String(barHeight)}" rx="3" data-bar="track" />
+  <rect x="${String(labelWidth)}" y="${String(y)}" width="${w.toFixed(2)}" height="${String(barHeight)}" rx="3" data-bar="filled" />
+  <text x="${String(labelWidth + trackWidth + 10)}" y="${(y + barHeight * 0.65).toFixed(1)}" font-size="12" data-bar="value-text" font-variant-numeric="tabular-nums">${valueText}</text>
 </g>`;
     })
     .join("");
 
-  return `<svg viewBox="0 0 ${String(width)} ${String(height)}" width="${String(width)}" height="${String(height)}" role="img" aria-label="${ariaLabel}"><title>${ariaLabel}</title>${rows}</svg>`;
+  return `<svg class="ohmyperf-bars" viewBox="0 0 ${String(width)} ${String(height)}" width="${String(width)}" height="${String(height)}" role="img" aria-label="${ariaLabel}"><title>${ariaLabel}</title>${rows}</svg>`;
 }
 
 function truncate(s: string, max: number): string {
