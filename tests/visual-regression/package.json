@@ -1,0 +1,22 @@
+{
+  "name": "@ohmyperf/tests-visual-regression",
+  "version": "0.0.0-pre",
+  "description": "Visual regression baselines for the 4 brand styles × viewer/deck surfaces. Gated behind pnpm test:visual; runs only on ubuntu-24.04 in CI for font-renderer determinism.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -b",
+    "lint": "eslint .",
+    "test:visual": "vitest run",
+    "test:visual:update": "vitest run -u",
+    "clean": "rimraf dist .turbo *.tsbuildinfo"
+  },
+  "devDependencies": {
+    "@ohmyperf/core": "workspace:*",
+    "@ohmyperf/design-tokens": "workspace:*",
+    "@ohmyperf/reporter-deck": "workspace:*",
+    "@ohmyperf/viewer": "workspace:*",
+    "playwright": "catalog:",
+    "vitest": "catalog:"
+  }
+}

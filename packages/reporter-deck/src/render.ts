@@ -1,4 +1,5 @@
 import type { Report } from "@ohmyperf/core";
+import { isBrandId, type BrandId } from "@ohmyperf/design-tokens";
 import { renderDeckShell } from "./deck-shell.js";
 import {
   renderCoverSlide,
@@ -12,10 +13,12 @@ import {
 export interface RenderDeckOptions {
   readonly title?: string;
   readonly embedReportPayload?: boolean;
+  readonly style?: BrandId;
 }
 
 export function renderReportDeck(report: Report, opts: RenderDeckOptions = {}): string {
   const title = opts.title ?? `OhMyPerf — ${shortenUrl(report.meta.url)}`;
+  const style: BrandId = isBrandId(opts.style) ? opts.style : "calibre";
   const slides = [
     renderCoverSlide(report),
     renderCwvSlide(report),
@@ -27,6 +30,7 @@ export function renderReportDeck(report: Report, opts: RenderDeckOptions = {}): 
   return renderDeckShell(slides, {
     title,
     report,
+    style,
     ...(opts.embedReportPayload === false ? { embedReportPayload: false } : {}),
   });
 }

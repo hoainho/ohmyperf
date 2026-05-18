@@ -1,5 +1,5 @@
 import { PALETTE_CSS, PALETTE_CSS_LIGHT_ONLY } from "./index.js";
-import { VENDORED_BRAND_CSS } from "./generated/brand-css.js";
+import { VENDORED_BRAND_CSS, VENDORED_DECK_OVERLAY } from "./generated/brand-css.js";
 
 export type BrandId = "calibre" | "linear-app" | "stripe" | "vercel";
 
@@ -101,4 +101,9 @@ export function getBrandCss(
 
 export function isBrandId(value: unknown): value is BrandId {
   return typeof value === "string" && (BRAND_IDS as ReadonlyArray<string>).includes(value);
+}
+
+export function getDeckBrandOverlay(id: BrandId): string {
+  if (id === "calibre") return "";
+  return VENDORED_DECK_OVERLAY[id];
 }

@@ -1,4 +1,5 @@
 import type { Report } from "@ohmyperf/core";
+import { BRAND_MANIFEST, getDeckBrandOverlay, type BrandId } from "@ohmyperf/design-tokens";
 import { escapeHtml, escapeJsonForHtml } from "@ohmyperf/viewer/escape";
 import { DECK_CSS, DECK_NAV_SCRIPT } from "./styles.js";
 
@@ -6,6 +7,7 @@ export interface RenderDeckShellOptions {
   readonly title: string;
   readonly report: Report;
   readonly embedReportPayload?: boolean;
+  readonly style?: BrandId;
 }
 
 export function renderDeckShell(slides: ReadonlyArray<string>, opts: RenderDeckShellOptions): string {
@@ -17,6 +19,14 @@ export function renderDeckShell(slides: ReadonlyArray<string>, opts: RenderDeckS
     })
     .join("\n");
   const embed = opts.embedReportPayload !== false;
+  const style: BrandId = opts.style ?? "calibre";
+  const overlayCss = getDeckBrandOverlay(style);
+  const isCalibre = style === "calibre";
+  const manifest = BRAND_MANIFEST[style];
+  const attributionComment = isCalibre
+    ? ""
+    : `<!-- Styled like ${style} via Open Design Library (Apache-2.0) · upstream ${manifest.upstreamSha ?? "n/a"} -->`;
+
   return `<!doctype html>
 <html lang="en" class="theme-light">
 <head>
@@ -24,8 +34,10 @@ export function renderDeckShell(slides: ReadonlyArray<string>, opts: RenderDeckS
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="generator" content="@ohmyperf/reporter-deck 0.0.0-pre" />
 <meta name="referrer" content="no-referrer" />
+<meta name="ohmyperf-style" content="${escapeHtml(style)}" />
 <title>${escapeHtml(opts.title)}</title>
-<style>${DECK_CSS}</style>
+<style>${DECK_CSS}
+${overlayCss}</style>
 </head>
 <body>
 <main class="deck" id="deck">
@@ -36,6 +48,7 @@ ${numbered}
   <span class="counter" aria-live="polite">1 / ${String(slideCount)}</span>
   <button class="next" type="button" aria-label="Next slide">›</button>
 </nav>
+${attributionComment}
 ${embed ? `<script type="application/json" id="ohmyperf-report-payload">${escapeJsonForHtml(opts.report)}</script>` : ""}
 <script>${DECK_NAV_SCRIPT}</script>
 </body>

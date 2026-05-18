@@ -11,14 +11,40 @@ const outPath = resolve(outDir, "brand-css.ts");
 
 const VENDORED_BRANDS = ["linear-app", "stripe", "vercel"];
 
+const DECK_OVERLAY_TOKENS = ["--accent", "--success", "--warn", "--danger"];
+
+function extractTokenValue(css, name) {
+  const re = new RegExp(`${name}\\s*:\\s*([^;]+);`);
+  const m = css.match(re);
+  return m ? m[1].trim().replace(/\s*\/\*.*?\*\//g, "").trim() : null;
+}
+
+function buildDeckOverlay(tokensCss) {
+  const lines = [":root {"];
+  const mapping = {
+    "--accent": "--color-accent-primary",
+    "--success": "--color-accent-success",
+    "--warn": "--color-accent-warning",
+    "--danger": "--color-accent-danger",
+  };
+  for (const odToken of DECK_OVERLAY_TOKENS) {
+    const value = extractTokenValue(tokensCss, odToken);
+    if (value) lines.push(`  ${mapping[odToken]}: ${value};`);
+  }
+  lines.push("}");
+  return lines.join("\n");
+}
+
 await mkdir(outDir, { recursive: true });
 
 const entries = [];
+const overlayEntries = [];
 for (const id of VENDORED_BRANDS) {
   const tokens = await readFile(resolve(brandsDir, id, "tokens.css"), "utf8");
   const bridge = await readFile(resolve(brandsDir, id, "bridge.css"), "utf8");
   const combined = `${tokens}\n${bridge}`;
   entries.push({ id, css: combined });
+  overlayEntries.push({ id, overlay: buildDeckOverlay(tokens) });
 }
 
 const header = `// SPDX-License-Identifier: Apache-2.0
@@ -39,9 +65,17 @@ const map = `export const VENDORED_BRAND_CSS: Readonly<Record<Exclude<BrandId, "
 ${entries.map((e) => `  "${e.id}": ${tsConst(e.id)}_CSS,`).join("\n")}
 };`;
 
+const overlayBody = overlayEntries
+  .map((e) => `export const ${tsConst(e.id)}_DECK_OVERLAY: string = \`\n${escapeBackticks(e.overlay)}\n\`;`)
+  .join("\n\n");
+
+const overlayMap = `export const VENDORED_DECK_OVERLAY: Readonly<Record<Exclude<BrandId, "calibre">, string>> = {
+${overlayEntries.map((e) => `  "${e.id}": ${tsConst(e.id)}_DECK_OVERLAY,`).join("\n")}
+};`;
+
 function tsConst(brandId) {
   return brandId.toUpperCase().replace(/-/g, "_");
 }
 
-await writeFile(outPath, `${header}${body}\n\n${map}\n`, "utf8");
-console.log(`emit-brand-css: wrote ${outPath} (${String(entries.length)} brands)`);
+await writeFile(outPath, `${header}${body}\n\n${map}\n\n${overlayBody}\n\n${overlayMap}\n`, "utf8");
+console.log(`emit-brand-css: wrote ${outPath} (${String(entries.length)} brands + deck overlays)`);

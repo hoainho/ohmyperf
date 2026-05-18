@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "noEmit": true
+  },
+  "references": [
+    { "path": "../../packages/core" },
+    { "path": "../../packages/design-tokens" },
+    { "path": "../../packages/viewer" },
+    { "path": "../../packages/reporter-deck" }
+  ],
+  "include": ["src/**/*"],
+  "exclude": ["dist", "node_modules"]
+}

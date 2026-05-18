@@ -170,6 +170,7 @@ export {
   BRAND_IDS,
   BRAND_MANIFEST,
   getBrandCss,
+  getDeckBrandOverlay,
   isBrandId,
   resolveTheme,
   type BrandId,
