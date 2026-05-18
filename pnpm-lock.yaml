@@ -165,7 +165,7 @@ importers:
   apps/mcp-server:
     devDependencies:
       '@modelcontextprotocol/sdk':
-        specifier: ^1.0.4
+        specifier: ^1.29.0
         version: 1.29.0(zod@3.25.76)
       '@ohmyperf/core':
         specifier: workspace:*
@@ -179,6 +179,9 @@ importers:
       '@ohmyperf/reporter-json':
         specifier: workspace:*
         version: link:../../packages/reporter-json
+      '@ohmyperf/reporter-markdown':
+        specifier: workspace:*
+        version: link:../../packages/reporter-markdown
       vitest:
         specifier: 'catalog:'
         version: 2.1.9(@types/node@22.19.18)(lightningcss@1.32.0)
