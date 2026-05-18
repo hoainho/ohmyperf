@@ -1,5 +1,9 @@
 import { definePlugin, type Plugin, type Report, type Resource } from "@ohmyperf/core";
-import { getEntity } from "third-party-web/nostats-subset";
+import nostatsSubset from "third-party-web/nostats-subset.js";
+
+const { getEntity } = nostatsSubset as {
+  getEntity: (url: string) => { name: string; category: string } | undefined;
+};
 
 interface ThirdPartyEntityItem {
   entity: string;
