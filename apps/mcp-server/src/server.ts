@@ -26,6 +26,17 @@ import {
 } from "@ohmyperf/plugins-builtin";
 import { writeJsonReport } from "@ohmyperf/reporter-json";
 import { renderMarkdown } from "@ohmyperf/reporter-markdown";
+import {
+  analyzeRegressionCause,
+  type RegressionCauseReport,
+} from "./regression-cause.js";
+import {
+  appendTimeSeriesPoint,
+  detectAllTrends,
+  readTimeSeries,
+  type TimeSeriesPoint,
+  type TrendVerdict,
+} from "./timeseries.js";
 
 export interface McpServerOptions {
   readonly reportsDir?: string;
@@ -251,6 +262,104 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
           },
         },
       },
+      {
+        name: "track_url",
+        description:
+          "Longitudinal monitoring — measure a URL AND append the result to a time-series log at ~/.ohmyperf-mcp/timeseries/<sha256-url>.ndjson. Returns the new point + a trend verdict (improving/stable/regressing) per CWV metric over the full history. Use this instead of 'measure' when you want the agent to reason about performance changes over time. ohmyperf-only — chrome-devtools-mcp has no persistence layer.",
+        inputSchema: {
+          type: "object",
+          required: ["url"],
+          properties: {
+            url: { type: "string", description: "HTTP(S) URL to measure and track" },
+            runs: {
+              type: "integer",
+              minimum: 1,
+              maximum: 30,
+              default: 3,
+              description: "Number of measurement runs (default 3)",
+            },
+            mode: {
+              type: "string",
+              enum: ["real", "ci-stable"],
+              default: "ci-stable",
+              description:
+                "ci-stable recommended for tracking: pre-flight CPU calibration + Fast 4G ensures comparability across runs.",
+            },
+            plugins: {
+              type: "array",
+              items: { type: "string", enum: PLUGIN_IDS as unknown as string[] },
+              default: ["cwv"],
+              description: "Built-in plugins to enable during the tracked measurement",
+            },
+            collectTrace: {
+              type: "boolean",
+              default: false,
+              description: "Capture trace for the new point (adds ~5-20MB).",
+            },
+            historyLimit: {
+              type: "integer",
+              minimum: 5,
+              maximum: 500,
+              default: 100,
+              description: "Max history points to consider when computing the trend.",
+            },
+          },
+        },
+      },
+      {
+        name: "find_regression_cause",
+        description:
+          "Beyond raw diff — given two reports where a metric regressed, this tool produces RANKED HYPOTHESES with evidence: new render-blocking resources, grown/slowed assets, new long tasks attributed to scripts, and new third-party vendors. Each hypothesis lists likely causes prioritized by the regressed metric (LCP/INP/CLS heuristics). ohmyperf-only — devtools-mcp has no diff engine.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            baseline: { type: "string", description: "Baseline filesystem path OR resource URI" },
+            candidate: { type: "string", description: "Candidate filesystem path OR resource URI" },
+          },
+          required: ["baseline", "candidate"],
+        },
+      },
+      {
+        name: "enforce_budget",
+        description:
+          "Contract-as-code — measure a URL and evaluate it against a perf budget JSON. Returns structured pass/fail per metric with exit-code-style verdict (status='PASS'|'FAIL', exitCode=0|12). Defaults: lcp ≤ 2500ms, inp ≤ 200ms, cls ≤ 0.1, tbt ≤ 200ms, fcp ≤ 1800ms, ttfb ≤ 800ms. Pair this with CI to gate PRs. ohmyperf-only — devtools-mcp has no budget primitive.",
+        inputSchema: {
+          type: "object",
+          required: ["url"],
+          properties: {
+            url: { type: "string", description: "HTTP(S) URL to measure" },
+            budget: {
+              type: "object",
+              description:
+                "Per-metric budget in metric units. Missing metrics use defaults. Example: { lcp: 2000, inp: 150 }",
+              additionalProperties: { type: "number" },
+            },
+            runs: {
+              type: "integer",
+              minimum: 1,
+              maximum: 30,
+              default: 3,
+              description: "Number of measurement runs (default 3)",
+            },
+            mode: {
+              type: "string",
+              enum: ["real", "ci-stable"],
+              default: "ci-stable",
+              description: "ci-stable recommended for budget enforcement",
+            },
+            plugins: {
+              type: "array",
+              items: { type: "string", enum: PLUGIN_IDS as unknown as string[] },
+              default: ["cwv"],
+            },
+            track: {
+              type: "boolean",
+              default: false,
+              description: "If true, also append this measurement to the time-series log.",
+            },
+          },
+        },
+      },
     ],
   }));
 
@@ -384,6 +493,57 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       };
     }
 
+    if (name === "track_url") {
+      const input = parseMeasureInput({ ...args, mode: args["mode"] ?? "ci-stable" });
+      const report = await measure(input);
+      const savedPath = await saveReport(reportsDir, report);
+      await trimReports(reportsDir, maxReports);
+      const point = await appendTimeSeriesPoint(reportsDir, report);
+      const historyLimit = parseLimit(args["historyLimit"], 100);
+      const history = await readTimeSeries(reportsDir, input.url, historyLimit);
+      const trends = detectAllTrends(history);
+      return {
+        content: [
+          { type: "text", text: formatTrendSummary(point, history, trends, savedPath) },
+          { type: "text", text: JSON.stringify({ point, trends, historyN: history.length }, null, 2) },
+        ],
+      };
+    }
+
+    if (name === "find_regression_cause") {
+      const baseline = await loadReport(
+        resolveReportRef(reportsDir, { reportPath: args["baseline"], uri: args["baseline"] }),
+      );
+      const candidate = await loadReport(
+        resolveReportRef(reportsDir, { reportPath: args["candidate"], uri: args["candidate"] }),
+      );
+      const analysis = analyzeRegressionCause(baseline, candidate);
+      return {
+        content: [
+          { type: "text", text: analysis.summary },
+          { type: "text", text: JSON.stringify(toCompactCause(analysis), null, 2) },
+        ],
+      };
+    }
+
+    if (name === "enforce_budget") {
+      const input = parseMeasureInput({ ...args, mode: args["mode"] ?? "ci-stable" });
+      const report = await measure(input);
+      const savedPath = await saveReport(reportsDir, report);
+      await trimReports(reportsDir, maxReports);
+      if (args["track"] === true) {
+        await appendTimeSeriesPoint(reportsDir, report);
+      }
+      const budget = parseBudget(args["budget"]);
+      const verdict = evaluateBudget(report, budget);
+      return {
+        content: [
+          { type: "text", text: formatBudgetVerdict(verdict, savedPath) },
+          { type: "text", text: JSON.stringify(verdict, null, 2) },
+        ],
+      };
+    }
+
     throw new Error(`Unknown tool: ${name}`);
   });
 
@@ -461,6 +621,23 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
               "Optional JSON budget object, e.g. '{\"lcp\":2500,\"inp\":200,\"cls\":0.1,\"tbt\":200}'",
             required: false,
           },
+        ],
+      },
+      {
+        name: "investigate_regression",
+        description:
+          "Causal investigation flow — call find_regression_cause to get ranked hypotheses, then drill into the top-1 hypothesis with analyze_report. Returns an actionable root-cause narrative, not raw data.",
+        arguments: [
+          { name: "baseline", description: "Baseline report path or URI", required: true },
+          { name: "candidate", description: "Candidate report path or URI", required: true },
+        ],
+      },
+      {
+        name: "monitor_trend",
+        description:
+          "Longitudinal monitoring flow — call track_url to append a new measurement, inspect the per-metric trend verdict, escalate to find_regression_cause if a metric is regressing with high confidence.",
+        arguments: [
+          { name: "url", description: "URL to monitor", required: true },
         ],
       },
     ],
@@ -664,6 +841,7 @@ function buildPromptMessages(
   const baseline = args["baseline"] ?? "<baseline>";
   const candidate = args["candidate"] ?? "<candidate>";
   const budget = args["budget"] ?? "{}";
+  const url = args["url"] ?? "<url>";
 
   switch (name) {
     case "diagnose_report":
@@ -746,6 +924,37 @@ function buildPromptMessages(
             "1. Use `analyze_report` with insightName=\"lcp-breakdown\" (and similar for other metrics if needed).",
             "2. For each metric, compare median against the budget. Report pass/fail + Δ (observed − budget).",
             "3. End with a verdict line: 'PASS' or 'FAIL (N metric(s) over budget)'.",
+          ].join("\n"),
+        ),
+      ];
+    case "investigate_regression":
+      return [
+        msg(
+          "user",
+          [
+            `Investigate the regression between baseline \`${baseline}\` and candidate \`${candidate}\`.`,
+            "",
+            "Steps:",
+            "1. Call `find_regression_cause` with both reports — it returns ranked hypotheses with evidence (new render-blocking, grown resources, new long-tasks, new third-parties).",
+            "2. Take the top-1 hypothesis. State its metric, relative delta, and the strongest piece of evidence.",
+            "3. For the regressed metric, call `analyze_report` on the CANDIDATE with the matching insightName (e.g. lcp-breakdown for LCP, long-tasks for INP/TBT, opportunities for general guidance).",
+            "4. Cross-check whether the analyze_report data confirms or weakens the hypothesis.",
+            "5. Produce a final root-cause narrative: (a) the change, (b) why it impacts the metric, (c) the smallest reversal/mitigation.",
+          ].join("\n"),
+        ),
+      ];
+    case "monitor_trend":
+      return [
+        msg(
+          "user",
+          [
+            `Monitor the performance trend for \`${url}\`.`,
+            "",
+            "Steps:",
+            "1. Call `track_url` with the URL — it measures + appends to the time-series log and returns per-metric trend verdicts.",
+            "2. For each metric, state direction (improving/stable/regressing), confidence, and Δ vs the baseline window.",
+            "3. If any metric is 'regressing' with confidence 'high' or 'medium' AND there are ≥ 2 historical points, escalate: identify the two most-recent saved reports for this URL via `list_runs`, then call `find_regression_cause` on them.",
+            "4. If trend is stable/improving, end with: 'No action needed — N points monitored, trend stable.'",
           ].join("\n"),
         ),
       ];
@@ -859,6 +1068,179 @@ function summarize(report: Report, savedPath: string): string {
     for (const a of report.audits) {
       lines.push(`  [${a.passed ? "PASS" : "FAIL"}] ${a.id} — ${a.title}`);
     }
+  }
+  lines.push(`Saved: ${savedPath}`);
+  return lines.join("\n");
+}
+
+function formatTrendSummary(
+  point: TimeSeriesPoint,
+  history: readonly TimeSeriesPoint[],
+  trends: readonly TrendVerdict[],
+  savedPath: string,
+): string {
+  const lines: string[] = [];
+  lines.push(`Tracked ${point.url}`);
+  lines.push(`History: ${String(history.length)} point(s) (this run: ${point.at})`);
+  lines.push("");
+  lines.push("Trend per metric:");
+  for (const t of trends) {
+    if (t.direction === "insufficient-data") {
+      lines.push(`  ${t.metric.toUpperCase().padEnd(5)} insufficient-data (n=${String(t.n)})`);
+      continue;
+    }
+    const pct = (t.relativeChange * 100).toFixed(1);
+    const sign = t.relativeChange > 0 ? "+" : "";
+    const tag =
+      t.direction === "regressing" ? "❌" : t.direction === "improving" ? "✅" : "·";
+    lines.push(
+      `  ${tag} ${t.metric.toUpperCase().padEnd(5)} ${t.direction.padEnd(11)} ${sign}${pct}% (baseline=${t.baselineMedian.toFixed(1)}, recent=${t.recentMedian.toFixed(1)}, n=${String(t.n)}, confidence=${t.confidence})`,
+    );
+  }
+  lines.push(`Saved: ${savedPath}`);
+  return lines.join("\n");
+}
+
+interface CompactCause {
+  verdict: RegressionCauseReport["verdict"];
+  hypotheses: ReadonlyArray<{
+    rank: number;
+    metric: string;
+    relativeDelta: number;
+    likelyCauses: ReadonlyArray<string>;
+    evidence: {
+      newRenderBlockingCount: number;
+      grownResourcesCount: number;
+      newLongTasksCount: number;
+      newThirdParties: ReadonlyArray<string>;
+      topNewRenderBlocking: ReadonlyArray<{ url: string; mimeType: string; transferBytesDelta: number }>;
+      topGrownResources: ReadonlyArray<{ url: string; transferBytesDelta: number; responseMsDelta: number }>;
+      topNewLongTasks: ReadonlyArray<{ attribution: string; url?: string; durationMsDelta: number }>;
+    };
+  }>;
+}
+
+function toCompactCause(analysis: RegressionCauseReport): CompactCause {
+  return {
+    verdict: analysis.verdict,
+    hypotheses: analysis.hypotheses.map((h) => ({
+      rank: h.rank,
+      metric: h.metric,
+      relativeDelta: h.relativeDelta,
+      likelyCauses: h.likelyCauses,
+      evidence: {
+        newRenderBlockingCount: h.evidence.newRenderBlocking.length,
+        grownResourcesCount: h.evidence.grownResources.length,
+        newLongTasksCount: h.evidence.newLongTasks.length,
+        newThirdParties: h.evidence.newThirdParties,
+        topNewRenderBlocking: h.evidence.newRenderBlocking.slice(0, 5).map((r) => ({
+          url: r.url,
+          mimeType: r.mimeType,
+          transferBytesDelta: r.transferBytesDelta,
+        })),
+        topGrownResources: h.evidence.grownResources.slice(0, 5).map((r) => ({
+          url: r.url,
+          transferBytesDelta: r.transferBytesDelta,
+          responseMsDelta: r.responseMsDelta,
+        })),
+        topNewLongTasks: h.evidence.newLongTasks.slice(0, 5).map((t) => ({
+          attribution: t.attribution,
+          ...(t.url !== undefined ? { url: t.url } : {}),
+          durationMsDelta: t.durationMsDelta,
+        })),
+      },
+    })),
+  };
+}
+
+const DEFAULT_BUDGET: Readonly<Record<string, number>> = {
+  lcp: 2500,
+  inp: 200,
+  cls: 0.1,
+  tbt: 200,
+  fcp: 1800,
+  ttfb: 800,
+};
+
+function parseBudget(raw: unknown): Record<string, number> {
+  const out: Record<string, number> = { ...DEFAULT_BUDGET };
+  if (raw && typeof raw === "object") {
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof v === "number" && Number.isFinite(v) && v >= 0) out[k.toLowerCase()] = v;
+    }
+  }
+  return out;
+}
+
+interface BudgetMetricResult {
+  metric: string;
+  observed: number;
+  threshold: number;
+  delta: number;
+  relativeDelta: number;
+  passed: boolean;
+}
+
+interface BudgetVerdict {
+  status: "PASS" | "FAIL";
+  exitCode: 0 | 12;
+  url: string;
+  mode: string;
+  unstable: boolean;
+  metrics: ReadonlyArray<BudgetMetricResult>;
+  failedCount: number;
+}
+
+function evaluateBudget(report: Report, budget: Record<string, number>): BudgetVerdict {
+  const results: BudgetMetricResult[] = [];
+  for (const [metric, threshold] of Object.entries(budget)) {
+    const agg = report.aggregated[metric];
+    if (!agg) continue;
+    const observed = agg.median;
+    const delta = observed - threshold;
+    const relativeDelta = threshold === 0 ? 0 : delta / threshold;
+    results.push({
+      metric,
+      observed,
+      threshold,
+      delta,
+      relativeDelta,
+      passed: observed <= threshold,
+    });
+  }
+  const failedCount = results.filter((r) => !r.passed).length;
+  return {
+    status: failedCount === 0 ? "PASS" : "FAIL",
+    exitCode: failedCount === 0 ? 0 : 12,
+    url: report.meta.url,
+    mode: report.meta.mode,
+    unstable: Boolean(report.meta.unstable),
+    metrics: results,
+    failedCount,
+  };
+}
+
+function formatBudgetVerdict(verdict: BudgetVerdict, savedPath: string): string {
+  const lines: string[] = [];
+  lines.push(`Budget check for ${verdict.url} (mode=${verdict.mode})`);
+  lines.push(`Status: ${verdict.status} · exitCode=${String(verdict.exitCode)}`);
+  if (verdict.unstable) lines.push("⚠ Run was unstable (CoV > 20% on at least one CWV).");
+  lines.push("");
+  for (const m of verdict.metrics) {
+    const digits = m.metric === "cls" ? 3 : 1;
+    const tag = m.passed ? "✅" : "❌";
+    const pct = (m.relativeDelta * 100).toFixed(1);
+    const sign = m.delta >= 0 ? "+" : "";
+    lines.push(
+      `  ${tag} ${m.metric.toUpperCase().padEnd(5)} observed=${m.observed.toFixed(digits)} ≤ budget=${m.threshold.toFixed(digits)} · Δ=${sign}${m.delta.toFixed(digits)} (${sign}${pct}%)`,
+    );
+  }
+  if (verdict.failedCount > 0) {
+    lines.push("");
+    lines.push(`Verdict: FAIL — ${String(verdict.failedCount)} metric(s) over budget.`);
+  } else {
+    lines.push("");
+    lines.push("Verdict: PASS — all metrics within budget.");
   }
   lines.push(`Saved: ${savedPath}`);
   return lines.join("\n");
