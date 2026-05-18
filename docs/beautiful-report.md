@@ -147,11 +147,55 @@ Reports can be rendered in 4 visual brand styles:
 ### CLI
 
 ```bash
-ohmyperf run https://example.com --style=linear-app
-ohmyperf list-styles                  # discover available styles
+ohmyperf run https://example.com --style=linear-app    # non-interactive (CI-friendly)
+ohmyperf run                                            # interactive prompt walk-through
+ohmyperf list-styles                                    # discover available styles
 ```
 
 The `--style` flag applies to `html` + `deck` reporters. With `--format=json` only it's a no-op (warning printed).
+
+#### Interactive mode
+
+Running `ohmyperf run` **without a positional URL** (and inside a TTY) launches an interactive prompt that walks through every option:
+
+1. URL (text input, http(s) validation)
+2. Visual style (select from 4 brands with hints)
+3. Measurement mode (real / ci-stable)
+4. Number of runs (1–30)
+5. Output formats (multi-select)
+6. Plugin set
+7. Chromium binary path (optional)
+8. Collect trace (yes/no)
+9. Output directory
+10. Confirmation summary box → start
+
+The prompts use `@clack/prompts` for the UI. Stdin must be a TTY; in CI / piped environments the CLI falls back to the legacy error path. To force non-interactive mode (fail-loud on missing URL) pass `--no-interactive`.
+
+#### Beautiful output
+
+In TTY mode the final summary uses colorized verdicts and a tree-style artifact list:
+
+```
+URL     https://example.com
+Style   linear-app
+Browser chromium 147.0.7727.0 (bundled)
+Mode    real · runs=3 · duration=8400ms
+
+Core Web Vitals
+  ✓ LCP        1850 ms   p75 1920   CoV 4.2%   n=3
+  ! INP         280 ms   p75 305    CoV 6.0%   n=3
+  ✓ CLS         0.020    p75 0.025  CoV 12.0%  n=3
+
+Audits (1)
+  ✓ a11y.axe-violations  Accessibility violations (axe-core)
+
+Artifacts
+  ├─ /tmp/out/report.json
+  ├─ /tmp/out/report.html
+  └─ /tmp/out/report-deck.html
+```
+
+Outside TTY (CI, piped), the legacy logger format is used unchanged.
 
 ### MCP
 

@@ -12,6 +12,7 @@ export const EXIT_CODES = {
   shareUploadRefused: 10,
   browserBinaryMissing: 11,
   calibrationFailed: 12,
+  userCancelled: 130,
 } as const;
 
 export type ExitCodeName = keyof typeof EXIT_CODES;

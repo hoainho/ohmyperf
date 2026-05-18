@@ -33,6 +33,7 @@
     "clean": "rimraf dist .turbo *.tsbuildinfo"
   },
   "devDependencies": {
+    "@clack/prompts": "^0.10.0",
     "@ohmyperf/core": "workspace:*",
     "@ohmyperf/driver-playwright": "workspace:*",
     "@ohmyperf/plugins-builtin": "workspace:*",
@@ -47,6 +48,7 @@
     "@ohmyperf/viewer": "workspace:*",
     "citty": "catalog:",
     "playwright": "catalog:",
+    "picocolors": "^1.1.1",
     "vitest": "catalog:"
   }
 }

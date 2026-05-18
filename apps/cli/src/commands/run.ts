@@ -1,4 +1,6 @@
 import { defineCommand } from "citty";
+import * as p from "@clack/prompts";
+import pc from "picocolors";
 import {
   CalibrationFailedError,
   createConsoleLogger,
@@ -25,6 +27,7 @@ import { writeJsonReport } from "@ohmyperf/reporter-json";
 import { writeJunitReport } from "@ohmyperf/reporter-junit";
 import { writeMarkdownReport } from "@ohmyperf/reporter-markdown/node";
 import { EXIT_CODES } from "../exit-codes.js";
+import { isInteractiveContext, promptInteractive } from "./run-interactive.js";
 
 const SUPPORTED_FORMATS = ["json", "html", "deck", "markdown", "junit", "csv"] as const;
 type SupportedFormat = (typeof SUPPORTED_FORMATS)[number];
@@ -39,8 +42,13 @@ export const runCommand = defineCommand({
   args: {
     url: {
       type: "positional",
-      description: "URL to measure (http or https)",
-      required: true,
+      description: "URL to measure (http or https). Omit to launch interactive prompt.",
+      required: false,
+    },
+    "no-interactive": {
+      type: "boolean",
+      description: "Refuse to launch interactive prompt; fail if URL missing. Use in CI.",
+      default: false,
     },
     mode: {
       type: "string",
@@ -129,6 +137,40 @@ export const runCommand = defineCommand({
       prefix: "ohmyperf",
     });
 
+    const positionalUrl = typeof args.url === "string" ? args.url : "";
+    const noInteractive = Boolean(args["no-interactive"]);
+    const tty = isInteractiveContext();
+
+    if (!positionalUrl) {
+      if (noInteractive || !tty) {
+        logger.error(
+          "URL is required. Pass as a positional arg (`ohmyperf run https://example.com`) or omit --no-interactive in a TTY to launch the prompt.",
+        );
+        process.exit(EXIT_CODES.invalidUsage);
+      }
+      const initial: Parameters<typeof promptInteractive>[0] = {};
+      if (positionalUrl) initial.url = positionalUrl;
+      if (typeof args.style === "string" && isBrandId(args.style)) initial.style = args.style;
+      if (typeof args.mode === "string") initial.mode = args.mode;
+      if (typeof args.runs === "string") initial.runs = Number(args.runs);
+      if (typeof args.format === "string") initial.format = args.format;
+      if (typeof args["browser-path"] === "string") initial.browserPath = args["browser-path"];
+      if (typeof args.output === "string") initial.output = args.output;
+      const answers = await promptInteractive(initial);
+      if (!answers) {
+        process.exit(EXIT_CODES.userCancelled);
+      }
+      args.url = answers.url;
+      args.style = answers.style;
+      args.mode = answers.mode;
+      args.runs = String(answers.runs);
+      args.format = answers.format;
+      args.plugins = answers.plugins;
+      args.output = answers.output;
+      args["browser-path"] = answers.browserPath ?? "";
+      args["collect-trace"] = answers.collectTrace;
+    }
+
     const url = String(args.url ?? "");
     if (!isValidHttpUrl(url)) {
       logger.error("invalid url; expected http(s) URL", { url });
@@ -195,6 +237,10 @@ export const runCommand = defineCommand({
     const isolateOrigins = optString(args["isolate-origins"]);
 
     let report: Report;
+    const useSpinner = tty && !args.quiet && !args.json;
+    const spinner = useSpinner ? p.spinner() : null;
+    if (spinner) spinner.start(`Measuring ${pc.cyan(url)} (${String(runs)} run${runs === 1 ? "" : "s"}, ${mode}, style ${style})`);
+
     try {
       const { driver, adapter } = createPlaywrightAdapter({
         url,
@@ -221,7 +267,9 @@ export const runCommand = defineCommand({
         adapter,
         logger,
       });
+      if (spinner) spinner.stop(`Measured ${pc.cyan(url)} in ${String(report.meta.durationMs)}ms`);
     } catch (err) {
+      if (spinner) spinner.stop("Measurement failed", 1);
       const code = mapErrorToExitCode(err);
       const msg = err instanceof Error ? err.message : String(err);
       logger.error(`measurement failed (${code}): ${msg}`);
@@ -264,10 +312,18 @@ export const runCommand = defineCommand({
     }
 
     if (!args.quiet) {
-      printHumanSummary(report, logger);
+      const writtenPaths: string[] = [];
       for (const fmt of SUPPORTED_FORMATS) {
         const info = written[fmt];
-        if (info) logger.info(`wrote ${info.path} (${String(info.bytes)} bytes)`);
+        if (info) writtenPaths.push(info.path);
+      }
+      if (tty && !args.json) {
+        printBeautifulSummary(report, style, writtenPaths);
+      } else {
+        printHumanSummary(report, logger);
+        for (const path of writtenPaths) {
+          logger.info(`wrote ${path}`);
+        }
       }
     }
 
@@ -385,5 +441,89 @@ function printHumanSummary(report: Report, logger: Logger): void {
       const status = audit.passed ? "PASS" : "FAIL";
       logger.info(`  [${status}] ${audit.id} — ${audit.title}`);
     }
+  }
+}
+
+const CWV_THRESHOLDS: Readonly<Record<string, { good: number; poor: number; unit: string; digits: number }>> = {
+  lcp: { good: 2500, poor: 4000, unit: "ms", digits: 0 },
+  fcp: { good: 1800, poor: 3000, unit: "ms", digits: 0 },
+  ttfb: { good: 800, poor: 1800, unit: "ms", digits: 0 },
+  inp: { good: 200, poor: 500, unit: "ms", digits: 0 },
+  cls: { good: 0.1, poor: 0.25, unit: "", digits: 3 },
+  tbt: { good: 200, poor: 600, unit: "ms", digits: 0 },
+};
+
+function classifyCwv(metric: string, value: number): "good" | "needs-improvement" | "poor" | "unknown" {
+  const t = CWV_THRESHOLDS[metric.toLowerCase()];
+  if (!t || !Number.isFinite(value)) return "unknown";
+  if (value <= t.good) return "good";
+  if (value <= t.poor) return "needs-improvement";
+  return "poor";
+}
+
+export function printBeautifulSummary(report: Report, style: BrandId, writtenPaths: ReadonlyArray<string>): void {
+  const colorStatus = (s: "good" | "needs-improvement" | "poor" | "unknown"): (txt: string) => string => {
+    if (s === "good") return pc.green;
+    if (s === "needs-improvement") return pc.yellow;
+    if (s === "poor") return pc.red;
+    return pc.gray;
+  };
+  const iconStatus = (s: "good" | "needs-improvement" | "poor" | "unknown"): string => {
+    if (s === "good") return "✓";
+    if (s === "needs-improvement") return "!";
+    if (s === "poor") return "✗";
+    return "·";
+  };
+
+  const headerLines: string[] = [
+    `${pc.dim("URL")}     ${pc.cyan(report.meta.url)}`,
+    `${pc.dim("Style")}   ${pc.cyan(style)}`,
+    `${pc.dim("Browser")} ${report.meta.browser.name} ${report.meta.browser.version} ${pc.dim(`(${report.meta.browser.source})`)}`,
+    `${pc.dim("Mode")}    ${report.meta.mode} ${pc.dim("·")} runs=${String(report.meta.runs)} ${pc.dim("·")} duration=${String(report.meta.durationMs)}ms`,
+  ];
+  if (report.meta.calibration) {
+    headerLines.push(
+      `${pc.dim("Calib")}   ${String(report.meta.calibration.throttleRate)}× ${pc.dim("·")} ${report.meta.calibration.networkProfile}`,
+    );
+  }
+  if (report.meta.unstable) {
+    headerLines.push(pc.yellow("⚠ unstable run — at least one CWV has CoV > 20%"));
+  }
+  process.stdout.write(`\n${headerLines.join("\n")}\n\n`);
+
+  const cwvOrder = ["lcp", "inp", "cls", "fcp", "ttfb", "tbt"] as const;
+  const cwvRows: string[] = [];
+  for (const metric of cwvOrder) {
+    const agg = report.aggregated[metric];
+    if (!agg) continue;
+    const t = CWV_THRESHOLDS[metric];
+    if (!t) continue;
+    const verdict = classifyCwv(metric, agg.median);
+    const colorFn = colorStatus(verdict);
+    const valueStr = `${agg.median.toFixed(t.digits)}${t.unit ? ` ${t.unit}` : ""}`;
+    const covStr = `${(agg.cov * 100).toFixed(1)}%`;
+    cwvRows.push(
+      `  ${colorFn(iconStatus(verdict))} ${pc.bold(metric.toUpperCase().padEnd(5))} ${colorFn(valueStr.padStart(12))} ${pc.dim(`p75 ${agg.p75.toFixed(t.digits)}`)} ${pc.dim(`CoV ${covStr}`)} ${pc.dim(`n=${String(agg.runs)}`)}`,
+    );
+  }
+  if (cwvRows.length > 0) {
+    process.stdout.write(`${pc.bold("Core Web Vitals")}\n${cwvRows.join("\n")}\n\n`);
+  }
+
+  if (report.audits.length > 0) {
+    const audits = report.audits.map((a) => {
+      const color = a.passed ? pc.green : pc.red;
+      const icon = a.passed ? "✓" : "✗";
+      return `  ${color(icon)} ${pc.dim(a.id)} ${a.title}`;
+    });
+    process.stdout.write(`${pc.bold("Audits")} ${pc.dim(`(${String(report.audits.length)})`)}\n${audits.join("\n")}\n\n`);
+  }
+
+  if (writtenPaths.length > 0) {
+    const fileLines = writtenPaths.map((p, i) => {
+      const branch = i === writtenPaths.length - 1 ? "└─" : "├─";
+      return `  ${pc.dim(branch)} ${pc.cyan(p)}`;
+    });
+    process.stdout.write(`${pc.bold("Artifacts")}\n${fileLines.join("\n")}\n\n`);
   }
 }
