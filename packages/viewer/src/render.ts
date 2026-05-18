@@ -6,11 +6,16 @@ import type {
   RunReport,
 } from "@ohmyperf/core";
 import { escapeHtml, escapeJsonForHtml } from "./escape.js";
+import { renderCwvGrid } from "./sections/cwv-cards.js";
+import { renderEmptyState } from "./sections/empty-state.js";
+import { renderHero } from "./sections/hero.js";
+import { renderThirdParties } from "./sections/third-parties.js";
 import { VIEWER_CSS } from "./styles.js";
 
 export interface RenderViewerOptions {
   readonly title?: string;
   readonly embedReportPayload?: boolean;
+  readonly theme?: "light" | "dark" | "system";
 }
 
 const HEADLINE_METRICS: ReadonlyArray<{
@@ -31,9 +36,10 @@ const UNSTABLE_COV_THRESHOLD = 0.2;
 export function renderReportHtml(report: Report, opts: RenderViewerOptions = {}): string {
   const title = opts.title ?? `OhMyPerf — ${shortenUrl(report.meta.url)}`;
   const embedPayload = opts.embedReportPayload !== false;
+  const themeClass = opts.theme === "light" ? "theme-light" : opts.theme === "dark" ? "theme-dark" : "";
 
   return `<!doctype html>
-<html lang="en">
+<html lang="en"${themeClass ? ` class="${themeClass}"` : ""}>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -44,12 +50,13 @@ export function renderReportHtml(report: Report, opts: RenderViewerOptions = {})
 </head>
 <body>
 <div class="container">
-  ${renderHeader(report)}
+  ${renderHero(report)}
   ${renderUnstableBanner(report)}
-  ${renderTiles(report)}
+  ${renderCwvGrid(report)}
   ${renderAttribution(report)}
-  ${renderAudits(report.audits)}
-  ${renderResources(report)}
+  ${renderThirdParties(report)}
+  ${renderAuditsOrEmpty(report.audits)}
+  ${renderResourcesOrEmpty(report)}
   ${renderFrameTree(report)}
   ${renderRunsTable(report)}
   ${renderPluginData(report.pluginData)}
@@ -63,6 +70,21 @@ ${embedPayload ? renderInlineReport(report) : ""}
 </body>
 </html>
 `;
+}
+
+function renderAuditsOrEmpty(audits: ReadonlyArray<AuditResult>): string {
+  if (audits.length === 0) {
+    return `<h2>Audits</h2>\n${renderEmptyState("No audits configured — all plugin audits passed implicitly.", "success")}`;
+  }
+  return renderAudits(audits);
+}
+
+function renderResourcesOrEmpty(report: Report): string {
+  const sourceRun = report.runs.find((r) => !r.cold) ?? report.runs.find((r) => r.cold) ?? report.runs[0];
+  if (!sourceRun || sourceRun.resources.length === 0) {
+    return `<h2>Resources</h2>\n${renderEmptyState("No resources captured in the warm run.", "info")}`;
+  }
+  return renderResources(report);
 }
 
 function renderHeader(report: Report): string {

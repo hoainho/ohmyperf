@@ -126,11 +126,12 @@ describe("renderReportHtml()", () => {
     expect(html).toContain("&lt;script&gt;");
   });
 
-  it("renders CWV tiles for known headline metrics", () => {
+  it("renders CWV traffic-light cards for known headline metrics", () => {
     const html = renderReportHtml(makeReport());
-    expect(html).toContain('class="tile');
+    expect(html).toContain('class="cwv-card');
     expect(html).toContain(">LCP<");
     expect(html).toContain(">CLS<");
+    expect(html).toMatch(/data-cwv-status="(good|needs-improvement|poor|unknown)"/);
   });
 
   it("flags an unstable run when CoV > 20%", () => {
@@ -141,7 +142,7 @@ describe("renderReportHtml()", () => {
     });
     const html = renderReportHtml(unstable);
     expect(html).toContain("Unstable run");
-    expect(html).toContain('class="tile unstable"');
+    expect(html).toContain('class="cwv-card unstable"');
   });
 
   it("renders the audits table including failing audits", () => {

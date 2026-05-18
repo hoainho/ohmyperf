@@ -23,3 +23,17 @@ export function escapeJsonForHtml(value: unknown): string {
 export function safeAttr(value: unknown): string {
   return escapeHtml(value);
 }
+
+const UNSAFE_URL_SCHEMES = /^\s*(javascript|data|vbscript):/i;
+
+export function safeUrl(value: unknown): string {
+  if (value === null || value === undefined) return "#";
+  const s = typeof value === "string" ? value : String(value);
+  if (UNSAFE_URL_SCHEMES.test(s)) return "#";
+  return escapeHtml(s);
+}
+
+export function safeNumeric(value: unknown, fallback = 0): number {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}

@@ -497,6 +497,9 @@ importers:
       '@ohmyperf/core':
         specifier: workspace:*
         version: link:../core
+      '@ohmyperf/design-tokens':
+        specifier: workspace:*
+        version: link:../design-tokens
       vitest:
         specifier: 'catalog:'
         version: 2.1.9(@types/node@22.19.18)(lightningcss@1.32.0)

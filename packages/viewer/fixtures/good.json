@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "1.0.0",
+  "meta": {
+    "url": "https://example.com/",
+    "startedAt": "2026-05-18T10:00:00.000Z",
+    "durationMs": 3500,
+    "runs": 3,
+    "mode": "ci-stable",
+    "browser": { "name": "chromium", "version": "147.0.7727.0", "source": "bundled" },
+    "host": { "os": "linux", "arch": "x64", "nodeVersion": "v22.22.2" },
+    "parity": { "mode": "headless", "knownDeltas": {} },
+    "emulation": false,
+    "pluginCapabilityUses": [],
+    "measurementId": "good-fixture-aaaa"
+  },
+  "runs": [
+    {
+      "runIndex": 0,
+      "cold": true,
+      "metrics": {
+        "lcp": { "name": "lcp", "value": 1800, "unit": "ms" },
+        "fcp": { "name": "fcp", "value": 800, "unit": "ms" },
+        "ttfb": { "name": "ttfb", "value": 200, "unit": "ms" },
+        "cls": { "name": "cls", "value": 0.02, "unit": "score" },
+        "tbt": { "name": "tbt", "value": 50, "unit": "ms" }
+      },
+      "resources": [],
+      "longTasks": [],
+      "meta": {}
+    },
+    {
+      "runIndex": 1,
+      "cold": false,
+      "metrics": {
+        "lcp": { "name": "lcp", "value": 1750, "unit": "ms" },
+        "fcp": { "name": "fcp", "value": 780, "unit": "ms" },
+        "ttfb": { "name": "ttfb", "value": 195, "unit": "ms" },
+        "cls": { "name": "cls", "value": 0.01, "unit": "score" },
+        "tbt": { "name": "tbt", "value": 40, "unit": "ms" }
+      },
+      "resources": [],
+      "longTasks": [],
+      "meta": {}
+    },
+    {
+      "runIndex": 2,
+      "cold": false,
+      "metrics": {
+        "lcp": { "name": "lcp", "value": 1820, "unit": "ms" },
+        "fcp": { "name": "fcp", "value": 810, "unit": "ms" },
+        "ttfb": { "name": "ttfb", "value": 210, "unit": "ms" },
+        "cls": { "name": "cls", "value": 0.02, "unit": "score" },
+        "tbt": { "name": "tbt", "value": 45, "unit": "ms" }
+      },
+      "resources": [],
+      "longTasks": [],
+      "meta": {}
+    }
+  ],
+  "aggregated": {
+    "lcp": { "median": 1800, "p75": 1820, "p95": 1820, "mean": 1790, "stdev": 30, "cov": 0.017, "runs": 3, "droppedOutliers": 0 },
+    "fcp": { "median": 800, "p75": 810, "p95": 810, "mean": 796, "stdev": 13, "cov": 0.016, "runs": 3, "droppedOutliers": 0 },
+    "ttfb": { "median": 200, "p75": 210, "p95": 210, "mean": 201, "stdev": 6, "cov": 0.03, "runs": 3, "droppedOutliers": 0 },
+    "cls": { "median": 0.02, "p75": 0.02, "p95": 0.02, "mean": 0.016, "stdev": 0.005, "cov": 0.31, "runs": 3, "droppedOutliers": 0 },
+    "tbt": { "median": 45, "p75": 50, "p95": 50, "mean": 45, "stdev": 4, "cov": 0.09, "runs": 3, "droppedOutliers": 0 }
+  },
+  "frames": {
+    "root": "root",
+    "nodes": {
+      "root": { "frameId": "root", "url": "https://example.com/", "origin": "https://example.com", "parentFrameId": null, "isOOPIF": false, "isCrossOrigin": false, "attachedAt": 0, "metrics": {}, "children": [] }
+    }
+  },
+  "audits": [],
+  "artifacts": {},
+  "pluginData": {}
+}

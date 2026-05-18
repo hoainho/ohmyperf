@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1.0.0",
+  "meta": {
+    "url": "https://broken.example.com/",
+    "startedAt": "2026-05-18T10:00:00.000Z",
+    "durationMs": 1200,
+    "runs": 1,
+    "mode": "real",
+    "browser": { "name": "chromium", "version": "147.0.7727.0", "source": "bundled" },
+    "host": { "os": "linux", "arch": "x64", "nodeVersion": "v22.22.2" },
+    "parity": { "mode": "headless", "knownDeltas": {} },
+    "emulation": false,
+    "pluginCapabilityUses": [],
+    "measurementId": "broken-fixture-cccc"
+  },
+  "runs": [
+    { "runIndex": 0, "cold": true, "metrics": {}, "resources": [], "longTasks": [], "meta": {} }
+  ],
+  "aggregated": {},
+  "frames": { "root": "root", "nodes": { "root": { "frameId": "root", "url": "https://broken.example.com/", "origin": "https://broken.example.com", "parentFrameId": null, "isOOPIF": false, "isCrossOrigin": false, "attachedAt": 0, "metrics": {}, "children": [] } } },
+  "audits": [],
+  "artifacts": {},
+  "pluginData": {}
+}

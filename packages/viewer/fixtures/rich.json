@@ -1,0 +1,85 @@
+{
+  "schemaVersion": "1.0.0",
+  "meta": {
+    "url": "https://shop.example.com/products/widget",
+    "startedAt": "2026-05-18T10:00:00.000Z",
+    "durationMs": 8200,
+    "runs": 5,
+    "mode": "ci-stable",
+    "browser": { "name": "chromium", "version": "147.0.7727.0", "source": "bundled" },
+    "host": { "os": "darwin", "arch": "arm64", "nodeVersion": "v22.22.2" },
+    "parity": { "mode": "headless", "knownDeltas": { "lcp": "~5ms slower than headed" } },
+    "emulation": false,
+    "pluginCapabilityUses": [],
+    "measurementId": "rich-fixture-bbbb",
+    "calibration": { "reference": "synthetic-baseline", "observedScore": 92, "throttleRate": 4, "networkProfile": "fast-4g", "cacheHit": false }
+  },
+  "runs": [
+    {
+      "runIndex": 0,
+      "cold": true,
+      "metrics": {
+        "lcp": { "name": "lcp", "value": 3200, "unit": "ms", "attribution": { "element": "img.hero", "url": "https://shop.example.com/hero.jpg" } },
+        "fcp": { "name": "fcp", "value": 1900, "unit": "ms" },
+        "ttfb": { "name": "ttfb", "value": 850, "unit": "ms" },
+        "cls": { "name": "cls", "value": 0.18, "unit": "score" },
+        "tbt": { "name": "tbt", "value": 420, "unit": "ms" },
+        "inp": { "name": "inp", "value": 280, "unit": "ms" }
+      },
+      "resources": [
+        { "url": "https://shop.example.com/", "mimeType": "text/html", "requestMs": 100, "responseMs": 750, "transferSizeBytes": 12000, "encodedSizeBytes": 8000, "decodedSizeBytes": 35000, "renderBlocking": false, "cacheHit": false },
+        { "url": "https://shop.example.com/main.css", "mimeType": "text/css", "requestMs": 20, "responseMs": 180, "transferSizeBytes": 85000, "encodedSizeBytes": 70000, "decodedSizeBytes": 220000, "renderBlocking": true, "cacheHit": false },
+        { "url": "https://cdn.example.com/runtime.js", "mimeType": "text/javascript", "requestMs": 30, "responseMs": 320, "transferSizeBytes": 240000, "encodedSizeBytes": 220000, "decodedSizeBytes": 680000, "renderBlocking": true, "cacheHit": false },
+        { "url": "https://shop.example.com/hero.jpg", "mimeType": "image/jpeg", "requestMs": 40, "responseMs": 580, "transferSizeBytes": 180000, "encodedSizeBytes": 180000, "decodedSizeBytes": 180000, "renderBlocking": false, "cacheHit": false },
+        { "url": "https://googletagmanager.com/gtm.js?id=GTM-XXXX", "mimeType": "text/javascript", "requestMs": 50, "responseMs": 240, "transferSizeBytes": 95000, "encodedSizeBytes": 92000, "decodedSizeBytes": 280000, "renderBlocking": false, "cacheHit": false },
+        { "url": "https://www.google-analytics.com/analytics.js", "mimeType": "text/javascript", "requestMs": 40, "responseMs": 180, "transferSizeBytes": 45000, "encodedSizeBytes": 44000, "decodedSizeBytes": 120000, "renderBlocking": false, "cacheHit": false },
+        { "url": "https://connect.facebook.net/en_US/fbevents.js", "mimeType": "text/javascript", "requestMs": 60, "responseMs": 220, "transferSizeBytes": 68000, "encodedSizeBytes": 66000, "decodedSizeBytes": 195000, "renderBlocking": false, "cacheHit": false },
+        { "url": "https://fonts.googleapis.com/css2?family=Inter", "mimeType": "text/css", "requestMs": 20, "responseMs": 110, "transferSizeBytes": 1800, "encodedSizeBytes": 1600, "decodedSizeBytes": 4200, "renderBlocking": true, "cacheHit": false }
+      ],
+      "longTasks": [
+        { "startTime": 850, "duration": 220, "attribution": "script", "attributionRich": { "url": "https://cdn.example.com/runtime.js", "frameId": "root" } },
+        { "startTime": 1200, "duration": 180, "attribution": "script", "attributionRich": { "url": "https://googletagmanager.com/gtm.js", "frameId": "root" } },
+        { "startTime": 1500, "duration": 95, "attribution": "script", "attributionRich": { "url": "https://www.google-analytics.com/analytics.js", "frameId": "root" } },
+        { "startTime": 2100, "duration": 75, "attribution": "layout", "attributionRich": { "frameId": "root" } }
+      ],
+      "meta": {}
+    }
+  ],
+  "aggregated": {
+    "lcp": { "median": 3200, "p75": 3350, "p95": 3500, "mean": 3210, "stdev": 120, "cov": 0.037, "runs": 5, "droppedOutliers": 0 },
+    "fcp": { "median": 1900, "p75": 1950, "p95": 2000, "mean": 1910, "stdev": 60, "cov": 0.031, "runs": 5, "droppedOutliers": 0 },
+    "ttfb": { "median": 850, "p75": 900, "p95": 920, "mean": 855, "stdev": 35, "cov": 0.041, "runs": 5, "droppedOutliers": 0 },
+    "cls": { "median": 0.31, "p75": 0.34, "p95": 0.36, "mean": 0.32, "stdev": 0.025, "cov": 0.078, "runs": 5, "droppedOutliers": 0 },
+    "tbt": { "median": 420, "p75": 460, "p95": 480, "mean": 425, "stdev": 30, "cov": 0.07, "runs": 5, "droppedOutliers": 0 },
+    "inp": { "median": 280, "p75": 320, "p95": 340, "mean": 285, "stdev": 25, "cov": 0.088, "runs": 5, "droppedOutliers": 0 }
+  },
+  "frames": {
+    "root": "root",
+    "nodes": {
+      "root": { "frameId": "root", "url": "https://shop.example.com/products/widget", "origin": "https://shop.example.com", "parentFrameId": null, "isOOPIF": false, "isCrossOrigin": false, "attachedAt": 0, "metrics": {}, "children": ["chat-widget"] },
+      "chat-widget": { "frameId": "chat-widget", "url": "https://chat.example-helper.com/widget", "origin": "https://chat.example-helper.com", "parentFrameId": "root", "isOOPIF": true, "isCrossOrigin": true, "attachedAt": 1200, "metrics": {}, "children": [] }
+    }
+  },
+  "audits": [
+    { "id": "a11y.axe-violations", "title": "axe-core a11y violations", "score": 3, "passed": false, "details": { "count": 3 } },
+    { "id": "perf.no-document-write", "title": "No document.write usage", "score": 0, "passed": true },
+    { "id": "perf.preload-lcp", "title": "Preload LCP image", "score": 0, "passed": false }
+  ],
+  "opportunities": [
+    { "id": "render-blocking", "title": "Eliminate render-blocking resources", "metric": "lcp", "wastedMs": 460, "items": [{ "url": "https://shop.example.com/main.css", "wastedMs": 180 }, { "url": "https://cdn.example.com/runtime.js", "wastedMs": 320 }] },
+    { "id": "image-preload", "title": "Preload the LCP image", "metric": "lcp", "wastedMs": 280, "items": [{ "url": "https://shop.example.com/hero.jpg", "wastedMs": 280 }] },
+    { "id": "third-party-defer", "title": "Defer non-critical third-party scripts", "metric": "tbt", "wastedMs": 415, "items": [{ "url": "https://googletagmanager.com/gtm.js", "wastedMs": 180 }, { "url": "https://connect.facebook.net/en_US/fbevents.js", "wastedMs": 95 }] }
+  ],
+  "artifacts": {},
+  "pluginData": {
+    "thirdParties": {
+      "totalTransferBytes": 208000,
+      "totalMainThreadMs": 270,
+      "entities": [
+        { "entity": "Google Tag Manager", "category": "tag-manager", "transferSize": 95000, "mainThreadTime": 180, "urls": [{ "url": "https://googletagmanager.com/gtm.js?id=GTM-XXXX", "transferSize": 95000, "mainThreadTime": 180 }] },
+        { "entity": "Facebook", "category": "social", "transferSize": 68000, "mainThreadTime": 50, "urls": [{ "url": "https://connect.facebook.net/en_US/fbevents.js", "transferSize": 68000, "mainThreadTime": 50 }] },
+        { "entity": "Google Analytics", "category": "analytics", "transferSize": 45000, "mainThreadTime": 40, "urls": [{ "url": "https://www.google-analytics.com/analytics.js", "transferSize": 45000, "mainThreadTime": 40 }] }
+      ]
+    }
+  }
+}
