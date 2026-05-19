@@ -30,9 +30,10 @@ describe("renderReportDeck — rich fixture", () => {
     expect(html).toContain('class="counter"');
   });
 
-  it("is light-locked (no prefers-color-scheme: dark block)", () => {
-    expect(html).not.toContain("@media (prefers-color-scheme: dark)");
-    expect(html).toContain("color-scheme: light only");
+  it("honors brand preferredTheme (R7 superseded): default calibre resolves to light", () => {
+    expect(html).toContain('class="theme-light"');
+    expect(html).not.toContain("color-scheme: light only");
+    expect(html).toContain("@media (prefers-color-scheme: dark)");
   });
 
   it("includes print stylesheet with 1920x1080 landscape @page", () => {

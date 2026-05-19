@@ -86,10 +86,10 @@ describe("getBrandCss", () => {
     expect(css).toContain("@media (prefers-color-scheme: dark)");
   });
 
-  it("calibre light returns the light-only palette block", () => {
+  it("calibre light returns the dual-mode palette block (R7 superseded by R7+R7a; theme-* class drives appearance, not light-only lock)", () => {
     const css = getBrandCss("calibre", "light");
-    expect(css).toContain("color-scheme: light only");
-    expect(css).not.toContain("@media (prefers-color-scheme: dark)");
+    expect(css).not.toContain("color-scheme: light only");
+    expect(css).toContain("@media (prefers-color-scheme: dark)");
   });
 
   it("vendored brand returns concatenated tokens.css + bridge.css", () => {

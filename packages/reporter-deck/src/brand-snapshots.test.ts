@@ -27,13 +27,65 @@ describe("renderReportDeck — brand styles", () => {
       const slideCount = (html.match(/<section class="slide"/g) ?? []).length;
       expect(slideCount).toBe(6);
     });
-
-    it(`stays light-locked for style=${style} (no prefers-color-scheme: dark)`, () => {
-      const html = renderReportDeck(rich, { style });
-      expect(html).not.toContain("@media (prefers-color-scheme: dark)");
-      expect(html).toContain("color-scheme: light only");
-    });
   }
+
+  // R7 superseded: deck now honors brand.preferredTheme instead of being light-locked
+  describe("theme resolution per brand (R7 superseded)", () => {
+    it("linear-app deck HTML contains <html class=\"theme-dark\"> (dark-native brand)", () => {
+      const html = renderReportDeck(rich, { style: "linear-app" });
+      expect(html).toContain('<html lang="en" class="theme-dark"');
+    });
+
+    it("stripe deck HTML contains <html class=\"theme-light\">", () => {
+      const html = renderReportDeck(rich, { style: "stripe" });
+      expect(html).toContain('<html lang="en" class="theme-light"');
+    });
+
+    it("vercel deck HTML contains <html class=\"theme-light\"> (preferredTheme=light)", () => {
+      const html = renderReportDeck(rich, { style: "vercel" });
+      expect(html).toContain('<html lang="en" class="theme-light"');
+    });
+
+    it("calibre deck HTML contains <html class=\"theme-light\">", () => {
+      const html = renderReportDeck(rich, { style: "calibre" });
+      expect(html).toContain('<html lang="en" class="theme-light"');
+    });
+
+    it("deck CSS now contains @media (prefers-color-scheme: dark) for auto-resolution path", () => {
+      const html = renderReportDeck(rich, { style: "calibre" });
+      expect(html).toContain("@media (prefers-color-scheme: dark)");
+    });
+
+    it("deck CSS no longer emits color-scheme: light only", () => {
+      for (const style of BRAND_IDS) {
+        const html = renderReportDeck(rich, { style });
+        expect(html, `${style} should not have light-only lock`).not.toContain("color-scheme: light only");
+      }
+    });
+  });
+
+  // R7a: dark-native brand must expose print-safe tokens
+  describe("print-safe overrides (R7a)", () => {
+    it("linear-app deck HTML redeclares --bg: #ffffff inside @media print > :root (print-safe inversion for dark-native brand)", () => {
+      const html = renderReportDeck(rich, { style: "linear-app" });
+      expect(html).toMatch(/@media print\s*\{\s*:root\s*\{[^}]*--bg:\s*#ffffff/);
+    });
+
+    it("stripe deck HTML does NOT redeclare --bg inside @media print (light brand, no inversion needed)", () => {
+      const html = renderReportDeck(rich, { style: "stripe" });
+      expect(html).not.toMatch(/@media print\s*\{\s*:root\s*\{[^}]*--bg:/);
+    });
+
+    it("vercel deck HTML does NOT redeclare --bg inside @media print", () => {
+      const html = renderReportDeck(rich, { style: "vercel" });
+      expect(html).not.toMatch(/@media print\s*\{\s*:root\s*\{[^}]*--bg:/);
+    });
+
+    it("calibre deck HTML does NOT redeclare --bg inside @media print", () => {
+      const html = renderReportDeck(rich, { style: "calibre" });
+      expect(html).not.toMatch(/@media print\s*\{\s*:root\s*\{[^}]*--bg:/);
+    });
+  });
 
   it("calibre style emits NO brand overlay block", () => {
     const html = renderReportDeck(rich, { style: "calibre" });

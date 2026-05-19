@@ -146,6 +146,17 @@ export const LINEAR_APP_CSS: string = `
   --container-gutter-phone:   12px;
 }
 
+@media print {
+  :root {
+    --bg:           #ffffff;
+    --fg:           #000000;
+    --surface:      #ffffff;
+    --surface-warm: #f5f5f5;
+    --border:       #cccccc;
+    --border-soft:  #e0e0e0;
+  }
+}
+
 /* SPDX-License-Identifier: Apache-2.0
  *
  * Bridge layer: color-semantics aliases only (6 aliases per R3 revise-open-design-integration).

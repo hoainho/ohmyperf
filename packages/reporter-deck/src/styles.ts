@@ -1,4 +1,4 @@
-import { PALETTE_CSS_LIGHT_ONLY } from "@ohmyperf/design-tokens";
+import { PALETTE_CSS } from "@ohmyperf/design-tokens";
 
 const DECK_STRUCTURAL_CSS = `
 *, *::before, *::after { box-sizing: border-box; }
@@ -185,7 +185,7 @@ html, body { margin: 0; /* token-unsafe: css-reset */ padding: 0; /* token-unsaf
 }
 `;
 
-export const DECK_CSS = `${PALETTE_CSS_LIGHT_ONLY}
+export const DECK_CSS = `${PALETTE_CSS}
 ${DECK_STRUCTURAL_CSS}`;
 
 export const DECK_NAV_SCRIPT = `(() => {

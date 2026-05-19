@@ -137,13 +137,16 @@ function precomputeColorMix(css) {
 
 function makeProvenanceHeader(brandId, upstreamSha) {
   const now = new Date().toISOString().slice(0, 10);
+  const printTransform = brandId === "linear-app"
+    ? "\n *   - @media print block appended (R7a: dark-native brand must expose print-safe tokens)"
+    : "";
   return `/* SPDX-License-Identifier: Apache-2.0
  *
  * Vendored from nexu-io/open-design @ ${upstreamSha} on ${now}
  * Brand: ${brandId}
  * Transforms applied at sync time:
  *   - Font stacks reduced to system fallback (ohmyperf single-file offline-portable constraint)
- *   - color-mix() resolved to static hex (browser back-compat for archived reports)
+ *   - color-mix() resolved to static hex (browser back-compat for archived reports)${printTransform}
  * DO NOT EDIT — run \`pnpm sync:open-design\` from the repo root to refresh.
  */
 `;
@@ -158,6 +161,32 @@ const CANONICAL_BRIDGE = `:root {
   --color-accent-danger: var(--danger);
 }
 `;
+
+/**
+ * Print-safe token overrides for dark-native brands (R7a).
+ * Applied only to brands with supportsDark=true AND preferredTheme=dark
+ * (currently only linear-app). Appended AFTER the :root block so the
+ * @media print block takes precedence over dark token values at print time.
+ */
+const LINEAR_APP_PRINT_BLOCK = `
+@media print {
+  :root {
+    --bg:           #ffffff;
+    --fg:           #000000;
+    --surface:      #ffffff;
+    --surface-warm: #f5f5f5;
+    --border:       #cccccc;
+    --border-soft:  #e0e0e0;
+  }
+}
+`;
+
+function applyPrintBlock(brandId, css) {
+  if (brandId !== "linear-app") return css;
+  // Idempotent: only append if not already present
+  if (css.includes("@media print")) return css;
+  return css + LINEAR_APP_PRINT_BLOCK;
+}
 
 function makeBridgeFile(brandId, upstreamSha) {
   const now = new Date().toISOString().slice(0, 10);
@@ -184,19 +213,21 @@ async function syncBrand(brandId, upstreamSha) {
   const raw = await readFile(srcPath, "utf8");
   const { css: noFonts, displayStripped, monoStripped } = stripFontStacks(raw);
   const { css: noMix, count: mixCount } = precomputeColorMix(noFonts);
+  const withPrint = applyPrintBlock(brandId, noMix);
   const provenance = makeProvenanceHeader(brandId, upstreamSha);
-  const tokensOut = `${provenance}\n${noMix}`;
+  const tokensOut = `${provenance}\n${withPrint}`;
   const bridgeOut = makeBridgeFile(brandId, upstreamSha);
   const brandDir = resolve(brandsDir, brandId);
+  const hasPrint = brandId === "linear-app";
   if (dryRun) {
-    console.log(`[dry-run] ${brandId}: ${displayStripped} display + ${monoStripped} mono font stacks stripped; ${mixCount} color-mix() calls precomputed`);
+    console.log(`[dry-run] ${brandId}: ${displayStripped} display + ${monoStripped} mono font stacks stripped; ${mixCount} color-mix() calls precomputed${hasPrint ? "; @media print block appended (R7a)" : ""}`);
     console.log(`[dry-run] would write: ${brandDir}/{tokens.css,bridge.css}`);
     return { brandId, displayStripped, monoStripped, mixCount };
   }
   await mkdir(brandDir, { recursive: true });
   await writeFile(resolve(brandDir, "tokens.css"), tokensOut, "utf8");
   await writeFile(resolve(brandDir, "bridge.css"), bridgeOut, "utf8");
-  console.log(`${brandId}: wrote tokens.css (${String(noMix.length)} bytes, ${String(displayStripped)}+${String(monoStripped)} fonts stripped, ${String(mixCount)} color-mix resolved)`);
+  console.log(`${brandId}: wrote tokens.css (${String(withPrint.length)} bytes, ${String(displayStripped)}+${String(monoStripped)} fonts stripped, ${String(mixCount)} color-mix resolved${hasPrint ? ", @media print appended" : ""})`);
   console.log(`${brandId}: wrote bridge.css (${String(bridgeOut.length)} bytes)`);
   return { brandId, displayStripped, monoStripped, mixCount };
 }

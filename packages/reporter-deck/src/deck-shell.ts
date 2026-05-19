@@ -1,5 +1,5 @@
 import type { Report } from "@ohmyperf/core";
-import { BRAND_MANIFEST, getBrandCss, type BrandId } from "@ohmyperf/design-tokens";
+import { BRAND_MANIFEST, getBrandCss, resolveTheme, type BrandId } from "@ohmyperf/design-tokens";
 import { escapeHtml, escapeJsonForHtml } from "@ohmyperf/viewer/escape";
 import { DECK_CSS, DECK_NAV_SCRIPT } from "./styles.js";
 
@@ -8,6 +8,7 @@ export interface RenderDeckShellOptions {
   readonly report: Report;
   readonly embedReportPayload?: boolean;
   readonly style?: BrandId;
+  readonly theme?: "light" | "dark" | "system";
 }
 
 export function renderDeckShell(slides: ReadonlyArray<string>, opts: RenderDeckShellOptions): string {
@@ -20,7 +21,8 @@ export function renderDeckShell(slides: ReadonlyArray<string>, opts: RenderDeckS
     .join("\n");
   const embed = opts.embedReportPayload !== false;
   const style: BrandId = opts.style ?? "calibre";
-  const overlayCss = getBrandCss(style, "light");
+  const resolvedTheme = resolveTheme(style, { theme: opts.theme ?? "system" });
+  const overlayCss = getBrandCss(style, resolvedTheme);
   const isCalibre = style === "calibre";
   const manifest = BRAND_MANIFEST[style];
   const attributionComment = isCalibre
@@ -28,7 +30,7 @@ export function renderDeckShell(slides: ReadonlyArray<string>, opts: RenderDeckS
     : `<!-- Styled like ${style} via Open Design Library (Apache-2.0) · upstream ${manifest.upstreamSha ?? "n/a"} -->`;
 
   return `<!doctype html>
-<html lang="en" class="theme-light">
+<html lang="en" class="theme-${resolvedTheme}">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />

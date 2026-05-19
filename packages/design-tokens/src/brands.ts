@@ -92,9 +92,14 @@ export function getBrandCss(
   id: BrandId,
   theme: "light" | "dark" | "system" = "system",
 ): string {
-  const resolved = resolveTheme(id, { theme });
+  // R7 superseded: callers honor brand.preferredTheme via the deck/viewer
+  // <html class="theme-*"> attribute. The token bundle itself stays light/dark
+  // dual-mode so prefers-color-scheme: dark queries still resolve correctly
+  // when theme=system. PALETTE_CSS_LIGHT_ONLY is retained for archival v1
+  // callers (mcp generate_html_report classic mode) but no longer the deck path.
+  resolveTheme(id, { theme });
   if (id === "calibre") {
-    return resolved === "light" ? PALETTE_CSS_LIGHT_ONLY : PALETTE_CSS;
+    return PALETTE_CSS;
   }
   return VENDORED_BRAND_CSS[id];
 }
