@@ -22,30 +22,49 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -uo pipefail
+          # Topo order: leaves of dependency-DAG first, roots last.
+          # npm refuses E422 if you unpublish a package that has public
+          # dependents on the registry. Order:
+          #   1. apps (cli, mcp-server) — top of DAG, depend on everything
+          #   2. reporters (csv, junit, markdown, html, deck, json) — depend on viewer/core
+          #   3. share-client, viewer, plugins-builtin, driver-playwright
+          #   4. core, trace-utils, design-tokens — leaves
           PKGS=(
             "@nhonh/cli"
             "@nhonh/mcp-server"
-            "@nhonh/core"
-            "@nhonh/design-tokens"
-            "@nhonh/driver-playwright"
-            "@nhonh/plugins-builtin"
-            "@nhonh/viewer"
-            "@nhonh/share-client"
-            "@nhonh/reporter-json"
+            "@nhonh/reporter-csv"
+            "@nhonh/reporter-junit"
+            "@nhonh/reporter-markdown"
             "@nhonh/reporter-html"
             "@nhonh/reporter-deck"
-            "@nhonh/reporter-markdown"
-            "@nhonh/reporter-junit"
-            "@nhonh/reporter-csv"
+            "@nhonh/reporter-json"
+            "@nhonh/share-client"
+            "@nhonh/viewer"
+            "@nhonh/plugins-builtin"
+            "@nhonh/driver-playwright"
+            "@nhonh/core"
             "@nhonh/trace-utils"
+            "@nhonh/design-tokens"
           )
           FAILED=()
           for pkg in "${PKGS[@]}"; do
             echo ""
             echo "=== Unpublishing $pkg ==="
-            if npm unpublish "$pkg" --force 2>&1; then
+            # Probe registry first — if already 404 (previous run unpublished it), skip
+            ENCODED="${pkg//\//%2F}"
+            CODE=$(curl --max-time 8 -s -o /dev/null -w "%{http_code}" "https://registry.npmjs.org/$ENCODED")
+            if [ "$CODE" = "404" ]; then
+              echo "  → already gone (registry 404), skipping"
+              continue
+            fi
+            OUTPUT=$(npm unpublish "$pkg" --force 2>&1)
+            STATUS=$?
+            if [ $STATUS -eq 0 ]; then
               echo "  → unpublished $pkg (all versions)"
+            elif echo "$OUTPUT" | grep -q "Not Found"; then
+              echo "  → already gone (npm Not Found), skipping"
             else
+              echo "  $OUTPUT" | head -5
               echo "  → FAILED to unpublish $pkg"
               FAILED+=("$pkg")
             fi
