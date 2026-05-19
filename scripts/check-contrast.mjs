@@ -84,13 +84,54 @@ for (const brand of VENDORED_BRANDS) {
   }
 }
 
+const TEXT_TIER_MIN = 4.5;
+const UI_TIER_MIN = 3.0;
+const TEXT_RAMP = [
+  { token: "--fg", min: TEXT_TIER_MIN, label: "body text" },
+  { token: "--fg-2", min: TEXT_TIER_MIN, label: "secondary text" },
+  { token: "--muted", min: UI_TIER_MIN, label: "tertiary / UI" },
+  { token: "--meta", min: UI_TIER_MIN, label: "metadata" },
+];
+
+for (const brand of VENDORED_BRANDS) {
+  const brandCssPath = resolve(root, "packages/design-tokens/brands", brand, "tokens.css");
+  let brandCss;
+  try {
+    brandCss = await readFile(brandCssPath, "utf8");
+  } catch {
+    continue;
+  }
+  const bg = brandCss.match(/--bg:\s*(#[0-9a-fA-F]{6})/)?.[1];
+  const surface = brandCss.match(/--surface:\s*(#[0-9a-fA-F]{6})/)?.[1];
+  if (!bg) {
+    failures.push(`${brand}: --bg hex not parseable for R10a 4-tier ramp gate`);
+    continue;
+  }
+  const surfaceColor = surface ? parseColor(surface) : parseColor(bg);
+  const bgColor = parseColor(bg);
+  for (const tier of TEXT_RAMP) {
+    const m = brandCss.match(new RegExp(`${tier.token}:\\s*(#[0-9a-fA-F]{6}|rgba?\\([^)]+\\))`));
+    if (!m) continue;
+    const tierColor = parseColor(m[1]);
+    if (!tierColor) continue;
+    const onBg = contrastRatioRgb(tierColor, bgColor);
+    const onSurface = contrastRatioRgb(tierColor, surfaceColor);
+    const worst = Math.min(onBg, onSurface);
+    if (worst < tier.min) {
+      failures.push(`${brand}/${tier.token} (${tier.label}): ${onBg.toFixed(2)}:1 vs bg / ${onSurface.toFixed(2)}:1 vs surface; worst ${worst.toFixed(2)}:1 (need ≥${tier.min}:1) [R10a]`);
+    } else {
+      console.log(`${brand}/${tier.token} (${tier.label}): ${onBg.toFixed(2)}:1 vs bg ${bg} / ${onSurface.toFixed(2)}:1 vs surface ${surface ?? bg} ✓ R10a`);
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error("\ncheck-contrast: FAILED");
   for (const f of failures) console.error("  " + f);
   process.exit(1);
 }
 
-console.log(`\ncheck-contrast: all tokens have a foreground (dark or white) pair with ≥${MIN_RATIO}:1 contrast.`);
+console.log(`\ncheck-contrast: accent tokens ≥${MIN_RATIO}:1 + R10a 4-tier text ramp (--fg/--fg-2 ≥${TEXT_TIER_MIN}:1, --muted/--meta ≥${UI_TIER_MIN}:1) vs bg + surface for all vendored brands.`);
 
 function contrastRatio(fgL, bgL) {
   const f = oklchLToRelativeLuminance(fgL);

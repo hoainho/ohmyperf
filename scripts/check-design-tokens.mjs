@@ -82,7 +82,35 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
+const REQUIRED_CALIBRE_TOKENS = [
+  "--space-1", "--space-2", "--space-3", "--space-4", "--space-5", "--space-6", "--space-8", "--space-12",
+  "--section-y-desktop", "--section-y-tablet", "--section-y-phone",
+  "--text-xs", "--text-sm", "--text-base", "--text-lg", "--text-xl", "--text-2xl", "--text-3xl", "--text-4xl",
+  "--leading-body", "--leading-tight", "--tracking-display",
+  "--radius-sm", "--radius-md", "--radius-lg", "--radius-pill",
+  "--elev-flat", "--elev-ring", "--elev-raised",
+  "--focus-ring",
+  "--motion-fast", "--motion-base", "--ease-standard",
+  "--container-max", "--container-gutter-desktop", "--container-gutter-tablet", "--container-gutter-phone",
+  "--bg", "--fg", "--fg-2", "--surface", "--surface-warm",
+  "--accent", "--accent-on", "--success", "--warn", "--danger",
+  "--meta", "--muted", "--border", "--border-soft",
+];
+
+const parityFailures = [];
+for (const token of REQUIRED_CALIBRE_TOKENS) {
+  const re = new RegExp(`^\\s*${token.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}:\\s*`, "m");
+  if (!re.test(canonicalSrc)) {
+    parityFailures.push(`R23 parity: ${token} not declared in canonical ${CANONICAL.replace(root + "/", "")}`);
+  }
+}
+if (parityFailures.length > 0) {
+  console.error("R23 calibre token-surface parity FAILED:");
+  for (const f of parityFailures) console.error(`  - ${f}`);
+  process.exit(1);
+}
+
 const tokenCount = canonical.size;
 console.log(
-  `OK: ${String(tokenCount)} canonical token(s) match across ${String(mirrorsChecked)} mirror(s) (canonical: ${CANONICAL.replace(root + "/", "")})`,
+  `OK: ${String(tokenCount)} canonical color token(s) match across ${String(mirrorsChecked)} mirror(s) + R23 ${String(REQUIRED_CALIBRE_TOKENS.length)}-token calibre surface parity (canonical: ${CANONICAL.replace(root + "/", "")})`,
 );
