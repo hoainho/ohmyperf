@@ -90,7 +90,7 @@ Set `Root Directory` to `apps/website` in the Vercel project settings.
 
 ```bash
 # Clone and start
-git clone git@github-personal.com:nhonh/ohmyperf.git
+git clone git@github-personal.com:hoainho/ohmyperf.git
 cd ohmyperf
 docker compose -f apps/runner/docker-compose.yml up -d
 
