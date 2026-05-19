@@ -1,4 +1,4 @@
-import { definePlugin, type Plugin } from "@ohmyperf/core";
+import { definePlugin, type Plugin } from "@nhonh/core";
 
 export interface CwvPluginOptions {
   readonly id?: string;

@@ -1,4 +1,4 @@
-import type { LongTask } from '@ohmyperf/core';
+import type { LongTask } from '@nhonh/core';
 
 interface Props {
   longTasks: ReadonlyArray<LongTask>;

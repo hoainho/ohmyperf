@@ -10,7 +10,7 @@ import {
   urlToKey,
   type TimeSeriesPoint,
 } from "./timeseries.js";
-import type { Report } from "@ohmyperf/core";
+import type { Report } from "@nhonh/core";
 
 function fakeReport(url: string, lcpMedian: number): Report {
   return {

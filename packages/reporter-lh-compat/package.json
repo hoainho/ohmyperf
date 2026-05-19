@@ -1,5 +1,5 @@
 {
-  "name": "@ohmyperf/reporter-lh-compat",
+  "name": "@nhonh/reporter-lh-compat",
   "version": "0.0.0-pre",
   "description": "Lighthouse-compatible JSON reporter (lossy).",
   "license": "Apache-2.0",

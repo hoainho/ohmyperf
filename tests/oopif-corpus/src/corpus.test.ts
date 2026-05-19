@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createSilentLogger } from "@ohmyperf/core";
+import { createSilentLogger } from "@nhonh/core";
 import {
   createPlaywrightDriver,
   pageHandleAsTarget,
   type PlaywrightDriverInstance,
-} from "@ohmyperf/driver-playwright";
-import type { BrowserHandle } from "@ohmyperf/core";
+} from "@nhonh/driver-playwright";
+import type { BrowserHandle } from "@nhonh/core";
 import {
   FIXTURE_EXPECTATIONS,
   startFixtureServer,

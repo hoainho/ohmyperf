@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { analyzeRegressionCause } from "./regression-cause.js";
-import type { Report } from "@ohmyperf/core";
+import type { Report } from "@nhonh/core";
 
 function makeReport(opts: {
   lcps?: number[];

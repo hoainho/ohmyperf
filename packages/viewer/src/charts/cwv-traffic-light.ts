@@ -1,4 +1,4 @@
-import type { AggregatedMetric } from "@ohmyperf/core";
+import type { AggregatedMetric } from "@nhonh/core";
 import { escapeHtml } from "../escape.js";
 import {
   classifyCwv,

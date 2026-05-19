@@ -1,10 +1,10 @@
 import { defineCommand } from "citty";
-import { computePluginIntegrity, createConsoleLogger } from "@ohmyperf/core";
+import { computePluginIntegrity, createConsoleLogger } from "@nhonh/core";
 import {
   axePlugin,
   cwvPlugin,
   customMetricExamplePlugin,
-} from "@ohmyperf/plugins-builtin";
+} from "@nhonh/plugins-builtin";
 
 export const listPluginsCommand = defineCommand({
   meta: {

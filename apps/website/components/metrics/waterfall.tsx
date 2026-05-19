@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import type { Resource } from '@ohmyperf/core';
+import type { Resource } from '@nhonh/core';
 
 const WaterfallChart = dynamic(() => import('./waterfall-chart').then((m) => m.WaterfallChart), {
   ssr: false,

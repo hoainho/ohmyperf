@@ -1,5 +1,5 @@
 {
-  "name": "@ohmyperf/driver-playwright",
+  "name": "@nhonh/driver-playwright",
   "version": "0.1.0",
   "description": "Playwright Driver implementation. Wraps newCDPSession() for Chromium-deep work.",
   "license": "Apache-2.0",
@@ -37,11 +37,11 @@
     "clean": "rimraf dist .turbo *.tsbuildinfo"
   },
   "peerDependencies": {
-    "@ohmyperf/core": "workspace:*",
+    "@nhonh/core": "workspace:*",
     "playwright": "catalog:"
   },
   "devDependencies": {
-    "@ohmyperf/core": "workspace:*",
+    "@nhonh/core": "workspace:*",
     "playwright": "catalog:",
     "vitest": "catalog:"
   },

@@ -15,7 +15,7 @@ import type {
   LaunchOpts,
   PageHandle,
   TargetHandle,
-} from "@ohmyperf/core";
+} from "@nhonh/core";
 import { wrap, type CdpClient } from "./cdp-compat.js";
 import {
   setupOopifAutoAttach,

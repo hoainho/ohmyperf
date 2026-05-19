@@ -1,4 +1,4 @@
-# @ohmyperf/reporter-trace
+# @nhonh/reporter-trace
 
 Chrome trace .json.gz reporter (loadable in chrome://tracing).
 

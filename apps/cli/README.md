@@ -1,4 +1,4 @@
-# `@ohmyperf/cli`
+# `@nhonh/cli`
 
 Real-machine, real-browser web performance measurement CLI. Measures Core Web Vitals (LCP / INP / CLS / TBT / FCP / TTFB) on your hardware, captures cross-origin iframe metrics via CDP OOPIF, and produces self-contained HTML reports + slide decks.
 
@@ -10,10 +10,10 @@ ohmyperf run https://example.com
 
 ```bash
 # one-off
-npx -y @ohmyperf/cli run https://example.com
+npx -y @nhonh/cli run https://example.com
 
 # global
-npm install -g @ohmyperf/cli
+npm install -g @nhonh/cli
 ohmyperf run https://example.com
 ```
 
@@ -67,13 +67,13 @@ OhMyPerf is the only tool that combines:
 
 1. Local lab measurement on your hardware
 2. A portable, single-file shareable artifact
-3. An MCP server surface ([`@ohmyperf/mcp-server`](https://www.npmjs.com/package/@ohmyperf/mcp-server)) for AI coding agents
+3. An MCP server surface ([`@nhonh/mcp-server`](https://www.npmjs.com/package/@nhonh/mcp-server)) for AI coding agents
 
 See [the project README](https://github.com/hoainho/ohmyperf#readme) for the full positioning matrix.
 
 ## AI agent integration
 
-Use the companion [`@ohmyperf/mcp-server`](https://www.npmjs.com/package/@ohmyperf/mcp-server) to expose measurement, regression analysis, and budget enforcement as MCP tools (Claude, Cursor, OpenCode, Copilot).
+Use the companion [`@nhonh/mcp-server`](https://www.npmjs.com/package/@nhonh/mcp-server) to expose measurement, regression analysis, and budget enforcement as MCP tools (Claude, Cursor, OpenCode, Copilot).
 
 ## License
 
@@ -82,5 +82,5 @@ Apache-2.0 — see [LICENSE](./LICENSE) and [NOTICE](./NOTICE).
 ## Links
 
 - GitHub: <https://github.com/hoainho/ohmyperf>
-- MCP server: [`@ohmyperf/mcp-server`](https://www.npmjs.com/package/@ohmyperf/mcp-server)
+- MCP server: [`@nhonh/mcp-server`](https://www.npmjs.com/package/@nhonh/mcp-server)
 - Issues: <https://github.com/hoainho/ohmyperf/issues>

@@ -1,4 +1,4 @@
-# @ohmyperf/extension-chrome
+# @nhonh/extension-chrome
 
 MV3 Chrome extension; chrome.debugger-backed real-device runner.
 
@@ -50,7 +50,7 @@ When updating the CWS listing, paste these into the corresponding fields:
 ## Build
 
 ```bash
-pnpm --filter @ohmyperf/extension-chrome build
+pnpm --filter @nhonh/extension-chrome build
 ```
 
 Output: `extension-dist/` (load this directory via `chrome://extensions` → Load unpacked).

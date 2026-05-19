@@ -1,4 +1,4 @@
-# @ohmyperf/driver-extension
+# @nhonh/driver-extension
 
 Driver implementation backed by chrome.debugger. Used by the Chrome extension surface.
 

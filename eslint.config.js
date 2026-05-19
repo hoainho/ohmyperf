@@ -7,14 +7,14 @@ const layeringRules = {
     {
       patterns: [
         {
-          group: ["@ohmyperf/core/internal", "@ohmyperf/core/internal/*"],
+          group: ["@nhonh/core/internal", "@nhonh/core/internal/*"],
           message:
-            "Layering violation: only @ohmyperf/core public exports may be imported. core/internal is private.",
+            "Layering violation: only @nhonh/core public exports may be imported. core/internal is private.",
         },
         {
           group: ["playwright/types/protocol", "puppeteer-core/lib/cjs/puppeteer/api/protocol*"],
           message:
-            "Layering violation: CDP Protocol types must not appear outside packages/driver-*. Translate to @ohmyperf/core domain types at the boundary.",
+            "Layering violation: CDP Protocol types must not appear outside packages/driver-*. Translate to @nhonh/core domain types at the boundary.",
         },
       ],
     },
@@ -28,21 +28,21 @@ const viewerRestriction = {
       patterns: [
         {
           group: [
-            "@ohmyperf/driver-playwright",
-            "@ohmyperf/driver-playwright/*",
-            "@ohmyperf/driver-extension",
-            "@ohmyperf/driver-extension/*",
-            "@ohmyperf/plugins-builtin",
-            "@ohmyperf/plugins-builtin/*",
+            "@nhonh/driver-playwright",
+            "@nhonh/driver-playwright/*",
+            "@nhonh/driver-extension",
+            "@nhonh/driver-extension/*",
+            "@nhonh/plugins-builtin",
+            "@nhonh/plugins-builtin/*",
             "playwright",
             "playwright-core",
             "puppeteer-core",
           ],
           message:
-            "Layering violation: viewer must consume only the Report JSON shape from @ohmyperf/core/types. No drivers, no plugins, no Playwright.",
+            "Layering violation: viewer must consume only the Report JSON shape from @nhonh/core/types. No drivers, no plugins, no Playwright.",
         },
         {
-          group: ["@ohmyperf/core/runtime", "@ohmyperf/core/runtime/*"],
+          group: ["@nhonh/core/runtime", "@nhonh/core/runtime/*"],
           message:
             "Layering violation: viewer must not import the engine runtime — only the Report types.",
         },
@@ -59,13 +59,13 @@ const cliRestriction = {
         {
           group: ["playwright", "playwright-core", "puppeteer-core"],
           message:
-            "Layering violation: CLI must use @ohmyperf/driver-* adapter factories, never reach Playwright directly.",
+            "Layering violation: CLI must use @nhonh/driver-* adapter factories, never reach Playwright directly.",
         },
         {
           group: [
-            "@ohmyperf/driver-playwright/cdp-compat",
-            "@ohmyperf/driver-playwright/oopif-attach",
-            "@ohmyperf/driver-extension/cdp-compat",
+            "@nhonh/driver-playwright/cdp-compat",
+            "@nhonh/driver-playwright/oopif-attach",
+            "@nhonh/driver-extension/cdp-compat",
           ],
           message:
             "Layering violation: CLI may use the driver's createPlaywrightAdapter() but must not reach into driver internals.",

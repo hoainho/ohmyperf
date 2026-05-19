@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
 import { InMemoryStorage } from "./storage.js";
-import type { Report } from "@ohmyperf/core";
+import type { Report } from "@nhonh/core";
 
 function makeReport(): Report {
   return {

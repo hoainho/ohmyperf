@@ -6,7 +6,7 @@ import {
   diffReports,
   formatDiff,
   type Report,
-} from "@ohmyperf/core";
+} from "@nhonh/core";
 import { EXIT_CODES } from "../exit-codes.js";
 
 export const diffCommand = defineCommand({

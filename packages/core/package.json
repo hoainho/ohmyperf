@@ -1,5 +1,5 @@
 {
-  "name": "@ohmyperf/core",
+  "name": "@nhonh/core",
   "version": "0.1.0",
   "description": "Engine, types, plugin runtime. Reentrant. Public API frozen at 1.0.0-stable end of P0.",
   "license": "Apache-2.0",
@@ -37,7 +37,7 @@
   },
   "dependencies": {
     "web-vitals": "catalog:",
-    "@ohmyperf/trace-utils": "workspace:*"
+    "@nhonh/trace-utils": "workspace:*"
   },
   "devDependencies": {
     "vitest": "catalog:",

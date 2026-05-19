@@ -1,5 +1,5 @@
 {
-  "name": "@ohmyperf/viewer",
+  "name": "@nhonh/viewer",
   "version": "0.1.0",
   "description": "Static, single-file HTML viewer for OhMyPerf Reports (no runtime dependencies; no React in v0).",
   "license": "Apache-2.0",
@@ -40,12 +40,12 @@
     "clean": "rimraf dist .turbo *.tsbuildinfo"
   },
   "peerDependencies": {
-    "@ohmyperf/core": "workspace:*",
-    "@ohmyperf/design-tokens": "workspace:*"
+    "@nhonh/core": "workspace:*",
+    "@nhonh/design-tokens": "workspace:*"
   },
   "devDependencies": {
-    "@ohmyperf/core": "workspace:*",
-    "@ohmyperf/design-tokens": "workspace:*",
+    "@nhonh/core": "workspace:*",
+    "@nhonh/design-tokens": "workspace:*",
     "vitest": "catalog:"
   },
   "publishConfig": {

@@ -1,4 +1,4 @@
-# @ohmyperf/share-server
+# @nhonh/share-server
 
 Hono backend for shareable links. Two adapters share a single Hono app:
 

@@ -1,12 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { defineCommand } from "citty";
-import { createConsoleLogger, type Report } from "@ohmyperf/core";
+import { createConsoleLogger, type Report } from "@nhonh/core";
 import {
   ShareSecretLeakError,
   ShareUploadError,
   uploadReport,
-} from "@ohmyperf/share-client";
+} from "@nhonh/share-client";
 import { EXIT_CODES } from "../exit-codes.js";
 
 export const shareCommand = defineCommand({

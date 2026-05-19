@@ -7,7 +7,7 @@ import type {
   JobPollResponse,
   HealthResponse,
   Report,
-} from '@ohmyperf/shared-types';
+} from '@nhonh/shared-types';
 
 export type { ProgressEvent };
 

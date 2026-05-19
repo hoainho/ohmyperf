@@ -6,7 +6,7 @@ import type {
   LaunchOpts,
   PageHandle,
   TargetHandle,
-} from "@ohmyperf/core";
+} from "@nhonh/core";
 
 interface ChromeDebuggerTarget {
   tabId?: number;

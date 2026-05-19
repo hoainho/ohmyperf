@@ -1,6 +1,6 @@
 'use client';
 
-import type { Report, AggregatedMetric, RunReport } from '@ohmyperf/core';
+import type { Report, AggregatedMetric, RunReport } from '@nhonh/core';
 import {
   HEADLINE_METRICS,
   UNSTABLE_COV_THRESHOLD,

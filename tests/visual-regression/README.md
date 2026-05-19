@@ -1,4 +1,4 @@
-# @ohmyperf/tests-visual-regression
+# @nhonh/tests-visual-regression
 
 Visual regression baselines for the 4 brand styles (`calibre`, `linear-app`, `stripe`, `vercel`) across viewer + deck surfaces.
 

@@ -1,4 +1,4 @@
-# @ohmyperf/reporter-lh-compat
+# @nhonh/reporter-lh-compat
 
 Lighthouse-compatible JSON reporter (lossy).
 

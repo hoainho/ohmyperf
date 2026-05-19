@@ -1,5 +1,5 @@
 {
-  "name": "@ohmyperf/reporter-trace",
+  "name": "@nhonh/reporter-trace",
   "version": "0.0.0-pre",
   "description": "Chrome trace .json.gz reporter (loadable in chrome://tracing).",
   "license": "Apache-2.0",

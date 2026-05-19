@@ -13,7 +13,7 @@ import {
   type PortEvent,
   type ProgressEvent,
   type MeasureRequest,
-} from '@ohmyperf/shared-types';
+} from '@nhonh/shared-types';
 
 import { EXTENSION_ID } from './extension-id';
 
