@@ -1,0 +1,223 @@
+name: Publish Stable
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Force semver bump (patch | minor | major). Leave empty for commit-based detection."
+        required: false
+        type: string
+
+concurrency:
+  group: publish-stable
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+
+      - name: Bot-commit guard (prevent loop)
+        id: guard
+        run: |
+          AUTHOR=$(git log -1 --pretty=format:'%an')
+          MSG=$(git log -1 --pretty=format:'%s')
+          echo "Author: $AUTHOR"
+          echo "Message: $MSG"
+          if [[ "$AUTHOR" == "github-actions[bot]" ]] || echo "$MSG" | grep -q "\[skip ci\]"; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Bot commit / skip-ci marker detected — skipping publish"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install
+        if: steps.guard.outputs.skip == 'false'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        if: steps.guard.outputs.skip == 'false'
+        run: pnpm build
+
+      - name: Detect semver bump from conventional commits
+        if: steps.guard.outputs.skip == 'false'
+        id: bump
+        run: |
+          set -euo pipefail
+          FORCED="${{ inputs.bump }}"
+          if [ -n "$FORCED" ]; then
+            echo "bump=$FORCED" >> $GITHUB_OUTPUT
+            echo "Forced bump via workflow_dispatch: $FORCED"
+            exit 0
+          fi
+          LAST_TAG=$(git tag --list 'v*' --sort=-version:refname \
+            | grep -v 'beta' | head -1 || echo "")
+          RANGE="${LAST_TAG:+${LAST_TAG}..}HEAD"
+          COMMITS=$(git log $RANGE --pretty=format:"%s%n%b" --no-merges)
+          BUMP="patch"
+          if echo "$COMMITS" | grep -qE "^(feat|fix|refactor|chore|docs|style|test|perf|ci)(\(.+\))?!:" || \
+             echo "$COMMITS" | grep -q "^BREAKING CHANGE"; then
+            BUMP="major"
+          elif echo "$COMMITS" | grep -qE "^feat(\(.+\))?:"; then
+            BUMP="minor"
+          fi
+          echo "bump=$BUMP" >> $GITHUB_OUTPUT
+          echo "last_tag=${LAST_TAG}" >> $GITHUB_OUTPUT
+          echo "range=${RANGE}" >> $GITHUB_OUTPUT
+          echo "Detected bump: $BUMP"
+
+      - name: Bump version in all publishable packages
+        if: steps.guard.outputs.skip == 'false'
+        id: version
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          BUMP_KIND="${{ steps.bump.outputs.bump }}"
+          NEW_VERSION=$(npm version "$BUMP_KIND" --no-git-tag-version)
+          VERSION="${NEW_VERSION#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Root bumped to $VERSION"
+          for pkg in packages/*/package.json apps/*/package.json; do
+            [ -f "$pkg" ] || continue
+            IS_PRIVATE=$(node -p "require('./$pkg').private || false")
+            if [ "$IS_PRIVATE" = "false" ]; then
+              node -e "
+                const fs=require('fs'); const p=require('./$pkg');
+                p.version='$VERSION';
+                fs.writeFileSync('$pkg', JSON.stringify(p, null, 2) + '\n');
+              "
+              echo "  Bumped $pkg to $VERSION"
+            fi
+          done
+
+      - name: Generate categorised changelog
+        if: steps.guard.outputs.skip == 'false'
+        id: changelog
+        run: |
+          set -euo pipefail
+          RANGE="${{ steps.bump.outputs.range }}"
+          breaking=$(git log $RANGE --pretty=format:"%s" --no-merges \
+            | grep -E "^(feat|fix|refactor|chore|docs|style|test|perf|ci)(\(.+\))?!:" \
+            | sed 's/^/- /' || true)
+          feat=$(git log $RANGE --pretty=format:"%s" --no-merges \
+            | grep -E "^feat(\(.+\))?:" | grep -v "!" | sed 's/^/- /' || true)
+          fix=$(git log $RANGE --pretty=format:"%s" --no-merges \
+            | grep -E "^fix(\(.+\))?:" | sed 's/^/- /' || true)
+          refactor=$(git log $RANGE --pretty=format:"%s" --no-merges \
+            | grep -E "^refactor(\(.+\))?:" | sed 's/^/- /' || true)
+          docs=$(git log $RANGE --pretty=format:"%s" --no-merges \
+            | grep -E "^docs(\(.+\))?:" | sed 's/^/- /' || true)
+          chore=$(git log $RANGE --pretty=format:"%s" --no-merges \
+            | grep -E "^chore(\(.+\))?:" \
+            | grep -v "bump version" \
+            | grep -v "update CHANGELOG" \
+            | grep -v "\[skip ci\]" \
+            | sed 's/^/- /' || true)
+          body=""
+          [ -n "$breaking" ] && body+=$'### \u26a0 Breaking Changes\n'"$breaking"$'\n\n'
+          [ -n "$feat" ]     && body+=$'### Added\n'"$feat"$'\n\n'
+          [ -n "$fix" ]      && body+=$'### Fixed\n'"$fix"$'\n\n'
+          [ -n "$refactor" ] && body+=$'### Changed\n'"$refactor"$'\n\n'
+          [ -n "$docs" ]     && body+=$'### Documentation\n'"$docs"$'\n\n'
+          [ -n "$chore" ]    && body+=$'### Other\n'"$chore"$'\n\n'
+          [ -z "$body" ]     && body="_No notable changes_"
+          echo "$body" > /tmp/changelog_body.md
+          {
+            echo "body<<EOF"
+            echo "$body"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Update CHANGELOG.md
+        if: steps.guard.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          DATE=$(date -u +%Y-%m-%d)
+          if [ ! -f CHANGELOG.md ]; then
+            cat > CHANGELOG.md <<HEADER
+          # Changelog
+
+          All notable changes to this project will be documented in this file.
+
+          The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+          and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+          HEADER
+          fi
+          BODY=$(cat /tmp/changelog_body.md)
+          NEW_ENTRY=$(printf "## [%s] - %s\n\n%s\n\n" "$VERSION" "$DATE" "$BODY")
+          # Insert after the second line that ends with a period (after the intro paragraph)
+          MARKER="All notable changes to this project will be documented in this file."
+          if grep -qF "$MARKER" CHANGELOG.md; then
+            awk -v marker="$MARKER" -v entry="$NEW_ENTRY" '
+              { print }
+              !inserted && index($0, marker) {
+                # Find next blank line, then insert entry
+                getline next_line; print next_line
+                print ""
+                printf "%s", entry
+                inserted = 1
+              }
+            ' CHANGELOG.md > CHANGELOG.md.new
+            mv CHANGELOG.md.new CHANGELOG.md
+          else
+            printf "%s\n%s" "$NEW_ENTRY" "$(cat CHANGELOG.md)" > CHANGELOG.md
+          fi
+
+      - name: Commit version bump + changelog
+        if: steps.guard.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          git add package.json packages/*/package.json apps/*/package.json CHANGELOG.md
+          git commit -m "chore: bump version to v$VERSION [skip ci]"
+          git tag "v$VERSION"
+
+      - name: Publish to npm
+        if: steps.guard.outputs.skip == 'false'
+        run: pnpm publish -r --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Push commit and tag
+        if: steps.guard.outputs.skip == 'false'
+        run: |
+          git push origin HEAD:main
+          git push origin "v${{ steps.version.outputs.version }}"
+
+      - name: Create GitHub release
+        if: steps.guard.outputs.skip == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.version.outputs.version }}';
+            const body = `${{ steps.changelog.outputs.body }}`;
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: `v${version}`,
+              name: `ohmyperf v${version}`,
+              body: `${body}\n\n---\n\n**Install:**\n\`\`\`bash\nnpm install -g @ohmyperf/cli\n\`\`\`\n\nAll \`@ohmyperf/*\` packages published at this version.`,
+              prerelease: false,
+              target_commitish: context.sha,
+            });

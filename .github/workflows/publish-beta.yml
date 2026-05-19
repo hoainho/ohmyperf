@@ -1,0 +1,99 @@
+name: Publish Beta
+
+on:
+  push:
+    branches: [beta]
+  workflow_dispatch:
+
+concurrency:
+  group: publish-beta-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Compute beta version
+        id: version
+        run: |
+          BASE=$(node -p "require('./package.json').version")
+          BETA="${BASE}-beta.${{ github.run_number }}"
+          echo "beta=$BETA" >> $GITHUB_OUTPUT
+          echo "Beta version: $BETA"
+
+      - name: Bump all publishable workspace packages
+        run: |
+          set -euo pipefail
+          BETA="${{ steps.version.outputs.beta }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Bump every non-private package.json
+          for pkg in packages/*/package.json apps/*/package.json; do
+            [ -f "$pkg" ] || continue
+            IS_PRIVATE=$(node -p "require('./$pkg').private || false")
+            if [ "$IS_PRIVATE" = "false" ]; then
+              node -e "
+                const fs=require('fs'); const p=require('./$pkg');
+                p.version='$BETA';
+                fs.writeFileSync('$pkg', JSON.stringify(p, null, 2) + '\n');
+              "
+              echo "Bumped $pkg to $BETA"
+            fi
+          done
+
+      - name: Publish to npm @beta
+        run: pnpm publish -r --tag beta --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Changelog since last tag
+        id: changelog
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          RANGE="${LAST_TAG:+${LAST_TAG}..}HEAD"
+          COMMITS=$(git log ${RANGE} --pretty=format:"- %s" --no-merges \
+            | grep -v "^- chore: bump version" \
+            | grep -v "^- chore: update CHANGELOG" \
+            || true)
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "${COMMITS:-_No notable changes_}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub pre-release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const version = '${{ steps.version.outputs.beta }}';
+            const changelog = `${{ steps.changelog.outputs.changelog }}`;
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: `v${version}`,
+              name: `ohmyperf v${version} (beta)`,
+              body: `## Changes\n\n${changelog}\n\n---\n\n**Install:**\n\`\`\`bash\nnpm install -g @ohmyperf/cli@beta\n\`\`\`\n\nAll \`@ohmyperf/*\` packages published with tag \`beta\` at this version.`,
+              prerelease: true,
+              target_commitish: context.sha,
+            });
