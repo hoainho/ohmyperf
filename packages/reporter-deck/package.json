@@ -1,6 +1,6 @@
 {
   "name": "@ohmyperf/reporter-deck",
-  "version": "0.0.0-pre",
+  "version": "0.1.0",
   "description": "Multi-slide HTML presentation reporter. Swiss-grid layout grammar + Calibre palette. Single file, light-locked, print-to-PDF first-class.",
   "license": "Apache-2.0",
   "engines": {
@@ -37,5 +37,38 @@
     "@ohmyperf/design-tokens": "workspace:*",
     "@ohmyperf/viewer": "workspace:*",
     "vitest": "catalog:"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hoainho/ohmyperf.git",
+    "directory": "packages/reporter-deck"
+  },
+  "bugs": {
+    "url": "https://github.com/hoainho/ohmyperf/issues"
+  },
+  "author": "Hoài Nhớ <nhoxtvt@gmail.com>",
+  "homepage": "https://github.com/hoainho/ohmyperf#readme",
+  "keywords": [
+    "performance",
+    "web-performance",
+    "core-web-vitals",
+    "cwv",
+    "lcp",
+    "inp",
+    "cls",
+    "lighthouse-alternative",
+    "playwright",
+    "chrome-devtools-protocol",
+    "cdp",
+    "oopif",
+    "perf-measurement",
+    "reporter",
+    "deck",
+    "slides",
+    "presentation",
+    "pdf"
+  ]
 }

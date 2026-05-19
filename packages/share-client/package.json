@@ -1,6 +1,6 @@
 {
   "name": "@ohmyperf/share-client",
-  "version": "0.0.0-pre",
+  "version": "0.1.0",
   "description": "Upload/fetch shareable reports; runs the redaction pipeline before upload.",
   "license": "Apache-2.0",
   "engines": {
@@ -34,5 +34,36 @@
   "devDependencies": {
     "@ohmyperf/core": "workspace:*",
     "vitest": "catalog:"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hoainho/ohmyperf.git",
+    "directory": "packages/share-client"
+  },
+  "bugs": {
+    "url": "https://github.com/hoainho/ohmyperf/issues"
+  },
+  "author": "Hoài Nhớ <nhoxtvt@gmail.com>",
+  "homepage": "https://github.com/hoainho/ohmyperf#readme",
+  "keywords": [
+    "performance",
+    "web-performance",
+    "core-web-vitals",
+    "cwv",
+    "lcp",
+    "inp",
+    "cls",
+    "lighthouse-alternative",
+    "playwright",
+    "chrome-devtools-protocol",
+    "cdp",
+    "oopif",
+    "perf-measurement",
+    "share",
+    "redaction",
+    "secrets-scrubber"
+  ]
 }

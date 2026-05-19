@@ -47,5 +47,6 @@
     "@ohmyperf/viewer": "workspace:*",
     "hono": "catalog:",
     "vitest": "catalog:"
-  }
+  },
+  "private": true
 }

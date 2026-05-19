@@ -1,6 +1,6 @@
 {
   "name": "@ohmyperf/driver-playwright",
-  "version": "0.0.0-pre",
+  "version": "0.1.0",
   "description": "Playwright Driver implementation. Wraps newCDPSession() for Chromium-deep work.",
   "license": "Apache-2.0",
   "engines": {
@@ -44,5 +44,35 @@
     "@ohmyperf/core": "workspace:*",
     "playwright": "catalog:",
     "vitest": "catalog:"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hoainho/ohmyperf.git",
+    "directory": "packages/driver-playwright"
+  },
+  "bugs": {
+    "url": "https://github.com/hoainho/ohmyperf/issues"
+  },
+  "author": "Hoài Nhớ <nhoxtvt@gmail.com>",
+  "homepage": "https://github.com/hoainho/ohmyperf#readme",
+  "keywords": [
+    "performance",
+    "web-performance",
+    "core-web-vitals",
+    "cwv",
+    "lcp",
+    "inp",
+    "cls",
+    "lighthouse-alternative",
+    "playwright",
+    "chrome-devtools-protocol",
+    "cdp",
+    "oopif",
+    "perf-measurement",
+    "driver",
+    "chromium"
+  ]
 }

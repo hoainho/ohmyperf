@@ -1,6 +1,6 @@
 {
   "name": "@ohmyperf/mcp-server",
-  "version": "0.0.0-pre",
+  "version": "0.1.0",
   "description": "MCP (Model Context Protocol) server exposing the ohmyperf engine as 'measure' and 'diff' tools for AI agents (Claude / OpenCode / Cursor / Cline / Continue).",
   "license": "Apache-2.0",
   "engines": {
@@ -33,6 +33,44 @@
     "clean": "rimraf dist .turbo *.tsbuildinfo"
   },
   "devDependencies": {
+    "vitest": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hoainho/ohmyperf.git",
+    "directory": "apps/mcp-server"
+  },
+  "bugs": {
+    "url": "https://github.com/hoainho/ohmyperf/issues"
+  },
+  "author": "Hoài Nhớ <nhoxtvt@gmail.com>",
+  "homepage": "https://github.com/hoainho/ohmyperf#readme",
+  "keywords": [
+    "performance",
+    "web-performance",
+    "core-web-vitals",
+    "cwv",
+    "lcp",
+    "inp",
+    "cls",
+    "lighthouse-alternative",
+    "playwright",
+    "chrome-devtools-protocol",
+    "cdp",
+    "oopif",
+    "perf-measurement",
+    "mcp",
+    "model-context-protocol",
+    "ai-agent",
+    "llm-tools",
+    "claude",
+    "cursor",
+    "opencode"
+  ],
+  "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@ohmyperf/core": "workspace:*",
     "@ohmyperf/driver-playwright": "workspace:*",
@@ -42,7 +80,6 @@
     "@ohmyperf/reporter-html": "workspace:*",
     "@ohmyperf/reporter-json": "workspace:*",
     "@ohmyperf/reporter-markdown": "workspace:*",
-    "vitest": "catalog:",
     "zod": "catalog:"
   }
 }

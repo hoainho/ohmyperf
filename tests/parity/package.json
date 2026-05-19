@@ -17,5 +17,6 @@
     "lighthouse": "^13.3.0",
     "playwright": "catalog:",
     "vitest": "catalog:"
-  }
+  },
+  "private": true
 }

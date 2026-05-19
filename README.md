@@ -4,7 +4,22 @@
 > Lighthouse and PageSpeed Insights run on synthetic CPUs in a Google datacenter.
 > OhMyPerf runs on **your hardware** with **your browser** and reports what your users actually experience.
 
-**License**: Apache-2.0 · **Status**: MVP across 7 surfaces · **Repo**: `ohmyperf/ohmyperf`
+**v0.1.0** · **License**: Apache-2.0 · **npm**: [`@ohmyperf/cli`](https://www.npmjs.com/package/@ohmyperf/cli) + [`@ohmyperf/mcp-server`](https://www.npmjs.com/package/@ohmyperf/mcp-server) · **Repo**: [`hoainho/ohmyperf`](https://github.com/hoainho/ohmyperf)
+
+## Install
+
+```bash
+# CLI for humans + CI
+npm install -g @ohmyperf/cli
+ohmyperf run https://your-site.com
+
+# MCP server for AI coding agents (Claude in OpenCode, Cursor, Copilot)
+npm install -g @ohmyperf/mcp-server
+```
+
+Or use `npx -y @ohmyperf/cli run https://your-site.com` for a zero-install one-off.
+
+Requires Node ≥ 22. Playwright Chromium auto-downloads on first run (~150 MB).
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐

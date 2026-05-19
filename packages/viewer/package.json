@@ -1,6 +1,6 @@
 {
   "name": "@ohmyperf/viewer",
-  "version": "0.0.0-pre",
+  "version": "0.1.0",
   "description": "Static, single-file HTML viewer for OhMyPerf Reports (no runtime dependencies; no React in v0).",
   "license": "Apache-2.0",
   "engines": {
@@ -47,5 +47,36 @@
     "@ohmyperf/core": "workspace:*",
     "@ohmyperf/design-tokens": "workspace:*",
     "vitest": "catalog:"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hoainho/ohmyperf.git",
+    "directory": "packages/viewer"
+  },
+  "bugs": {
+    "url": "https://github.com/hoainho/ohmyperf/issues"
+  },
+  "author": "Hoài Nhớ <nhoxtvt@gmail.com>",
+  "homepage": "https://github.com/hoainho/ohmyperf#readme",
+  "keywords": [
+    "performance",
+    "web-performance",
+    "core-web-vitals",
+    "cwv",
+    "lcp",
+    "inp",
+    "cls",
+    "lighthouse-alternative",
+    "playwright",
+    "chrome-devtools-protocol",
+    "cdp",
+    "oopif",
+    "perf-measurement",
+    "viewer",
+    "html-report",
+    "self-contained"
+  ]
 }

@@ -1,6 +1,6 @@
 {
   "name": "@ohmyperf/design-tokens",
-  "version": "0.0.0-pre",
+  "version": "0.1.0",
   "description": "Calibre OKLCH palette tokens shared by viewer + reporter-deck + website. Single source of truth interface; canonical source remains apps/website/app/globals.css.",
   "license": "Apache-2.0",
   "engines": {
@@ -30,5 +30,40 @@
   },
   "devDependencies": {
     "vitest": "catalog:"
-  }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hoainho/ohmyperf.git",
+    "directory": "packages/design-tokens"
+  },
+  "bugs": {
+    "url": "https://github.com/hoainho/ohmyperf/issues"
+  },
+  "author": "Hoài Nhớ <nhoxtvt@gmail.com>",
+  "homepage": "https://github.com/hoainho/ohmyperf#readme",
+  "keywords": [
+    "performance",
+    "web-performance",
+    "core-web-vitals",
+    "cwv",
+    "lcp",
+    "inp",
+    "cls",
+    "lighthouse-alternative",
+    "playwright",
+    "chrome-devtools-protocol",
+    "cdp",
+    "oopif",
+    "perf-measurement",
+    "design-tokens",
+    "oklch",
+    "open-design",
+    "calibre",
+    "linear",
+    "stripe",
+    "vercel"
+  ]
 }

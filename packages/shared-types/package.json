@@ -34,5 +34,6 @@
   "devDependencies": {
     "@ohmyperf/core": "workspace:*",
     "vitest": "catalog:"
-  }
+  },
+  "private": true
 }

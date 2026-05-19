@@ -1,12 +1,12 @@
 {
   "name": "ohmyperf",
-  "version": "0.0.0-pre",
+  "version": "0.1.0",
   "description": "Real-machine, real-browser web performance measurement platform with ~99% iframe coverage via CDP OOPIF deep-inspection.",
   "license": "Apache-2.0",
-  "homepage": "https://ohmyperf.dev",
+  "homepage": "https://github.com/hoainho/ohmyperf#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ohmyperf/ohmyperf.git"
+    "url": "git+https://github.com/hoainho/ohmyperf.git"
   },
   "bugs": {
     "url": "https://github.com/ohmyperf/ohmyperf/issues"
@@ -43,5 +43,21 @@
     "typescript-eslint": "^8.59.2",
     "lighthouse": "^13.3.0"
   },
-  "private": true
+  "private": true,
+  "author": "Hoài Nhớ <nhoxtvt@gmail.com>",
+  "keywords": [
+    "performance",
+    "web-performance",
+    "core-web-vitals",
+    "cwv",
+    "lcp",
+    "inp",
+    "cls",
+    "lighthouse-alternative",
+    "playwright",
+    "chrome-devtools-protocol",
+    "cdp",
+    "oopif",
+    "perf-measurement"
+  ]
 }

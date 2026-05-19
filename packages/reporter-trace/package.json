@@ -27,5 +27,6 @@
     "lint": "eslint src",
     "clean": "rimraf dist .turbo *.tsbuildinfo"
   },
-  "devDependencies": {}
+  "devDependencies": {},
+  "private": true
 }
