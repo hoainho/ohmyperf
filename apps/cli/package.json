@@ -1,6 +1,6 @@
 {
   "name": "@nhonh/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Real-machine, real-browser web performance measurement CLI. Measures Core Web Vitals (LCP/INP/CLS), runs on your hardware, and produces self-contained HTML reports + slide decks.",
   "license": "Apache-2.0",
   "engines": {

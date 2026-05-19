@@ -1,6 +1,6 @@
 {
   "name": "@nhonh/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Engine, types, plugin runtime. Reentrant. Public API frozen at 1.0.0-stable end of P0.",
   "license": "Apache-2.0",
   "engines": {

@@ -1,6 +1,6 @@
 {
   "name": "@nhonh/driver-playwright",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Playwright Driver implementation. Wraps newCDPSession() for Chromium-deep work.",
   "license": "Apache-2.0",
   "engines": {

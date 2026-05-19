@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-05-19
+
+### Fixed
+
+- `@nhonh/cli` and `@nhonh/mcp-server` failed to install with `404 @nhonh/trace-utils@0.0.0-pre not in registry` because `@nhonh/core` had a runtime dependency on `@nhonh/trace-utils`, which was inadvertently marked `private: true` in v0.1.0 (and therefore never published). Publish `@nhonh/trace-utils` as a public package and bump all 15 packages to 0.1.1.
+- `@nhonh/core@0.1.1` now resolves transitive deps cleanly from npm.
+
+### Verified
+
+- `npx --yes @nhonh/cli@0.1.1 --help` succeeds from clean cache (this was the regression that exposed the trace-utils gap).
+
 ## [0.1.0] - 2026-05-19
 
 First public release. 14 `@nhonh/*` packages published to npm.

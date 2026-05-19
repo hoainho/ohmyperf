@@ -1,6 +1,6 @@
 {
   "name": "@nhonh/share-client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Upload/fetch shareable reports; runs the redaction pipeline before upload.",
   "license": "Apache-2.0",
   "engines": {

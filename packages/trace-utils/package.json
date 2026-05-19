@@ -1,6 +1,6 @@
 {
   "name": "@nhonh/trace-utils",
-  "version": "0.0.0-pre",
+  "version": "0.1.1",
   "description": "Vendored tracium-equivalent. MainThreadTasks parsing, function attribution.",
   "license": "Apache-2.0",
   "engines": {
@@ -28,5 +28,26 @@
     "clean": "rimraf dist .turbo *.tsbuildinfo"
   },
   "devDependencies": {},
-  "private": true
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hoainho/ohmyperf.git",
+    "directory": "packages/trace-utils"
+  },
+  "author": "Hoài Nhớ <nhoxtvt@gmail.com>",
+  "homepage": "https://github.com/hoainho/ohmyperf#readme",
+  "bugs": {
+    "url": "https://github.com/hoainho/ohmyperf/issues"
+  },
+  "keywords": [
+    "performance",
+    "trace",
+    "tracium",
+    "chrome-devtools-protocol",
+    "cdp",
+    "main-thread-tasks",
+    "perf-measurement"
+  ]
 }
