@@ -481,6 +481,51 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
           },
         },
       },
+      {
+        name: "verify_fix",
+        description:
+          "Closes the agent fix loop: given a baseline report.json (the 'before' measurement) and a candidate URL (the 'after' — typically a preview/staging deploy of the patched code), re-measures the candidate with matching settings, diffs the two via Mann-Whitney U significance test, and returns a structured pass/fail/neutral verdict per CWV metric. Use this AFTER applying a propose_patch suggestion to verify the fix actually improved metrics.",
+        inputSchema: {
+          type: "object",
+          required: ["candidateUrl"],
+          properties: {
+            baselineReportPath: {
+              type: "string",
+              description: "Filesystem path to baseline report.json (alternative to 'baselineUri'). The 'before' measurement.",
+            },
+            baselineUri: {
+              type: "string",
+              description: "Baseline resource URI like 'ohmyperf://reports/<file>.json' (alternative to 'baselineReportPath').",
+            },
+            candidateUrl: {
+              type: "string",
+              description: "HTTP(S) URL to measure as the candidate (the 'after'). Typically a preview/staging deploy URL where the proposed patch has been applied.",
+            },
+            runs: {
+              type: "integer",
+              minimum: 1,
+              maximum: 30,
+              default: 3,
+              description: "Number of measurement runs for the candidate (default 3). Use 5+ for noisy URLs.",
+            },
+            mode: {
+              type: "string",
+              enum: ["real", "ci-stable"],
+              default: "ci-stable",
+              description: "ci-stable recommended for verify_fix — pre-flight CPU calibration + Fast 4G ensures the candidate is comparable to a ci-stable baseline.",
+            },
+            browserPath: {
+              type: "string",
+              description: "Override the Chromium binary path (same as 'measure').",
+            },
+            collectTrace: {
+              type: "boolean",
+              default: false,
+              description: "Capture trace for the candidate run (adds ~5-20MB).",
+            },
+          },
+        },
+      },
     ],
   }));
 
@@ -760,6 +805,60 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
         content: [
           { type: "text", text: summaryLines.join("\n") },
           { type: "text", text: JSON.stringify(result, null, 2) },
+        ],
+      };
+    }
+
+    if (name === "verify_fix") {
+      const candidateUrl = typeof args["candidateUrl"] === "string" ? args["candidateUrl"] : "";
+      if (!candidateUrl || !/^https?:\/\//.test(candidateUrl)) {
+        throw new Error("verify_fix: 'candidateUrl' must be an http(s) URL");
+      }
+      const baselineArgs: Record<string, unknown> = {};
+      if (typeof args["baselineReportPath"] === "string") baselineArgs["reportPath"] = args["baselineReportPath"];
+      if (typeof args["baselineUri"] === "string") baselineArgs["uri"] = args["baselineUri"];
+      const baselinePath = resolveReportRef(reportsDir, baselineArgs);
+      const baseline = await loadReport(baselinePath);
+
+      const measureArgs: Record<string, unknown> = {
+        url: candidateUrl,
+        runs: args["runs"] ?? 3,
+        mode: args["mode"] ?? "ci-stable",
+      };
+      if (typeof args["browserPath"] === "string") measureArgs["browserPath"] = args["browserPath"];
+      if (args["collectTrace"] === true) measureArgs["collectTrace"] = true;
+
+      const candidateInput = parseMeasureInput(measureArgs);
+      const candidate = await measure(candidateInput);
+      const candidatePath = await saveReport(reportsDir, candidate);
+      await trimReports(reportsDir, maxReports);
+
+      const diff = diffReports(baseline, candidate);
+      const verdictLine = diff.hasRegressions
+        ? `verify_fix: ❌ REGRESSION DETECTED — candidate is significantly worse than baseline on at least one CWV metric`
+        : `verify_fix: ✅ no regression — candidate is at least as good as baseline`;
+      const summary = [
+        verdictLine,
+        `Baseline: ${baseline.meta.url} (measurementId=${baseline.meta.measurementId})`,
+        `Candidate: ${candidate.meta.url} (measurementId=${candidate.meta.measurementId}) → ${candidatePath}`,
+        "",
+        formatDiff(diff),
+      ].join("\n");
+      return {
+        content: [
+          { type: "text", text: summary },
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                hasRegressions: diff.hasRegressions,
+                candidatePath,
+                metrics: diff.metrics,
+              },
+              null,
+              2,
+            ),
+          },
         ],
       };
     }
