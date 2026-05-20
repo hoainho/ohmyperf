@@ -41,14 +41,42 @@ export function parseOriginInfo(url: string): OriginInfo | null {
   return { host: u.host, registrableDomain: registrableDomain(u.host) };
 }
 
+function hostMatchesOrgPattern(host: string, pattern: string): boolean {
+  const p = pattern.trim().toLowerCase();
+  if (p === "") return false;
+  if (p.startsWith("*.")) {
+    const suffix = p.slice(2);
+    return host === suffix || host.endsWith(`.${suffix}`);
+  }
+  return host === p || host.endsWith(`.${p}`);
+}
+
 export function classifyOrigin(
   resourceUrl: string,
   primaryOrigin: OriginInfo | null,
+  orgDomains?: ReadonlyArray<string>,
 ): OriginClass {
   if (!primaryOrigin) return "unknown";
   const r = parseOriginInfo(resourceUrl);
   if (!r) return "unknown";
   if (r.host === primaryOrigin.host) return "same-origin";
   if (r.registrableDomain === primaryOrigin.registrableDomain) return "same-site";
+  if (orgDomains && orgDomains.length > 0) {
+    const host = r.host.toLowerCase();
+    for (const pat of orgDomains) {
+      if (hostMatchesOrgPattern(host, pat)) return "same-org";
+    }
+  }
   return "cross-site";
+}
+
+export function resolveOrgDomains(
+  fromOpts: ReadonlyArray<string> | undefined,
+  env: NodeJS.ProcessEnv,
+): ReadonlyArray<string> | undefined {
+  if (fromOpts && fromOpts.length > 0) return fromOpts;
+  const raw = env["OHMYPERF_ORG_DOMAINS"];
+  if (!raw) return undefined;
+  const list = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return list.length > 0 ? list : undefined;
 }

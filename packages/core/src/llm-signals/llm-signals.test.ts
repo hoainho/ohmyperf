@@ -66,6 +66,25 @@ describe("classifyOrigin", () => {
   it("null primary returns unknown for any resource", () => {
     expect(classifyOrigin("https://example.com/a.js", null)).toBe("unknown");
   });
+
+  it("W1: orgDomains matches github.com → githubassets.com as same-org", () => {
+    const primary = parseOriginInfo("https://github.com/");
+    const orgs = ["githubassets.com", "githubusercontent.com"];
+    expect(classifyOrigin("https://github.githubassets.com/assets/main.css", primary, orgs)).toBe("same-org");
+    expect(classifyOrigin("https://raw.githubusercontent.com/repo/file.js", primary, orgs)).toBe("same-org");
+  });
+
+  it("W1: orgDomains wildcard *.cloudfront.net catches subdomains", () => {
+    const primary = parseOriginInfo("https://mysite.com/");
+    const orgs = ["*.cloudfront.net"];
+    expect(classifyOrigin("https://d123.cloudfront.net/a.js", primary, orgs)).toBe("same-org");
+  });
+
+  it("W1: orgDomains does NOT match unrelated hosts", () => {
+    const primary = parseOriginInfo("https://github.com/");
+    const orgs = ["githubassets.com"];
+    expect(classifyOrigin("https://cdn.googletagmanager.com/gtm.js", primary, orgs)).toBe("cross-site");
+  });
 });
 
 describe("classifyServability", () => {
@@ -172,17 +191,34 @@ describe("classifyServability", () => {
 });
 
 describe("computeTrustScore", () => {
-  it("n=5 cov=5% returns high overall", () => {
+  it("n=5 cov=5% returns high overall + high sample + high effect", () => {
     const r = reportFixture({ runs: 5, cov: 0.05 });
     const t = computeTrustScore(r);
     expect(t.overall).toBe("high");
+    expect(t.perMetric["lcp"]?.sampleConfidence).toBe("high");
+    expect(t.perMetric["lcp"]?.effectConfidence).toBe("high");
   });
 
-  it("n=2 returns unreliable (cant reach significance)", () => {
+  it("W2: n=3 cov=5% → medium sample, high effect, overall medium", () => {
+    const r = reportFixture({ runs: 3, cov: 0.05 });
+    const t = computeTrustScore(r);
+    expect(t.perMetric["lcp"]?.sampleConfidence).toBe("medium");
+    expect(t.perMetric["lcp"]?.effectConfidence).toBe("high");
+    expect(t.perMetric["lcp"]?.level).toBe("medium");
+  });
+
+  it("W2: n=5 cov=30% → high sample, low effect, overall low", () => {
+    const r = reportFixture({ runs: 5, cov: 0.30 });
+    const t = computeTrustScore(r);
+    expect(t.perMetric["lcp"]?.sampleConfidence).toBe("high");
+    expect(t.perMetric["lcp"]?.effectConfidence).toBe("low");
+    expect(t.perMetric["lcp"]?.level).toBe("low");
+  });
+
+  it("n=2 returns low (cant reach significance)", () => {
     const r = reportFixture({ runs: 2, cov: 0.05 });
     const t = computeTrustScore(r);
-    expect(t.overall).toBe("medium");
-    expect(t.perMetric["lcp"]?.recommendedAction).toMatch(/runs/i);
+    expect(t.overall).toBe("low");
   });
 
   it("n=1 returns unreliable", () => {
@@ -191,11 +227,10 @@ describe("computeTrustScore", () => {
     expect(t.overall).toBe("unreliable");
   });
 
-  it("cov=50% returns unreliable even with n=5", () => {
-    const r = reportFixture({ runs: 5, cov: 0.50 });
+  it("cov=60% returns unreliable even with n=5", () => {
+    const r = reportFixture({ runs: 5, cov: 0.60 });
     const t = computeTrustScore(r);
     expect(t.overall).toBe("unreliable");
-    expect(t.recommendedAction).toMatch(/rerun|noisy/i);
   });
 
   it("no metrics returns unreliable with no_cwv_metrics", () => {
@@ -335,5 +370,86 @@ describe("buildFixPlan", () => {
     });
     const plan = buildFixPlan(r);
     expect(plan).toHaveLength(1);
+  });
+
+  it("W4: items with repeated wastedMs (estimation artifact) get confidence downgraded", () => {
+    const r = reportFixture({
+      opportunities: [
+        {
+          id: "render-blocking-resources",
+          title: "x",
+          metric: "fcp",
+          items: [
+            { url: "https://example.com/a.js", wastedMs: 117 },
+            { url: "https://example.com/b.js", wastedMs: 117 },
+            { url: "https://example.com/c.js", wastedMs: 117 },
+            { url: "https://example.com/d.js", wastedMs: 117 },
+          ],
+        },
+      ],
+      runs: [
+        {
+          runIndex: 0,
+          cold: true,
+          metrics: {},
+          resources: [
+            { url: "https://example.com/a.js", mimeType: "application/javascript", requestMs: 0, responseMs: 0, transferSizeBytes: 1, encodedSizeBytes: 1, decodedSizeBytes: 1, renderBlocking: true, cacheHit: false, originClass: "same-origin" },
+            { url: "https://example.com/b.js", mimeType: "application/javascript", requestMs: 0, responseMs: 0, transferSizeBytes: 1, encodedSizeBytes: 1, decodedSizeBytes: 1, renderBlocking: true, cacheHit: false, originClass: "same-origin" },
+            { url: "https://example.com/c.js", mimeType: "application/javascript", requestMs: 0, responseMs: 0, transferSizeBytes: 1, encodedSizeBytes: 1, decodedSizeBytes: 1, renderBlocking: true, cacheHit: false, originClass: "same-origin" },
+            { url: "https://example.com/d.js", mimeType: "application/javascript", requestMs: 0, responseMs: 0, transferSizeBytes: 1, encodedSizeBytes: 1, decodedSizeBytes: 1, renderBlocking: true, cacheHit: false, originClass: "same-origin" },
+          ],
+          longTasks: [],
+          meta: {},
+        },
+      ],
+    });
+    const plan = buildFixPlan(r);
+    expect(plan).toHaveLength(4);
+    for (const p of plan) {
+      expect(p.confidence).toBe("medium");
+    }
+  });
+
+  it("W5: tradeit.gg fixture — 4 nuxt CSS chunks, all same-origin → 4 first-party stylesheet patches", () => {
+    const r = reportFixture({
+      url: "https://tradeit.gg/",
+      opportunities: [
+        {
+          id: "render-blocking-resources",
+          title: "Eliminate render-blocking",
+          metric: "fcp",
+          items: [
+            { url: "https://tradeit.gg/_nuxt/Confirm.zQ5b604N.css", wastedMs: 117 },
+            { url: "https://tradeit.gg/_nuxt/LoginButton.DVfW5dYf.css", wastedMs: 117 },
+            { url: "https://tradeit.gg/_nuxt/TextField.C8Qy0XBT.css", wastedMs: 117 },
+            { url: "https://tradeit.gg/_nuxt/entry.D8e8F2nM.css", wastedMs: 117 },
+          ],
+        },
+      ],
+      runs: [
+        {
+          runIndex: 0,
+          cold: true,
+          metrics: {},
+          resources: [
+            { url: "https://tradeit.gg/_nuxt/Confirm.zQ5b604N.css", mimeType: "text/css", requestMs: 5, responseMs: 10, transferSizeBytes: 1000, encodedSizeBytes: 500, decodedSizeBytes: 1500, renderBlocking: true, cacheHit: false, originClass: "same-origin" },
+            { url: "https://tradeit.gg/_nuxt/LoginButton.DVfW5dYf.css", mimeType: "text/css", requestMs: 5, responseMs: 10, transferSizeBytes: 800, encodedSizeBytes: 400, decodedSizeBytes: 1200, renderBlocking: true, cacheHit: false, originClass: "same-origin" },
+            { url: "https://tradeit.gg/_nuxt/TextField.C8Qy0XBT.css", mimeType: "text/css", requestMs: 5, responseMs: 10, transferSizeBytes: 600, encodedSizeBytes: 300, decodedSizeBytes: 900, renderBlocking: true, cacheHit: false, originClass: "same-origin" },
+            { url: "https://tradeit.gg/_nuxt/entry.D8e8F2nM.css", mimeType: "text/css", requestMs: 5, responseMs: 10, transferSizeBytes: 4000, encodedSizeBytes: 2000, decodedSizeBytes: 6000, renderBlocking: true, cacheHit: false, originClass: "same-origin" },
+          ],
+          longTasks: [],
+          meta: {},
+        },
+      ],
+    });
+    const plan = buildFixPlan(r);
+    expect(plan).toHaveLength(4);
+    for (const p of plan) {
+      expect(p.archetype).toBe("render-blocking-stylesheet-media-print");
+      expect(p.applicability).toBe("first-party");
+      expect(p.target.originClass).toBe("same-origin");
+    }
+    expect(plan[0]?.rank).toBe(1);
+    expect(plan[3]?.rank).toBe(4);
   });
 });

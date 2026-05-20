@@ -100,6 +100,34 @@ export function classifyServability(report: Report): ServabilityInfo {
     };
   }
 
+  const layoutCount = firstRun.runtime?.["layoutCount"];
+  if (typeof layoutCount === "number" && layoutCount < 3 && resources.length <= 4) {
+    signals.push(`low_layout_count=${String(layoutCount)}`);
+    signals.push(`low_resource_count=${String(resources.length)}`);
+    return {
+      classification: "bot-challenge-suspected",
+      signals,
+      recommendedAction:
+        "Page has very few layout operations (<3) and only a handful of resources. This is unusual for a real interactive page and often indicates an authentication wall, paywall, or static landing replacement. Verify the URL renders the expected content in a browser before comparing metrics.",
+    };
+  }
+
+  const mimeTypes = new Set(resources.map((r) => r.mimeType?.split(";")[0]?.trim().toLowerCase() ?? ""));
+  if (
+    resources.length <= 5 &&
+    !hasScripts &&
+    mimeTypes.size === 1 &&
+    (mimeTypes.has("text/html") || mimeTypes.has("text/plain"))
+  ) {
+    signals.push("only_html_no_js_no_css");
+    return {
+      classification: "bot-challenge-suspected",
+      signals,
+      recommendedAction:
+        "Page returned only HTML/plain-text resources with no JavaScript or stylesheets. Likely a non-interactive challenge or maintenance page.",
+    };
+  }
+
   if (signals.length === 0) {
     return {
       classification: "real-page",

@@ -12,53 +12,6 @@ const HIGH_COV = 0.10;
 const MEDIUM_COV = 0.25;
 const MIN_RUNS_FOR_HIGH_CONFIDENCE = 5;
 
-function classifyMetric(name: string, agg: AggregatedMetric): MetricTrustVerdict {
-  const reasons: string[] = [];
-  const n = agg.runs;
-  const cov = Number.isFinite(agg.cov) ? agg.cov : Number.POSITIVE_INFINITY;
-
-  if (n < 2) {
-    return {
-      level: "unreliable",
-      reasons: [`only_${String(n)}_run`],
-      recommendedAction: "Increase --runs to at least 5 for any statistical claim.",
-    };
-  }
-
-  reasons.push(`n=${String(n)}`);
-  reasons.push(`cov=${(cov * 100).toFixed(1)}%`);
-
-  if (n < MIN_RUNS_FOR_HIGH_CONFIDENCE) {
-    if (cov <= HIGH_COV) {
-      return {
-        level: "medium",
-        reasons,
-        recommendedAction: `Sample size (n=${String(n)}) below 5 — Mann-Whitney U cannot reach p<0.05. Rerun with --runs ${String(MIN_RUNS_FOR_HIGH_CONFIDENCE)} for verify_fix gates.`,
-      };
-    }
-    return {
-      level: "low",
-      reasons,
-      recommendedAction: `Sample size too small AND CoV high (${(cov * 100).toFixed(1)}%). Rerun with --runs ${String(MIN_RUNS_FOR_HIGH_CONFIDENCE)} minimum.`,
-    };
-  }
-
-  if (cov <= HIGH_COV) return { level: "high", reasons };
-  if (cov <= MEDIUM_COV) {
-    return {
-      level: "medium",
-      reasons,
-      recommendedAction: `CoV ${(cov * 100).toFixed(1)}% suggests run-to-run noise. Consider --mode ci-stable for CPU calibration + Fast 4G throttle.`,
-    };
-  }
-
-  return {
-    level: "unreliable",
-    reasons,
-    recommendedAction: `CoV ${(cov * 100).toFixed(1)}% exceeds 25% — measurement too noisy for reliable comparison. Use --runs 10+ AND --mode ci-stable.`,
-  };
-}
-
 const TRUST_ORDER: ReadonlyArray<TrustLevel> = ["unreliable", "low", "medium", "high"];
 
 function worstLevel(levels: ReadonlyArray<TrustLevel>): TrustLevel {
@@ -69,6 +22,49 @@ function worstLevel(levels: ReadonlyArray<TrustLevel>): TrustLevel {
     if (idx < worstIdx) worstIdx = idx;
   }
   return TRUST_ORDER[worstIdx]!;
+}
+
+function classifySampleSize(n: number): TrustLevel {
+  if (n < 2) return "unreliable";
+  if (n < 3) return "low";
+  if (n < MIN_RUNS_FOR_HIGH_CONFIDENCE) return "medium";
+  return "high";
+}
+
+function classifyEffectStability(cov: number): TrustLevel {
+  if (!Number.isFinite(cov)) return "unreliable";
+  if (cov <= HIGH_COV) return "high";
+  if (cov <= MEDIUM_COV) return "medium";
+  if (cov <= 0.5) return "low";
+  return "unreliable";
+}
+
+function classifyMetric(_name: string, agg: AggregatedMetric): MetricTrustVerdict {
+  const n = agg.runs;
+  const cov = Number.isFinite(agg.cov) ? agg.cov : Number.POSITIVE_INFINITY;
+  const sampleConfidence = classifySampleSize(n);
+  const effectConfidence = classifyEffectStability(cov);
+  const level = worstLevel([sampleConfidence, effectConfidence]);
+  const reasons = [`n=${String(n)}`, `cov=${(cov * 100).toFixed(1)}%`];
+
+  let recommendedAction: string | undefined;
+  if (sampleConfidence === "unreliable") {
+    recommendedAction = `Only ${String(n)} run(s) — increase to --runs ${String(MIN_RUNS_FOR_HIGH_CONFIDENCE)} for any statistical claim.`;
+  } else if (effectConfidence === "unreliable") {
+    recommendedAction = `CoV ${(cov * 100).toFixed(1)}% — measurement too noisy. Use --runs 10+ AND --mode ci-stable.`;
+  } else if (sampleConfidence === "low" || (sampleConfidence === "medium" && effectConfidence === "high")) {
+    recommendedAction = `Sample size (n=${String(n)}) below 5 — Mann-Whitney U cannot reach p<0.05. Rerun with --runs ${String(MIN_RUNS_FOR_HIGH_CONFIDENCE)} for verify_fix gates.`;
+  } else if (effectConfidence === "low" || effectConfidence === "medium") {
+    recommendedAction = `CoV ${(cov * 100).toFixed(1)}% suggests run-to-run noise. Consider --mode ci-stable for CPU calibration + Fast 4G throttle.`;
+  }
+
+  return {
+    level,
+    sampleConfidence,
+    effectConfidence,
+    reasons,
+    ...(recommendedAction !== undefined ? { recommendedAction } : {}),
+  };
 }
 
 export function computeTrustScore(report: Report): TrustScore {

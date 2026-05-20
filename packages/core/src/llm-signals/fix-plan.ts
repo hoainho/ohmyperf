@@ -111,7 +111,13 @@ function makeId(archetype: string, url: string): string {
 }
 
 function applicabilityFromOrigin(originClass: OriginClass | undefined): "first-party" | "third-party-cannot-apply" | "unknown" {
-  if (originClass === "same-origin" || originClass === "same-site") return "first-party";
+  if (
+    originClass === "same-origin" ||
+    originClass === "same-site" ||
+    originClass === "same-org"
+  ) {
+    return "first-party";
+  }
   if (originClass === "cross-site") return "third-party-cannot-apply";
   return "unknown";
 }
@@ -151,6 +157,13 @@ export function buildFixPlan(report: Report): ReadonlyArray<FixPlanEntry> {
   const seen = new Set<string>();
 
   for (const opp of opps) {
+    const itemWastedMsValues = opp.items
+      .map((it) => it.wastedMs)
+      .filter((v): v is number => typeof v === "number");
+    const uniqueWastedMs = new Set(itemWastedMsValues);
+    const wastedMsLooksEstimated =
+      itemWastedMsValues.length >= 3 && uniqueWastedMs.size <= Math.max(1, Math.floor(itemWastedMsValues.length / 3));
+
     for (const item of opp.items) {
       const url = item.url;
       const mime = idx.byUrl.get(url);
@@ -162,7 +175,10 @@ export function buildFixPlan(report: Report): ReadonlyArray<FixPlanEntry> {
       seen.add(id);
       const originClass = idx.originClassByUrl.get(url) ?? findOriginClassFromResources(url, report);
       const impact = item.wastedMs ?? opp.wastedMs ?? 0;
-      const roi = effortAdjustedRoi(impact, matched.confidence, matched.effort);
+      const adjustedConfidence: "high" | "medium" | "low" = wastedMsLooksEstimated
+        ? (matched.confidence === "high" ? "medium" : "low")
+        : matched.confidence;
+      const roi = effortAdjustedRoi(impact, adjustedConfidence, matched.effort);
       const base = basename(url);
       const expectedMetric = opp.metric;
       const target: { url: string; originClass?: OriginClass } = originClass !== undefined
@@ -174,7 +190,7 @@ export function buildFixPlan(report: Report): ReadonlyArray<FixPlanEntry> {
         target,
         expectedImpactMs: impact,
         expectedMetric,
-        confidence: matched.confidence,
+        confidence: adjustedConfidence,
         roiScore: roi,
         effort: matched.effort,
         applicability: applicabilityFromOrigin(originClass),

@@ -22,6 +22,7 @@ import {
   computeTrustScore,
   parseOriginInfo,
 } from "./llm-signals/index.js";
+import { resolveOrgDomains } from "./llm-signals/origin-class.js";
 import { createConsoleLogger, createSilentLogger } from "./logger.js";
 import {
   createPluginRuntime,
@@ -388,11 +389,12 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
   const reportOpportunities = aggregateOpportunities(runReports);
 
   const primaryOrigin = parseOriginInfo(opts.url);
+  const orgDomains = resolveOrgDomains(opts.orgDomains, process.env);
   const enrichedRuns: RunReport[] = runReports.map((r) => ({
     ...r,
     resources: r.resources.map((res) => ({
       ...res,
-      originClass: classifyOrigin(res.url, primaryOrigin),
+      originClass: classifyOrigin(res.url, primaryOrigin, orgDomains),
     })),
   }));
 

@@ -114,7 +114,7 @@ export interface FrameTree {
   readonly nodes: Readonly<Record<string, FrameNode>>;
 }
 
-export type OriginClass = "same-origin" | "same-site" | "cross-site" | "unknown";
+export type OriginClass = "same-origin" | "same-site" | "same-org" | "cross-site" | "unknown";
 
 export interface Resource {
   readonly url: string;
@@ -216,6 +216,10 @@ export type TrustLevel = "high" | "medium" | "low" | "unreliable";
 
 export interface MetricTrustVerdict {
   readonly level: TrustLevel;
+  /** Sample-size component: how many runs informed this median. Independent of run-to-run variance. */
+  readonly sampleConfidence: TrustLevel;
+  /** Effect-size component: how stable the measured values are across runs (CoV-based). Independent of sample size. */
+  readonly effectConfidence: TrustLevel;
   readonly reasons: ReadonlyArray<string>;
   readonly recommendedAction?: string;
 }
@@ -502,4 +506,6 @@ export interface MeasureOptions {
     | false
     | "auto-click"
     | { type: "auto-click"; selector?: string; waitAfterMs?: number };
+  /** Domain patterns considered "same-org" for the purposes of `Resource.originClass`. Each pattern matches the host suffix (e.g. "githubassets.com" matches all subdomains; "*.cloudfront.net" works too). Falls back to `OHMYPERF_ORG_DOMAINS` env var (comma-separated). When unset, hosts that are neither same-site nor same-origin are classified as `cross-site`. */
+  readonly orgDomains?: ReadonlyArray<string>;
 }
