@@ -37,12 +37,18 @@ jobs:
 
       - name: Bot-commit guard (prevent loop)
         id: guard
+        env:
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           AUTHOR=$(git log -1 --pretty=format:'%an')
           MSG=$(git log -1 --pretty=format:'%s')
           echo "Author: $AUTHOR"
           echo "Message: $MSG"
-          if [[ "$AUTHOR" == "github-actions[bot]" ]] || echo "$MSG" | grep -q "\[skip ci\]"; then
+          echo "Event: $EVENT_NAME"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "workflow_dispatch trigger — guard bypassed"
+          elif [[ "$AUTHOR" == "github-actions[bot]" ]] || echo "$MSG" | grep -q "\[skip ci\]"; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "Bot commit / skip-ci marker detected — skipping publish"
           else
