@@ -56,20 +56,26 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Preflight — verify NPM_TOKEN authenticates against registry
+      - name: Preflight — verify NPM_TOKEN authenticates against registry (skipped in OIDC-only mode)
         if: steps.guard.outputs.skip == 'false'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set +e
+          if [ -z "${NODE_AUTH_TOKEN}" ]; then
+            echo "::notice::NPM_TOKEN secret is empty — preflight skipped. Workflow will publish via OIDC trusted publishing only (see docs/PUBLISH-NPM-OIDC.md). If OIDC is not yet configured for these packages on npmjs.com, the publish step will fail with E404 — that is the signal to either (a) configure trusted publishers per the OIDC doc, or (b) set the NPM_TOKEN secret for token-based publishing."
+            exit 0
+          fi
+
+          echo "NPM_TOKEN is set — running token-mode preflight."
           echo "Step 1: confirm token authenticates (npm whoami hits registry)"
           WHOAMI_OUT=$(npm whoami 2>&1)
           WHOAMI_RC=$?
           if [ $WHOAMI_RC -ne 0 ]; then
             {
-              echo "::error::NPM_TOKEN does not authenticate. npm whoami output: $WHOAMI_OUT"
+              echo "::error::NPM_TOKEN is set but does not authenticate. npm whoami output: $WHOAMI_OUT"
               echo "::error::This is an E401-class failure (invalid or expired token)."
-              echo "::error::Fix: regenerate the token per docs/PUBLISH-NPM-TOKEN.md."
+              echo "::error::Fix: regenerate the token per docs/PUBLISH-NPM-TOKEN.md, OR remove the secret entirely to use OIDC per docs/PUBLISH-NPM-OIDC.md."
             }
             exit 1
           fi
@@ -88,10 +94,10 @@ jobs:
           fi
 
           # Note: npm publish --dry-run does NOT contact the registry (confirmed at
-          # github.com/npm/cli/issues/8525). The only way to deterministically test
-          # Read+Write permission is to attempt the real publish. The two checks
-          # above are the best preflight that the npm CLI exposes today. If they
-          # pass but publish fails with E404 PUT, the cause is Read-only scope.
+          # github.com/npm/cli/issues/8525). Two known causes for E404 on PUT:
+          #   (1) Token has Read-only scope on @ohmyperf (current most-likely cause).
+          #   (2) Trusted-publisher environment mismatch (only relevant once OIDC enabled).
+          # The two checks above are the best preflight the npm CLI exposes today.
           echo "Preflight passed: token authenticates."
 
       - name: Install
