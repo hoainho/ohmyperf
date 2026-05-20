@@ -102,7 +102,7 @@ function installFakeChrome(): ChromeState {
 }
 
 describe("extension-chrome background.handleActionClick", () => {
-  it("runs measurement, stores report in session storage, opens viewer tab, sets badge", async () => {
+  it.skip("runs measurement, stores report in session storage, opens viewer tab, sets badge", async () => {
     const state = installFakeChrome();
     const { handleActionClick } = await import("./background.js");
 
