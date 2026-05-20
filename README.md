@@ -404,21 +404,26 @@ Documented per surface in each commit message. Not blockers for v0 dogfood:
 365 tests across 13 workspaces, all passing on Node 22 and Node 24, against real Chromium + real Hono server + mocked `chrome.debugger`/`vscode` APIs:
 
 ```
-@ohmyperf/core                 38
+@ohmyperf/core                 94
 @ohmyperf/driver-playwright     6
 @ohmyperf/driver-extension      6
-@ohmyperf/viewer               98
+@ohmyperf/viewer               83
 @ohmyperf/reporter-markdown     8
+@ohmyperf/reporter-deck        50
 @ohmyperf/share-server         10
-@ohmyperf/website               0  (Playwright specs run via `test:smoke`)
+@ohmyperf/design-tokens        32
+@ohmyperf/website               7
 ohmyperf-vscode                 2
-@ohmyperf/extension-chrome      1  (+ 4 deferred-skip integration tests)
-@ohmyperf/mcp-server            3
-@ohmyperf/tests-oopif-corpus   31  (+ 1 skipped, real CLI dependency)
+@ohmyperf/extension-chrome      4  (+ 1 deferred-skip integration test)
+@ohmyperf/mcp-server           13
+@ohmyperf/tests-oopif-corpus   19
+@ohmyperf/tests-visual-regression  3
 @ohmyperf/eslint-plugin         7  (v0.2.0 — RuleTester)
-@ohmyperf/fixers                7  (v0.2.0 — proposePatches)
+@ohmyperf/fixers                9  (v0.2.0 — proposePatches + archetype registry)
+ohmyperf-cli                   10
+@ohmyperf/runner               24
                             ──────
-                              365
+                              387 (+ 1 skip)
 ```
 
 Quality gates wired in CI:

@@ -871,7 +871,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
 
       const measureArgs: Record<string, unknown> = {
         url: candidateUrl,
-        runs: args["runs"] ?? 3,
+        runs: args["runs"] ?? 5,
         mode: args["mode"] ?? "ci-stable",
       };
       if (typeof args["browserPath"] === "string") measureArgs["browserPath"] = args["browserPath"];

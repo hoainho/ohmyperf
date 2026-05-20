@@ -47,7 +47,7 @@ Each patch is a one-line diff:
 
 **Resource breakdown**: 178 same-origin + 0 same-site + 52 cross-site (gambling sites typically have many trackers/CDN ads). The fact that all 18 fixes are first-party means the tradeit.gg team can apply all of them — this is the killer scenario the agent loop was designed for.
 
-**LCP 1804ms is poor (>2.5s threshold)**. With low trust, agent should rerun `--runs 10 --mode ci-stable` before claiming budget regressions, but the fix opportunity is genuine regardless of trust.
+**LCP 1804ms is in the "needs improvement" band** (good < 2500ms, poor > 4000ms) — the page would still benefit from the 18 identified first-party fixes, but the LCP itself does not cross the 2500ms "good" threshold. With low trust, agent should rerun `--runs 10 --mode ci-stable` before claiming budget regressions, but the fix opportunity is genuine regardless of trust.
 
 ---
 

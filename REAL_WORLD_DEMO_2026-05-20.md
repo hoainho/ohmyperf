@@ -25,18 +25,18 @@ For each of the 10 sites, I called the MCP `measure` tool, then `propose_patch` 
 | 6 | NY Times | ❌ | ❌ | ❌ | ❌ | ❌ | — | — | — | — | timeout 30s |
 | 7 | BBC News | ❌ | ❌ | ❌ | ❌ | ❌ | — | — | — | — | ERR_CONNECTION_REFUSED |
 | 8 | Stack Overflow | **413** | 413 | 163 | 0.001 | 0 | 6 | 113 KB | 2 | 50% | ⚠ |
-| 9 | Reddit | **1,320** | 1,320 | 494 | 0.006 | 0 | 3 | 195 KB | 2 | 19% | ⚠ |
+| 9 | Reddit | **1,320** | 1,320 | 494 | 0.006 | 0 | 3 | 195 KB | 2 | 19% | ✓ |
 | 10 | npmjs.com | **397** | 397 | 255 | 0.001 | 0 | 6 | 110 KB | 2 | **15%** | ✓ |
 
 **Aggregate**: 8/10 sites measured successfully. Median LCP across the 8 = **612 ms**. NYTimes and BBC failed at the navigation layer (timeout + connection refused) — those are runner-network limitations, not measurement bugs. **Every successful measurement contains real Chromium PerformanceObserver data** (LCP via `largest-contentful-paint` observer, CLS via `layout-shift`, TTFB via `Navigation Timing`).
 
 ## How to read these numbers
 
-### "Unstable" column = 7/8 ⚠️
+### "Unstable" column = 6/8 ⚠️
 
 Run-to-run variance > 20% CoV. **This is correct disclosure, not a bug**. With `runs=3` on a noisy shared sandbox, you should NOT trust the median as a single-point estimate. To shrink CoV, run with `--runs 10` or use `--mode ci-stable` (pre-flight CPU calibration + Fast 4G throttle).
 
-The ONE stable site (npmjs.com) had CoV LCP = 14.5% — below the 20% threshold. This is the empirical noise floor of this runner: ~15% LCP variance per run.
+Two sites measured below the 20% threshold: **npmjs.com** at 14.5% CoV LCP, and **Reddit** at 19% CoV LCP. Both sit just under the empirical noise floor of this runner (~15-20% LCP variance per run).
 
 ### Why are Hacker News + CNN so weird?
 
@@ -159,7 +159,7 @@ Concrete examples:
 ### ✅ Validated empirically
 
 1. **MCP stdio integration works** — 10 tool calls, 8 successful measurements, structured JSON-RPC responses every time.
-2. **Real-Chromium measurement is honest** — variance disclosed via CoV + `unstable: true` flag for 7/8 sites. Tool does NOT pretend low-confidence numbers are precise.
+2. **Real-Chromium measurement is honest** — variance disclosed via CoV + `unstable: true` flag for 6/8 sites. Tool does NOT pretend low-confidence numbers are precise.
 3. **`propose_patch` archetypes apply correctly** — 13 patches across 4 sites with extensions matching, 4 sites correctly produced meaningful "skipped" diagnostics for unfittable items.
 4. **Schema is stable** — every report has same shape: `meta`, `runs[]`, `aggregated`, `opportunities`, `audits`, `frames`. AI agents can parse deterministically.
 5. **Browser version pinned + reproducible** — every report stamps `browser: chromium 148.0.7778.0 (bundled)` + `measurementId: <uuid>`. Re-runs comparable via `diff` tool.
@@ -211,7 +211,7 @@ Source data:
 | Claim | Verified by this demo? |
 |---|---|
 | "Real-machine CWV from Chromium PerformanceObserver" | ✅ 8/8 measurements have real LCP/FCP/TTFB/CLS values |
-| "Variance honesty via CoV unstable flag" | ✅ 7/8 correctly flagged unstable |
+| "Variance honesty via CoV unstable flag" | ✅ 6/8 correctly flagged unstable |
 | "`propose_patch` returns actionable diffs" | ✅ 13 patches with valid search/replace pairs |
 | "Meaningful skipped entries when archetypes don't fit" | ✅ 4 sites correctly skipped with diagnostic |
 | "MCP stdio works with standard tooling" | ✅ 10 JSON-RPC roundtrips, zero protocol errors |
