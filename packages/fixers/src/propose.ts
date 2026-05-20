@@ -44,12 +44,22 @@ export function proposePatches(input: ProposePatchInput): ProposePatchResult {
       });
       continue;
     }
+    let producedForThisOpp = 0;
     for (const arch of matching) {
       const produced = arch.fn(opp, report);
       for (const p of produced) {
         if (input.url && p.url !== input.url) continue;
         all.push(p);
+        producedForThisOpp++;
       }
+    }
+    if (producedForThisOpp === 0) {
+      const items = opp.items.map((i) => i.url);
+      const sampleItems = items.slice(0, 3).join(", ");
+      skipped.push({
+        opportunityId: opp.id,
+        reason: `Archetype(s) matched but produced no patches for any item. Items: [${sampleItems}${items.length > 3 ? ", ..." : ""}]. Likely cause: items are not recognizable as scripts/stylesheets/images by URL heuristics (e.g. third-party widget URLs without file extensions, or the document HTML itself). Archetypes tried: ${matching.map((a) => a.id).join(", ")}.`,
+      });
     }
   }
 

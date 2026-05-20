@@ -1,11 +1,39 @@
 import type { Opportunity, Report } from "@ohmyperf/core";
 import type { ArchetypeFn, Patch } from "../types.js";
 
-function classify(url: string): "script" | "stylesheet" | "unknown" {
+type ResourceKind = "script" | "stylesheet" | "document" | "unknown";
+
+function classifyByMime(mimeType: string | undefined): ResourceKind {
+  if (!mimeType) return "unknown";
+  const lower = mimeType.toLowerCase();
+  if (lower.includes("javascript") || lower === "application/ecmascript" || lower === "text/javascript") return "script";
+  if (lower.includes("css")) return "stylesheet";
+  if (lower.includes("html")) return "document";
+  return "unknown";
+}
+
+function classifyByUrl(url: string): ResourceKind {
   const lower = url.toLowerCase();
   if (lower.endsWith(".js") || lower.endsWith(".mjs") || lower.includes(".js?")) return "script";
   if (lower.endsWith(".css") || lower.includes(".css?")) return "stylesheet";
+  if (lower.endsWith(".html") || lower.endsWith(".htm")) return "document";
   return "unknown";
+}
+
+function findResourceMime(report: Report, url: string): string | undefined {
+  for (const run of report.runs) {
+    for (const res of run.resources) {
+      if (res.url === url) return res.mimeType;
+    }
+  }
+  return undefined;
+}
+
+function classify(url: string, report: Report): ResourceKind {
+  const byUrl = classifyByUrl(url);
+  if (byUrl !== "unknown") return byUrl;
+  const mime = findResourceMime(report, url);
+  return classifyByMime(mime);
 }
 
 function basename(url: string): string {
@@ -50,11 +78,11 @@ function patchForStylesheet(url: string, wastedMs: number | undefined): Patch {
   };
 }
 
-export const renderBlockingArchetype: ArchetypeFn = (opp: Opportunity, _report: Report) => {
+export const renderBlockingArchetype: ArchetypeFn = (opp: Opportunity, report: Report) => {
   if (opp.id !== "render-blocking-resources") return [];
   const patches: Patch[] = [];
   for (const item of opp.items) {
-    const kind = classify(item.url);
+    const kind = classify(item.url, report);
     if (kind === "script") {
       patches.push(patchForScript(item.url, item.wastedMs));
     } else if (kind === "stylesheet") {

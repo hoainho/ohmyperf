@@ -103,6 +103,38 @@ describe("proposePatches", () => {
     expect(skipped[0]?.opportunityId).toBe("unused-css-rules");
   });
 
+  it("adds a skipped entry when archetypes match but no items fit (real-world npmjs.com bug)", () => {
+    const report = makeReport([
+      {
+        id: "render-blocking-resources",
+        metric: "fcp",
+        items: [
+          { url: "https://example.com/", wastedMs: 80 },
+          { url: "https://challenges.example.com/cdn-cgi/challenge-platform/h/g/turnstile/f/ov2", wastedMs: 140 },
+        ],
+      },
+    ]);
+    const { patches, skipped } = proposePatches({ report });
+    expect(patches).toEqual([]);
+    expect(skipped).toHaveLength(1);
+    expect(skipped[0]?.opportunityId).toBe("render-blocking-resources");
+    expect(skipped[0]?.reason).toMatch(/no patches for any item/i);
+    expect(skipped[0]?.reason).toContain("Items:");
+  });
+
+  it("classifies render-blocking item by report.runs[*].resources mimeType when URL has no extension", () => {
+    const u = "https://cdn.example.com/api/v1/chunk_no_extension";
+    const report = makeReport([
+      { id: "render-blocking-resources", metric: "fcp", items: [{ url: u, wastedMs: 100 }] },
+    ]);
+    (report.runs as Array<{ resources: Array<{ url: string; mimeType: string }> }>).push({
+      resources: [{ url: u, mimeType: "application/javascript" }],
+    } as never);
+    const { patches } = proposePatches({ report });
+    expect(patches).toHaveLength(1);
+    expect(patches[0]?.archetype).toBe("render-blocking-script-add-defer");
+  });
+
   it("filters patches by url when provided", () => {
     const report = makeReport([
       {
