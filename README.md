@@ -1,56 +1,123 @@
 # OhMyPerf
 
-> Real-machine, real-browser web performance measurement — with a closed agent fix loop.
-> Lighthouse and PageSpeed Insights run on synthetic CPUs in a Google datacenter.
-> OhMyPerf runs on **your hardware** with **your browser** and reports what your users actually experience.
-> An AI agent can call `measure → propose_patch → verify_fix` in one conversation turn.
+> **The first perf tool an LLM agent can actually fix your site with — statistical proof, not vibes.**
 
-**v0.1.0** (v0.2.0 in flight — see [issue #7](https://github.com/hoainho/ohmyperf/issues/7)) · **License**: Apache-2.0 · **npm**: [`@ohmyperf/cli`](https://www.npmjs.com/package/@ohmyperf/cli) + [`@ohmyperf/mcp-server`](https://www.npmjs.com/package/@ohmyperf/mcp-server) · **Repo**: [`hoainho/ohmyperf`](https://github.com/hoainho/ohmyperf)
+[![npm](https://img.shields.io/npm/v/@ohmyperf/cli?label=%40ohmyperf%2Fcli&color=cb3837)](https://www.npmjs.com/package/@ohmyperf/cli)
+[![MCP](https://img.shields.io/badge/MCP-compatible-7c3aed)](https://modelcontextprotocol.io)
+[![Chromium](https://img.shields.io/badge/real--browser-Chromium-4285f4)](https://www.chromium.org/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE)
 
-## What's new in v0.2.0
+OhMyPerf measures Core Web Vitals on a **real machine** with a **real Chromium**, then closes the loop: an AI agent can call **`measure → propose_patch → verify_fix`** in one conversation turn — and prove the fix improved your LCP/INP/CLS with a **Mann-Whitney U test at α=0.05**, not "looks better to me."
 
-- **`measure → propose_patch → verify_fix` agent fix loop.** The only perf tool where an AI agent can both fix a CWV regression AND statistically prove the fix improved metrics (Mann-Whitney U), in one conversation turn.
-- **`@ohmyperf/eslint-plugin`** — 7 CWV-linked ESLint rules catch performance anti-patterns at editor-save time (`no-document-write`, `no-sync-xhr`, `prefer-loading-lazy`, `prefer-fetchpriority`, `no-render-blocking-script-in-head`, `no-large-inline-data-url`, `no-passive-event-violation`).
-- **Real cross-origin OOPIF inspection.** Each cross-origin iframe gets its own CDP session via Playwright `context.newCDPSession(frame)`. Verified on real-world MDN pages (mdnplay.dev, example.org, openstreetmap.org).
-- **INP measurable in CI** via synthetic `Input.dispatchMouseEvent`. Pass `--synthetic-interaction=auto-click` and ohmyperf finds a click target + fires a trusted-event pipeline so INP attribution lands.
-- **Source-map detection.** `longestScript.sourceLocation` now exposes `{ file, sourceMapUrl, resolved }` so agents can lift script URLs back to repo paths.
+```
+┌──────────┐    ┌───────────────┐    ┌──────────────┐
+│ measure  │ →  │ propose_patch │ →  │  verify_fix  │
+│ real CWV │    │ ranked, ROI   │    │  p-value per │
+│ + trust  │    │ first-party   │    │   metric     │
+└──────────┘    └───────────────┘    └──────────────┘
+     ↓                  ↓                    ↓
+ trustScore         fixPlan             verdict:
+ servability       (18 patches         improvement |
+ originClass        for tradeit.gg)    neutral |
+                                       regression
+```
+
+## 30-second demo
+
+Real CLI output, no editing:
+
+```bash
+$ npx -y @ohmyperf/cli@latest run https://example.com --runs 2 --format json
+[ohmyperf] INFO OhMyPerf v1.0.0 report
+[ohmyperf] INFO url:     https://example.com
+[ohmyperf] INFO browser: chromium 148.0.7778.0 (bundled)
+[ohmyperf] INFO mode:    real; runs=2; duration=2430ms
+[ohmyperf] INFO aggregated:
+[ohmyperf] INFO   lcp        median=  256.0  cov=25.0%  n=2
+[ohmyperf] INFO   cls        median=  0.000  cov= 0.0%  n=2
+[ohmyperf] INFO   fcp        median=  256.0  cov=25.0%  n=2
+[ohmyperf] INFO   ttfb       median=  224.5  cov=25.5%  n=2
+[ohmyperf] INFO   tbt        median=    0.0  cov= 0.0%  n=2
+[ohmyperf] INFO   runtime.taskDuration median=   25.2  cov=20.2%  n=2
+[ohmyperf] INFO wrote /path/to/ohmyperf-out/report.json
+```
+
+The full [`report.json`](packages/core/src/types.ts) is what LLM agents see — including (v0.2.0, pending publish):
+
+- `Report.trustScore` — overall + per-metric `{level, sampleConfidence, effectConfidence, recommendedAction}`
+- `Report.fixPlan` — ranked, deduped, ROI-scored patches with `applicability: first-party | third-party-cannot-apply`
+- `Report.meta.servability` — `real-page | bot-challenge-suspected | error-page | timeout-partial | unknown`
+- Every `Resource` tagged with `originClass: same-origin | same-site | same-org | cross-site`
+
+CoV 25% on 2 runs (above 20% noise floor) → `trustScore: low` → agent's `recommendedAction: "rerun with --runs 10 or --mode ci-stable before drawing budget conclusions"`. Honest about its own variance, not vibes.
+
+## Why this exists
+
+| | Lighthouse / PSI | OhMyPerf |
+|---|---|---|
+| **Runs on** | Synthetic CPU in a Google datacenter | Your actual hardware |
+| **Cross-origin iframes** | Network-only (opaque inside) | Per-frame CDPSession (~99% coverage) |
+| **Agent-callable** | None | MCP server, 16 tools |
+| **Statistical proof of fix** | Threshold gates (flake-prone) | Mann-Whitney U, α=0.05, per-metric noise floors |
+| **First-party vs CDN** | Manual eyeballing | `originClass` + `same-org` tier for org-owned CDNs |
+| **Bot challenge detection** | Treats Cloudflare interstitials as real pages | `servability: bot-challenge-suspected` |
+| **Honest about variance** | One number, take it or leave it | `trustScore` + per-metric CoV + `recommendedAction` |
 
 ## Install
 
 ```bash
-# CLI for humans + CI
+# CLI
 npm install -g @ohmyperf/cli
 ohmyperf run https://your-site.com
 
-# MCP server for AI coding agents (Claude in OpenCode, Cursor, Copilot)
+# MCP server — for Claude (OpenCode/Cursor/Cline) to call tools directly
 npm install -g @ohmyperf/mcp-server
 
-# v0.2.0: ESLint plugin for editor-save-time CWV linting
-# (available after v0.2.0 publishes — see issue #7)
-# TypeScript projects need @typescript-eslint/parser too — see
-# packages/eslint-plugin/README.md
-npm install --save-dev @ohmyperf/eslint-plugin @typescript-eslint/parser
+# Zero-install one-off
+npx -y @ohmyperf/cli@latest run https://your-site.com
 ```
-
-Or use `npx -y @ohmyperf/cli run https://your-site.com` for a zero-install one-off.
 
 Requires Node ≥ 22. Playwright Chromium auto-downloads on first run (~150 MB).
 
+## Use it from an AI agent
+
+Add to your MCP client config (Claude Desktop example):
+
+```json
+{
+  "mcpServers": {
+    "ohmyperf": {
+      "command": "npx",
+      "args": ["-y", "@ohmyperf/mcp-server@latest"]
+    }
+  }
+}
+```
+
+Then your LLM has 16 tools available: `measure`, `propose_patch`, `verify_fix`, `get_fix_plan`, `get_trust_score`, `get_servability`, `diff`, `list_reports`, and more. Tested with Claude, OpenCode, Cursor, Cline.
+
+## Architecture
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Engine: @ohmyperf/core (45-export API, frozen)                 │
+│  Engine: @ohmyperf/core (frozen 1.0.0 public API)               │
 │  · Playwright + raw CDP (Target.setAutoAttach for cross-origin) │
 │  · Plugin runtime · Calibration · Outlier rejection · Diff      │
+│  · LLM-first signals: trustScore · fixPlan · servability        │
 └─────────────────────────────────────────────────────────────────┘
         │
-        ├──► CLI                 npx ohmyperf run <url>
+        ├──► CLI                 npx -y @ohmyperf/cli run <url>
         ├──► npm SDK             import { runEngine } from "@ohmyperf/core"
-        ├──► Chrome extension    chrome.debugger driver, click → measure
-        ├──► Website             ohmyperf.dev landing + drag-drop /viewer
-        ├──► VSCode extension    OhMyPerf: Measure URL (command palette)
-        ├──► MCP server          AI agents call measure/diff tools
-        └──► Share-server        Hono on Cloudflare Workers or Node
+        ├──► MCP server          16 tools for LLM agents
+        ├──► Chrome extension    click toolbar icon → measure current tab
+        ├──► VSCode extension    Cmd+Shift+P → OhMyPerf: Measure URL
+        ├──► Website             ohmyperf.dev — drop a report.json on /viewer
+        ├──► Share-server        Cloudflare Workers or Node
+        ├──► ESLint plugin       7 CWV-linked rules at editor-save time
+        └──► Fixers SDK          archetype registry + proposePatches()
 ```
+
+**Status**: v0.1.0 on npm. v0.2.0 ([issue #7](https://github.com/hoainho/ohmyperf/issues/7)) ships the agent fix loop + LLM-first signals + 2 new packages, pending credential refresh.
 
 ## Why OhMyPerf
 
