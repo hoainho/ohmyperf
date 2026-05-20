@@ -15,6 +15,13 @@ import { computeRenderBlockingOpportunity } from "./collectors-impl/render-block
 import { resourceCollectorFactory } from "./collectors-impl/resource-collector.js";
 import { createTraceCollector } from "./collectors-impl/trace-collector.js";
 import { applyEmulation, calibrate, type CalibrationResult } from "./calibration.js";
+import {
+  buildFixPlan,
+  classifyOrigin,
+  classifyServability,
+  computeTrustScore,
+  parseOriginInfo,
+} from "./llm-signals/index.js";
 import { createConsoleLogger, createSilentLogger } from "./logger.js";
 import {
   createPluginRuntime,
@@ -380,16 +387,48 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
 
   const reportOpportunities = aggregateOpportunities(runReports);
 
-  let report: Report = {
+  const primaryOrigin = parseOriginInfo(opts.url);
+  const enrichedRuns: RunReport[] = runReports.map((r) => ({
+    ...r,
+    resources: r.resources.map((res) => ({
+      ...res,
+      originClass: classifyOrigin(res.url, primaryOrigin),
+    })),
+  }));
+
+  const servability = classifyServability({
     schemaVersion: "1.0.0",
     meta,
-    runs: runReports,
+    runs: enrichedRuns,
     aggregated,
     frames: { root: ROOT_FRAME_ID, nodes: frameNodes } satisfies FrameTree,
     audits: [...pluginRuntime.audits],
     artifacts: {},
     pluginData: { ...pluginRuntime.pluginData },
     ...(reportOpportunities.length > 0 ? { opportunities: reportOpportunities } : {}),
+  } as Report);
+
+  const metaWithServability: ReportMeta = { ...meta, servability };
+
+  const baseReport: Report = {
+    schemaVersion: "1.0.0",
+    meta: metaWithServability,
+    runs: enrichedRuns,
+    aggregated,
+    frames: { root: ROOT_FRAME_ID, nodes: frameNodes } satisfies FrameTree,
+    audits: [...pluginRuntime.audits],
+    artifacts: {},
+    pluginData: { ...pluginRuntime.pluginData },
+    ...(reportOpportunities.length > 0 ? { opportunities: reportOpportunities } : {}),
+  };
+
+  const trustScore = computeTrustScore(baseReport);
+  const fixPlan = buildFixPlan(baseReport);
+
+  let report: Report = {
+    ...baseReport,
+    trustScore,
+    ...(fixPlan.length > 0 ? { fixPlan } : {}),
   };
 
   report = await pluginRuntime.onReport(reportCtx, report);

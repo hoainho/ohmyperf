@@ -94,6 +94,9 @@ export type {
   DriverRef,
   EmulationConfig,
   EngineHooks,
+  FixArchetypeId,
+  FixEffort,
+  FixPlanEntry,
   FrameCtx,
   FrameNode,
   FrameTree,
@@ -104,9 +107,11 @@ export type {
   MeasureOptions,
   Metric,
   MetricAttribution,
+  MetricTrustVerdict,
   Mode,
   NavigationEvent,
   Opportunity,
+  OriginClass,
   PageHandle,
   ParityInfo,
   Plugin,
@@ -125,11 +130,23 @@ export type {
   ScenarioFn,
   ScenarioStep,
   SchemaVersion,
+  ServabilityClass,
+  ServabilityInfo,
   SetupCtx,
   ShareCtx,
   TargetHandle,
   TeardownCtx,
+  TrustLevel,
+  TrustScore,
 } from "./types.js";
+
+export {
+  buildFixPlan,
+  classifyOrigin,
+  classifyServability,
+  computeTrustScore,
+  parseOriginInfo,
+} from "./llm-signals/index.js";
 
 import type {
   MeasureOptions,

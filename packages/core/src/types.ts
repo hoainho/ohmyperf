@@ -114,6 +114,8 @@ export interface FrameTree {
   readonly nodes: Readonly<Record<string, FrameNode>>;
 }
 
+export type OriginClass = "same-origin" | "same-site" | "cross-site" | "unknown";
+
 export interface Resource {
   readonly url: string;
   readonly mimeType: string;
@@ -127,6 +129,8 @@ export interface Resource {
   readonly decodedSizeBytes: number;
   readonly renderBlocking: boolean;
   readonly cacheHit: boolean;
+  /** First/third party classification vs the report's primary URL. Populated when the report has a known primary origin. */
+  readonly originClass?: OriginClass;
 }
 
 export interface LongTask {
@@ -195,6 +199,57 @@ export interface ParityInfo {
   readonly knownDeltas: Readonly<Record<string, string>>;
 }
 
+export type ServabilityClass =
+  | "real-page"
+  | "bot-challenge-suspected"
+  | "error-page"
+  | "timeout-partial"
+  | "unknown";
+
+export interface ServabilityInfo {
+  readonly classification: ServabilityClass;
+  readonly signals: ReadonlyArray<string>;
+  readonly recommendedAction?: string;
+}
+
+export type TrustLevel = "high" | "medium" | "low" | "unreliable";
+
+export interface MetricTrustVerdict {
+  readonly level: TrustLevel;
+  readonly reasons: ReadonlyArray<string>;
+  readonly recommendedAction?: string;
+}
+
+export interface TrustScore {
+  readonly overall: TrustLevel;
+  readonly reasons: ReadonlyArray<string>;
+  readonly perMetric: Readonly<Record<string, MetricTrustVerdict>>;
+  readonly recommendedAction?: string;
+}
+
+export type FixArchetypeId =
+  | "render-blocking-script-add-defer"
+  | "render-blocking-stylesheet-media-print"
+  | "lcp-image-fetchpriority-high"
+  | "lcp-image-link-preload";
+
+export type FixEffort = "one-line" | "config" | "code-refactor";
+
+export interface FixPlanEntry {
+  readonly id: string;
+  readonly rank: number;
+  readonly archetype: FixArchetypeId;
+  readonly target: { readonly url: string; readonly originClass?: OriginClass };
+  readonly expectedImpactMs: number;
+  readonly expectedMetric: "lcp" | "fcp" | "tbt" | "inp" | "cls";
+  readonly confidence: "high" | "medium" | "low";
+  readonly roiScore: number;
+  readonly effort: FixEffort;
+  readonly applicability: "first-party" | "third-party-cannot-apply" | "unknown";
+  readonly patchPreview: string;
+  readonly rationale: string;
+}
+
 export interface ReportMeta {
   readonly url: string;
   readonly startedAt: string;
@@ -206,6 +261,8 @@ export interface ReportMeta {
   readonly parity: ParityInfo;
   readonly calibration?: CalibrationInfo;
   readonly unstable?: boolean;
+  /** Heuristic classification: was the measured page a real page, or a bot challenge, error page, or partial timeout? Lets LLM agents skip un-actionable measurements without parsing the resources array. */
+  readonly servability?: ServabilityInfo;
   readonly cspBypass?: "cdp-init-script" | "none";
   readonly servedBy?: "service-worker" | "network";
   readonly protocol?: "h1" | "h2" | "h3";
@@ -252,6 +309,10 @@ export interface Report {
     readonly heapRef?: ArtifactRef;
   };
   readonly pluginData: Readonly<Record<string, unknown>>;
+  /** Per-metric and overall trust verdict computed from run-to-run variance, sample size, and calibration mode. LLM agents should gate downstream decisions (propose_patch, verify_fix) on `overall !== "unreliable"`. */
+  readonly trustScore?: TrustScore;
+  /** Ranked, deduped, ROI-scored list of actionable fixes. Each entry corresponds to a patch the agent can produce via `propose_patch`. Order is `rank` ascending (rank 1 = highest ROI). */
+  readonly fixPlan?: ReadonlyArray<FixPlanEntry>;
 }
 
 export interface EmulationConfig {

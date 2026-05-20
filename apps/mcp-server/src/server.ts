@@ -526,6 +526,55 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
           },
         },
       },
+      {
+        name: "get_fix_plan",
+        description:
+          "v0.2.0 LLM-first feature. Returns ONLY the precomputed `fixPlan` from a saved report — a ranked, ROI-scored, deduped list of actionable fixes. Each entry has `rank`, `archetype`, `target.url`, `target.originClass`, `expectedImpactMs`, `confidence`, `applicability` (first-party / third-party-cannot-apply / unknown), `effort`, and a one-line `patchPreview`. The plan is sorted by applicability (first-party first) then ROI. Use this for the agent's primary decision: 'what is my #1 highest-leverage fix?' instead of parsing the full opportunities array.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            reportPath: { type: "string", description: "Filesystem path to report.json" },
+            uri: { type: "string", description: "Resource URI like 'ohmyperf://reports/<file>.json'" },
+            limit: {
+              type: "integer",
+              minimum: 1,
+              maximum: 50,
+              default: 5,
+              description: "Max entries to return (default 5). Entries are pre-sorted by rank.",
+            },
+            applicabilityFilter: {
+              type: "string",
+              enum: ["first-party", "any"],
+              default: "any",
+              description: "Filter by applicability. 'first-party' returns only fixes the dev team can apply (excludes third-party CDN URLs).",
+            },
+          },
+        },
+      },
+      {
+        name: "get_trust_score",
+        description:
+          "v0.2.0 LLM-first feature. Returns ONLY the precomputed `trustScore` from a saved report — `overall: high|medium|low|unreliable`, per-metric verdicts, and a `recommendedAction` when the measurement is too noisy or undersampled for downstream tools. Use this BEFORE calling `propose_patch` or `verify_fix` on a report you're not sure about: if `overall === 'unreliable'`, rerun the measurement with more runs or ci-stable mode before acting.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            reportPath: { type: "string", description: "Filesystem path to report.json" },
+            uri: { type: "string", description: "Resource URI like 'ohmyperf://reports/<file>.json'" },
+          },
+        },
+      },
+      {
+        name: "get_servability",
+        description:
+          "v0.2.0 LLM-first feature. Returns ONLY the precomputed `meta.servability` from a saved report — answers 'did I measure the real page, or a bot-challenge / error page / timeout?'. Classifications: real-page, bot-challenge-suspected, error-page, timeout-partial, unknown. Use this BEFORE drawing conclusions from a report: a 'bot-challenge-suspected' report's CWV metrics are not representative of real users and should not gate CI.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            reportPath: { type: "string", description: "Filesystem path to report.json" },
+            uri: { type: "string", description: "Resource URI like 'ohmyperf://reports/<file>.json'" },
+          },
+        },
+      },
     ],
   }));
 
@@ -859,6 +908,90 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
               2,
             ),
           },
+        ],
+      };
+    }
+
+    if (name === "get_fix_plan") {
+      const path = resolveReportRef(reportsDir, args);
+      const report = await loadReport(path);
+      const limit = parseLimit(args["limit"], 5);
+      const applicabilityFilter = args["applicabilityFilter"] === "first-party" ? "first-party" : "any";
+      const fullPlan = report.fixPlan ?? [];
+      const filtered = applicabilityFilter === "first-party"
+        ? fullPlan.filter((e) => e.applicability === "first-party")
+        : fullPlan;
+      const entries = filtered.slice(0, limit);
+      const lines: string[] = [];
+      if (entries.length === 0) {
+        lines.push("fix plan: 0 entries");
+        if (applicabilityFilter === "first-party" && fullPlan.length > 0) {
+          lines.push(`(${String(fullPlan.length)} entries exist but all are third-party — try applicabilityFilter=any to see them)`);
+        }
+      } else {
+        lines.push(`fix plan: ${String(entries.length)} of ${String(fullPlan.length)} entries${applicabilityFilter === "first-party" ? " (first-party only)" : ""}`);
+        for (const e of entries) {
+          lines.push(`  #${String(e.rank)} [${e.archetype}] ${e.target.url}`);
+          lines.push(`     impact: ~${e.expectedImpactMs.toFixed(0)}ms ${e.expectedMetric} · confidence: ${e.confidence} · applicability: ${e.applicability} · effort: ${e.effort}`);
+          lines.push(`     preview: ${e.patchPreview}`);
+        }
+      }
+      return {
+        content: [
+          { type: "text", text: lines.join("\n") },
+          { type: "text", text: JSON.stringify({ entries, total: fullPlan.length }, null, 2) },
+        ],
+      };
+    }
+
+    if (name === "get_trust_score") {
+      const path = resolveReportRef(reportsDir, args);
+      const report = await loadReport(path);
+      const trust = report.trustScore;
+      if (!trust) {
+        return {
+          content: [
+            { type: "text", text: "trustScore not present in this report (likely produced by an older version of ohmyperf)" },
+            { type: "text", text: "null" },
+          ],
+        };
+      }
+      const lines: string[] = [];
+      lines.push(`Trust score: ${trust.overall}`);
+      lines.push(`Reasons: ${trust.reasons.join(", ")}`);
+      if (trust.recommendedAction) lines.push(`Recommended: ${trust.recommendedAction}`);
+      lines.push("Per metric:");
+      for (const [name, v] of Object.entries(trust.perMetric)) {
+        lines.push(`  ${name.toUpperCase().padEnd(5)} ${v.level}${v.recommendedAction ? ` — ${v.recommendedAction}` : ""}`);
+      }
+      return {
+        content: [
+          { type: "text", text: lines.join("\n") },
+          { type: "text", text: JSON.stringify(trust, null, 2) },
+        ],
+      };
+    }
+
+    if (name === "get_servability") {
+      const path = resolveReportRef(reportsDir, args);
+      const report = await loadReport(path);
+      const s = report.meta.servability;
+      if (!s) {
+        return {
+          content: [
+            { type: "text", text: "servability not present (likely older ohmyperf version)" },
+            { type: "text", text: "null" },
+          ],
+        };
+      }
+      const lines: string[] = [];
+      lines.push(`Servability: ${s.classification}`);
+      if (s.signals.length > 0) lines.push(`Signals: ${s.signals.join(", ")}`);
+      if (s.recommendedAction) lines.push(`Recommended: ${s.recommendedAction}`);
+      return {
+        content: [
+          { type: "text", text: lines.join("\n") },
+          { type: "text", text: JSON.stringify(s, null, 2) },
         ],
       };
     }
@@ -1385,11 +1518,30 @@ function summarize(report: Report, savedPath: string): string {
   if (report.meta.unstable) {
     lines.push("⚠ Unstable run (CoV > 20% on at least one CWV).");
   }
+  if (report.meta.servability && report.meta.servability.classification !== "real-page") {
+    lines.push(`⚠ Servability: ${report.meta.servability.classification}`);
+    if (report.meta.servability.recommendedAction) {
+      lines.push(`   → ${report.meta.servability.recommendedAction}`);
+    }
+  }
+  if (report.trustScore) {
+    lines.push(`Trust: ${report.trustScore.overall} (${report.trustScore.reasons.slice(0, 4).join(", ")})`);
+    if (report.trustScore.recommendedAction) {
+      lines.push(`   → ${report.trustScore.recommendedAction}`);
+    }
+  }
   for (const [name, agg] of Object.entries(report.aggregated)) {
     const digits = name === "cls" ? 3 : 1;
     lines.push(
       `  ${name.toUpperCase().padEnd(5)} median=${agg.median.toFixed(digits)} cov=${(agg.cov * 100).toFixed(1)}% n=${String(agg.runs)}`,
     );
+  }
+  if (report.fixPlan && report.fixPlan.length > 0) {
+    lines.push(`Fix plan: ${String(report.fixPlan.length)} ranked patches (top 3 shown):`);
+    for (const entry of report.fixPlan.slice(0, 3)) {
+      const impact = `~${entry.expectedImpactMs.toFixed(0)}ms ${entry.expectedMetric}`;
+      lines.push(`  #${String(entry.rank)} [${entry.archetype}] ${entry.target.url.slice(0, 60)} (${impact}, ${entry.confidence}, ${entry.applicability})`);
+    }
   }
   if (report.audits.length > 0) {
     lines.push(`Audits: ${String(report.audits.length)}`);
