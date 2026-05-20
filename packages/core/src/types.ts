@@ -34,6 +34,21 @@ export type PluginCapability =
   | "fs:write"
   | "network";
 
+export interface SourceLocation {
+  /** Source file path. Repo-relative if the resolver was run with a known repoRoot, otherwise absolute or URL. */
+  readonly file: string;
+  /** 1-based line number in the original source. */
+  readonly line?: number;
+  /** 1-based column number in the original source. */
+  readonly column?: number;
+  /** Source function name from the sourcemap (`names[i]` entry), if available. */
+  readonly name?: string;
+  /** Whether this location has been resolved through a sourcemap (true) or is a raw URL (false). */
+  readonly resolved: boolean;
+  /** URL of the sourcemap that produced this attribution, for provenance. */
+  readonly sourceMapUrl?: string;
+}
+
 export interface MetricAttribution {
   readonly element?: string;
   readonly target?: string;
@@ -48,7 +63,9 @@ export interface MetricAttribution {
     readonly invoker?: string;
     readonly duration: number;
     readonly subpart: "input-delay" | "processing" | "presentation";
+    readonly sourceLocation?: SourceLocation;
   };
+  readonly sourceLocation?: SourceLocation;
   readonly previousRect?: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
   readonly currentRect?: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
 }

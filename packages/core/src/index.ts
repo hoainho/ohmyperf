@@ -35,6 +35,13 @@ export { longTaskCollectorFactory } from "./collectors-impl/longtask-collector.j
 export { resourceCollectorFactory } from "./collectors-impl/resource-collector.js";
 
 export {
+  resolveSourceMappingUrl,
+  buildSourceLocation,
+  buildSourceLocationFromUrl,
+} from "./sourcemap-resolver.js";
+export type { SourceMapResolverOptions } from "./sourcemap-resolver.js";
+
+export {
   CALIBRATION_REFERENCE_MS,
   CALIBRATION_REFERENCE_NAME,
   CalibrationFailedError,

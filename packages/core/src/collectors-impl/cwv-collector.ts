@@ -6,6 +6,7 @@ import {
   emptyCollectorResult,
 } from "../collectors.js";
 import type { CDPSessionLike, Metric, MetricAttribution } from "../types.js";
+import { buildSourceLocation } from "../sourcemap-resolver.js";
 import { CWV_INLINE_SCRIPT } from "./cwv-inline-script.js";
 
 interface CwvSnapshot {
@@ -197,6 +198,10 @@ function mapInp(raw: InpAttributionRaw | undefined): MetricAttribution | undefin
     };
     if (typeof raw.longestScript.entry?.sourceURL === "string") ls.url = raw.longestScript.entry.sourceURL;
     if (typeof raw.longestScript.entry?.invoker === "string") ls.invoker = raw.longestScript.entry.invoker;
+    if (typeof ls.url === "string") {
+      const sl = buildSourceLocation(ls.url);
+      if (sl) ls.sourceLocation = sl;
+    }
     a.longestScript = ls;
   }
   return Object.keys(a).length > 0 ? (a as MetricAttribution) : undefined;
