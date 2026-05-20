@@ -51,6 +51,11 @@ h3 { font-size: var(--text-xs); font-weight: 600; margin: 0 0 var(--space-2); co
 .cwv-card .name { color: var(--meta); font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; /* token-unsafe: label tracking above schema range */ }
 .cwv-card .value { font-size: 26px; /* token-unsafe: data value — between --text-xl (24px) and --text-2xl (32px), intentional mid-step */ font-weight: 600; margin-top: 6px; /* token-unsafe: tight gap within card cell */ letter-spacing: -0.02em; /* token-unsafe: numeric display tracking, brand-neutral */ }
 .cwv-card .sub { color: var(--meta); font-size: 11.5px; /* token-unsafe: 0.5-step between --text-xs and --text-sm */ margin-top: var(--space-1); }
+.cwv-card .trend { margin-top: var(--space-2); color: var(--meta); display: block; line-height: 0; }
+.cwv-card .trend .cwv-sparkline { display: block; width: 100%; height: auto; max-height: 22px; }
+.cwv-card[data-cwv-status="good"] .trend { color: var(--success); }
+.cwv-card[data-cwv-status="needs-improvement"] .trend { color: var(--warn); }
+.cwv-card[data-cwv-status="poor"] .trend { color: var(--danger); }
 .cwv-card .icon { position: absolute; top: var(--space-3); right: var(--space-4); font-size: var(--text-base); line-height: 1; /* token-unsafe: icon line-height 1 = unitless reset, no token equivalent */ }
 .cwv-card[data-cwv-status="good"] { border-left-color: var(--success); }
 .cwv-card[data-cwv-status="good"] .icon { color: var(--success); }
