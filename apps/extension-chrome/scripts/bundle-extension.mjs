@@ -49,7 +49,7 @@ if (!esbuild) {
 
 const stubDir = join(root, ".build-cache", "stubs");
 await mkdir(stubDir, { recursive: true });
-const nodeStub = "export default {};\nexport const randomUUID = () => Math.random().toString(36).slice(2) + Date.now().toString(36);\nexport const arch = () => 'browser';\nexport const platform = () => 'browser';\nexport const release = () => '';\nexport const homedir = () => '';\nexport const hostname = () => 'extension';\nexport const totalmem = () => 0;\nexport const createHash = () => ({ update() { return this; }, digest() { return ''; } });\nexport const readFile = async () => { throw new Error('node:fs/promises not available in browser bundle'); };\nexport const writeFile = async () => undefined;\nexport const mkdir = async () => undefined;\nexport const unlink = async () => undefined;\nexport const existsSync = () => false;\nexport const join = (...p) => p.join('/');\nexport const dirname = (p) => p.split('/').slice(0, -1).join('/');\nexport const resolve = (...p) => p.join('/');\n";
+const nodeStub = "export default {};\nexport const randomUUID = () => Math.random().toString(36).slice(2) + Date.now().toString(36);\nexport const arch = () => 'browser';\nexport const platform = () => 'browser';\nexport const release = () => '';\nexport const homedir = () => '';\nexport const hostname = () => 'extension';\nexport const totalmem = () => 0;\nexport const createHash = () => ({ update() { return this; }, digest() { return ''; } });\nexport const readFile = async () => { throw new Error('node:fs/promises not available in browser bundle'); };\nexport const writeFile = async () => undefined;\nexport const mkdir = async () => undefined;\nexport const unlink = async () => undefined;\nexport const existsSync = () => false;\nexport const join = (...p) => p.join('/');\nexport const dirname = (p) => p.split('/').slice(0, -1).join('/');\nexport const resolve = (...p) => p.join('/');\nexport const pathToFileURL = (p) => ({ href: 'file://' + p });\nexport const fileURLToPath = (u) => String(u).replace(/^file:\\/\\//, '');\nexport const createRequire = () => ({ resolve: () => '' });\n";
 await writeFile(join(stubDir, "node-stub.mjs"), nodeStub);
 
 const common = {
@@ -70,6 +70,7 @@ const common = {
     "node:net": join(stubDir, "node-stub.mjs"),
     "node:child_process": join(stubDir, "node-stub.mjs"),
     "node:module": join(stubDir, "node-stub.mjs"),
+    "node:url": join(stubDir, "node-stub.mjs"),
   },
 };
 
