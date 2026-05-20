@@ -505,8 +505,8 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
               type: "integer",
               minimum: 1,
               maximum: 30,
-              default: 3,
-              description: "Number of measurement runs for the candidate (default 3). Use 5+ for noisy URLs.",
+              default: 5,
+              description: "Number of measurement runs for the candidate. Default 5 (minimum required for the Mann-Whitney U test to reach statistical significance under default alpha=0.05). With runs<5, even perfect separation between baseline and candidate cannot be classified as 'improvement' or 'regression' — all metrics will report 'neutral' (correctly: tiny samples are genuinely too small to distinguish real effects from noise).",
             },
             mode: {
               type: "string",

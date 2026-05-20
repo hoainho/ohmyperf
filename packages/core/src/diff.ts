@@ -161,7 +161,25 @@ export function mannWhitneyPValue(
   const u = Math.min(u1, u2);
 
   if (n1 < 4 || n2 < 4) {
-    return u <= 0 ? 0.05 : 1;
+    // Exact-test approximation for small samples. With n1=n2=2, the exact
+    // Mann-Whitney U distribution has only 6 possible orderings; the minimum
+    // achievable p-value (full separation) is 2/6 ≈ 0.333 (two-sided). For
+    // n1=n2=3 it's 2/20 = 0.10. Both are above the default alpha=0.05, so
+    // tiny-sample diffs cannot reach statistical significance even with
+    // perfect separation — which is the correct behavior (n=2-3 is genuinely
+    // too small to distinguish real effects from luck).
+    //
+    // Returning 0.06 (just above the 0.05 default alpha) for full separation
+    // makes the test honestly say 'not significant' instead of silently
+    // accepting at p=0.05. Returning 1.0 for any overlap keeps the original
+    // 'no signal' behavior.
+    //
+    // For users with very small sample sizes who want signal: pass
+    // significanceLevel: 0.1 to diffReports, OR increase --runs to >=5.
+    if (n1 + n2 < 5) {
+      return u <= 0 ? 0.34 : 1;
+    }
+    return u <= 0 ? 0.06 : 1;
   }
 
   const meanU = (n1 * n2) / 2;
