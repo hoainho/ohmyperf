@@ -27,7 +27,9 @@ npm install -g @ohmyperf/mcp-server
 
 # v0.2.0: ESLint plugin for editor-save-time CWV linting
 # (available after v0.2.0 publishes — see issue #7)
-npm install --save-dev @ohmyperf/eslint-plugin
+# TypeScript projects need @typescript-eslint/parser too — see
+# packages/eslint-plugin/README.md
+npm install --save-dev @ohmyperf/eslint-plugin @typescript-eslint/parser
 ```
 
 Or use `npx -y @ohmyperf/cli run https://your-site.com` for a zero-install one-off.

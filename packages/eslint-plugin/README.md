@@ -12,6 +12,8 @@ npm install --save-dev @ohmyperf/eslint-plugin
 
 ## Usage (flat config, ESLint 9+)
 
+### Plain JS / JSX projects
+
 ```js
 // eslint.config.js
 import ohmyperf from "@ohmyperf/eslint-plugin";
@@ -21,12 +23,42 @@ export default [
 ];
 ```
 
+### TypeScript / TSX projects (Next.js, Remix, Vite-React, etc.)
+
+Pair `@ohmyperf/eslint-plugin` with `@typescript-eslint/parser` — otherwise ESLint's built-in `espree` parser chokes on TS syntax and reports **"Parsing error"** for every `.ts`/`.tsx` file:
+
+```bash
+npm install --save-dev @ohmyperf/eslint-plugin @typescript-eslint/parser
+```
+
+```js
+// eslint.config.js
+import ohmyperf from "@ohmyperf/eslint-plugin";
+import tsParser from "@typescript-eslint/parser";
+
+export default [
+  {
+    files: ["**/*.{ts,tsx,js,jsx}"],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+    plugins: { ohmyperf },
+    rules: ohmyperf.configs.recommended.rules,
+  },
+];
+```
+
+> Verified against real-world TSX (a deliberately-bad Next.js component with 8 deliberate anti-patterns): all 7 rules fire correctly with `@typescript-eslint/parser`. Without it, every TS file produces "Parsing error: Unexpected token" with zero perf-rule output.
+
 ## Usage (legacy `.eslintrc`)
 
 ```json
 {
   "plugins": ["ohmyperf"],
-  "extends": ["plugin:ohmyperf/legacy-recommended"]
+  "extends": ["plugin:ohmyperf/legacy-recommended"],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": { "ecmaFeatures": { "jsx": true } }
 }
 ```
 
