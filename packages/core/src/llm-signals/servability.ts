@@ -62,6 +62,12 @@ export function classifyServability(report: Report): ServabilityInfo {
     const hasTimeout = report.meta.durationMs >= 25_000 && report.meta.durationMs <= 35_000;
     if (hasTimeout) {
       signals.push(`possible_navigation_timeout_durationMs=${String(report.meta.durationMs)}`);
+      return {
+        classification: "timeout-partial",
+        signals,
+        recommendedAction:
+          "Measurement window (25-35s) matches a typical page.goto timeout AND only a handful of resources loaded. The browser likely gave up before the page fully rendered. Metrics here measure the partial load; do NOT compare to baselines. Increase navigation timeout (e.g. CLI: --timeout 60000) or check if the URL is reachable.",
+      };
     }
   }
 

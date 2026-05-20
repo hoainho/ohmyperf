@@ -915,18 +915,27 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
     if (name === "get_fix_plan") {
       const path = resolveReportRef(reportsDir, args);
       const report = await loadReport(path);
-      const limit = parseLimit(args["limit"], 5);
+      const limit = Math.min(parseLimit(args["limit"], 5), 50);
       const applicabilityFilter = args["applicabilityFilter"] === "first-party" ? "first-party" : "any";
-      const fullPlan = report.fixPlan ?? [];
+      const fullPlan = report.fixPlan;
+      const lines: string[] = [];
+      if (fullPlan === undefined) {
+        lines.push("fix plan: not present (report predates v0.2.0 — rerun `measure` to generate a v0.2.0 report with fixPlan)");
+        return {
+          content: [
+            { type: "text", text: lines.join("\n") },
+            { type: "text", text: JSON.stringify({ entries: [], total: 0 }, null, 2) },
+          ],
+        };
+      }
       const filtered = applicabilityFilter === "first-party"
         ? fullPlan.filter((e) => e.applicability === "first-party")
         : fullPlan;
       const entries = filtered.slice(0, limit);
-      const lines: string[] = [];
       if (entries.length === 0) {
         lines.push("fix plan: 0 entries");
         if (applicabilityFilter === "first-party" && fullPlan.length > 0) {
-          lines.push(`(${String(fullPlan.length)} entries exist but all are third-party — try applicabilityFilter=any to see them)`);
+          lines.push(`(${String(fullPlan.length)} entries exist but all are third-party — try applicabilityFilter=any to see them, or set OHMYPERF_ORG_DOMAINS to mark org-owned CDNs as first-party)`);
         }
       } else {
         lines.push(`fix plan: ${String(entries.length)} of ${String(fullPlan.length)} entries${applicabilityFilter === "first-party" ? " (first-party only)" : ""}`);
@@ -951,8 +960,8 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       if (!trust) {
         return {
           content: [
-            { type: "text", text: "trustScore not present in this report (likely produced by an older version of ohmyperf)" },
-            { type: "text", text: "null" },
+            { type: "text", text: "trustScore not present (report predates v0.2.0 — rerun `measure` to generate a v0.2.0 report with trustScore)" },
+            { type: "text", text: JSON.stringify(null) },
           ],
         };
       }
@@ -961,8 +970,10 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       lines.push(`Reasons: ${trust.reasons.join(", ")}`);
       if (trust.recommendedAction) lines.push(`Recommended: ${trust.recommendedAction}`);
       lines.push("Per metric:");
-      for (const [name, v] of Object.entries(trust.perMetric)) {
-        lines.push(`  ${name.toUpperCase().padEnd(5)} ${v.level}${v.recommendedAction ? ` — ${v.recommendedAction}` : ""}`);
+      for (const [metricName, v] of Object.entries(trust.perMetric)) {
+        lines.push(
+          `  ${metricName.toUpperCase().padEnd(5)} overall=${v.level} (sample=${v.sampleConfidence}, effect=${v.effectConfidence})${v.recommendedAction ? ` — ${v.recommendedAction}` : ""}`,
+        );
       }
       return {
         content: [
@@ -979,8 +990,8 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       if (!s) {
         return {
           content: [
-            { type: "text", text: "servability not present (likely older ohmyperf version)" },
-            { type: "text", text: "null" },
+            { type: "text", text: "servability not present (report predates v0.2.0 — rerun `measure` to generate a v0.2.0 report with servability)" },
+            { type: "text", text: JSON.stringify(null) },
           ],
         };
       }
@@ -1549,7 +1560,6 @@ function summarize(report: Report, savedPath: string): string {
       lines.push(`  [${a.passed ? "PASS" : "FAIL"}] ${a.id} — ${a.title}`);
     }
   }
-  lines.push(`Saved: ${savedPath}`);
   return lines.join("\n");
 }
 
