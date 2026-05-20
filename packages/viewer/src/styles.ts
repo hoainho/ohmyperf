@@ -135,8 +135,8 @@ pre.code {
 .foot { color: var(--meta); font-size: var(--text-xs); margin-top: var(--space-8); }
 .foot a { color: var(--accent); }
 @media print {
-  body { background: #fff; color: #000; padding: 12mm; /* token-unsafe: print-unit mm */ font-size: 11pt; /* token-unsafe: print-unit pt */ }
-  .panel, .hero, .cwv-card, .empty-state { background: #fff; border-color: #888; box-shadow: none; }
+  body { background: #fff; color: #000; padding: 12mm; /* token-unsafe: print-unit mm */ font-size: 11pt; /* token-unsafe: print-unit pt */ -webkit-print-color-adjust: exact; print-color-adjust: exact; /* token-unsafe: preserve background colors on print so CWV traffic-light cards keep their visual meaning when saved as PDF */ }
+  .panel, .hero, .cwv-card, .empty-state { background: #fff; border-color: #888; box-shadow: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; /* token-unsafe: cascade print color preservation to cards/panels */ }
   .cwv-card[data-cwv-status="good"]::after { content: " (good)"; }
   .cwv-card[data-cwv-status="needs-improvement"]::after { content: " (needs improvement)"; }
   .cwv-card[data-cwv-status="poor"]::after { content: " (poor)"; }

@@ -168,20 +168,21 @@ html, body { margin: 0; /* token-unsafe: css-reset */ padding: 0; /* token-unsaf
 .deck-third-parties .legend .pct { color: var(--meta); font-variant-numeric: tabular-nums; min-width: 100px; /* token-unsafe: fixed table alignment width */ text-align: right; }
 @page { size: 1920px 1080px landscape; margin: 0; /* token-unsafe: @page reset — print layout directive */ }
 @media print {
-  html, body { background: #fff; color: #000; }
-  .deck { overflow: visible; height: auto; width: auto; scroll-snap-type: none; }
+  html, body { background: #fff; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; /* token-unsafe: preserve background colors on print so CWV traffic-light tiles stay readable when saved as PDF */ }
+  .deck { overflow: visible; height: auto; width: auto; scroll-snap-type: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; /* token-unsafe: cascade print color preservation to deck container */ }
   .slide {
     transform: none;
     page-break-after: always;
     margin: 0; /* token-unsafe: print slide reset */
     box-shadow: none;
+    -webkit-print-color-adjust: exact; /* token-unsafe: cascade print color preservation to each slide */
+    print-color-adjust: exact; /* token-unsafe: cascade print color preservation to each slide */
   }
   .slide:last-of-type { page-break-after: auto; }
   .deck-nav { display: none; }
   .cwv-tile[data-cwv-status="good"] .label::after { content: " (good)"; }
   .cwv-tile[data-cwv-status="needs-improvement"] .label::after { content: " (needs improvement)"; }
   .cwv-tile[data-cwv-status="poor"] .label::after { content: " (poor)"; }
-  .cwv-tile .icon { color: #000 !important; }
 }
 `;
 
