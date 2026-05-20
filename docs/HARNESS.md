@@ -265,6 +265,36 @@ Pump-version commit checklist:
 5. Commit message: `chore(release): vX.Y.Z` (signals to `publish-stable.yml`
    that this is a release commit).
 
+### Distribution Runbook (when shipping a new release)
+
+Cross-platform release-day checklist — each link points to a single-paste setup recipe:
+
+1. **npm registry** (`@ohmyperf/*` packages) — [`docs/PUBLISH-NPM-TOKEN.md`](./PUBLISH-NPM-TOKEN.md)
+   - Required secret: `NPM_TOKEN` (Granular Access Token, **Read and write** on `@ohmyperf` scope)
+   - Trigger: `gh workflow run publish-stable.yml --field bump=minor`
+   - Verify: `npx -y @ohmyperf/cli@X.Y.Z doctor`
+
+2. **Cloudflare Pages** (`apps/website` static export) — [`docs/DEPLOY-WEBSITE.md`](./DEPLOY-WEBSITE.md)
+   - Required secrets: `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`
+   - Trigger: any push to main touching `apps/website/`, or manual `gh workflow run deploy-website.yml`
+   - Verify: `https://ohmyperf.pages.dev` returns 200
+
+3. **VSCode Marketplace** (`apps/ide-vscode`) — [`docs/PUBLISH-VSCODE.md`](./PUBLISH-VSCODE.md)
+   - Required secret: `VSCE_PAT` (Azure DevOps PAT, Marketplace:Manage scope)
+   - Trigger: `gh workflow run publish-vscode.yml`
+   - Verify: marketplace listing shows new version
+
+4. **MCP registries** (smithery.ai + glama.ai) — [`docs/PUBLISH-MCP-LISTINGS.md`](./PUBLISH-MCP-LISTINGS.md)
+   - No GitHub secrets needed (web-form submission)
+   - Trigger: visit smithery.ai/new + glama.ai/mcp/servers
+   - Verify: listings appear at `smithery.ai/server/@ohmyperf/mcp-server`
+
+Defensive engineering already in place:
+- `publish-stable.yml` runs an `npm whoami` + `npm access list` preflight before pipeline cost.
+  If `NPM_TOKEN` is misconfigured, the workflow fails in <2s with an `::error::` pointing
+  at the diagnostic doc instead of burning 3 minutes on install+build+bump only to hit an
+  opaque E404.
+
 For change types marked **❌ smoke test** instead of E2E:
 - Run a deterministic check that exercises the changed surface (e.g.
   `alembic upgrade head` for migrations, `import <app>` for refactors).
