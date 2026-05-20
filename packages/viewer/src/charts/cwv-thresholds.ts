@@ -37,6 +37,19 @@ export function cwvStatusIcon(status: CwvStatus): string {
   }
 }
 
+export function cwvStatusSvg(status: CwvStatus, sizePx = 14): string {
+  const fill = (() => {
+    switch (status) {
+      case "good": return "var(--success, #1f9d55)";
+      case "needs-improvement": return "var(--warning, #d97706)";
+      case "poor": return "var(--danger, #dc2626)";
+      default: return "var(--meta, #888)";
+    }
+  })();
+  const s = String(sizePx);
+  return `<svg class="cwv-status-dot" width="${s}" height="${s}" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="6" fill="${fill}" /></svg>`;
+}
+
 export function cwvStatusLabel(status: CwvStatus): string {
   switch (status) {
     case "good":

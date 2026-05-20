@@ -3,8 +3,8 @@ import { escapeHtml } from "../escape.js";
 import { renderSparkline } from "./sparkline.js";
 import {
   classifyCwv,
-  cwvStatusIcon,
   cwvStatusLabel,
+  cwvStatusSvg,
   formatCwvThreshold,
   formatCwvValue,
 } from "./cwv-thresholds.js";
@@ -45,6 +45,6 @@ export function renderCwvCard(
   <div class="value">${escapeHtml(valueStr)}</div>
   <div class="sub">${escapeHtml(subParts.join(" · "))}</div>
   ${sparkline ? `<div class="trend" aria-hidden="false">${sparkline}</div>` : ""}
-  <div class="icon" aria-hidden="true">${escapeHtml(cwvStatusIcon(status))}</div>
+  <div class="icon" aria-hidden="true">${cwvStatusSvg(status, 18)}</div>
 </article>`;
 }
