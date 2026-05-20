@@ -269,9 +269,10 @@ Pump-version commit checklist:
 
 Cross-platform release-day checklist — each link points to a single-paste setup recipe:
 
-1. **npm registry** (`@ohmyperf/*` packages) — [`docs/PUBLISH-NPM-TOKEN.md`](./PUBLISH-NPM-TOKEN.md)
-   - Required secret: `NPM_TOKEN` (Granular Access Token, **Read and write** on `@ohmyperf` scope)
-   - Trigger: `gh workflow run publish-stable.yml --field bump=minor`
+1. **npm registry** (`@ohmyperf/*` packages)
+   - **Recommended path (no recurring secrets)**: [`docs/PUBLISH-NPM-OIDC.md`](./PUBLISH-NPM-OIDC.md) — one-time per-package Trusted Publisher config on npmjs.com, then every future release uses GitHub OIDC + provenance attestations.
+   - Token-based path (current, recurring rotation): [`docs/PUBLISH-NPM-TOKEN.md`](./PUBLISH-NPM-TOKEN.md) — `NPM_TOKEN` secret with Read+Write on `@ohmyperf` scope.
+   - Trigger (either path): `gh workflow run publish-stable.yml --field bump=minor`
    - Verify: `npx -y @ohmyperf/cli@X.Y.Z doctor`
 
 2. **Cloudflare Pages** (`apps/website` static export) — [`docs/DEPLOY-WEBSITE.md`](./DEPLOY-WEBSITE.md)
