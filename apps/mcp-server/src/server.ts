@@ -18,6 +18,7 @@ import {
   type Report,
 } from "@ohmyperf/core";
 import { createPlaywrightAdapter } from "@ohmyperf/driver-playwright";
+import { proposePatches } from "@ohmyperf/fixers";
 import {
   axePlugin,
   cwvPlugin,
@@ -446,6 +447,40 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
           },
         },
       },
+      {
+        name: "propose_patch",
+        description:
+          "Given a saved report.json (path or URI), return structured { archetype, url, search, replace, rationale, expectedImpactMs, confidence } patches for actionable opportunities. The agent can grep the search string in the repo and apply the replace. Pair with verify_fix to re-measure after applying. Currently supports archetypes: render-blocking-script-add-defer, render-blocking-stylesheet-media-print, lcp-image-fetchpriority-high, lcp-image-link-preload.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            reportPath: {
+              type: "string",
+              description: "Filesystem path to report.json (alternative to 'uri')",
+            },
+            uri: {
+              type: "string",
+              description: "Resource URI like 'ohmyperf://reports/<file>.json' (alternative to 'reportPath')",
+            },
+            opportunityId: {
+              type: "string",
+              description:
+                "Limit patches to one opportunity id (e.g. 'render-blocking-resources', 'largest-contentful-paint-image'). Omit to propose patches for all matching opportunities.",
+            },
+            url: {
+              type: "string",
+              description: "Limit patches to one resource URL (e.g. the LCP image or a specific render-blocking script).",
+            },
+            maxPatches: {
+              type: "integer",
+              minimum: 1,
+              maximum: 50,
+              default: 10,
+              description: "Max patches to return, sorted by expectedImpactMs desc (default 10)",
+            },
+          },
+        },
+      },
     ],
   }));
 
@@ -693,6 +728,38 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
         content: [
           { type: "text", text: formatBudgetVerdict(verdict, savedPath) },
           { type: "text", text: JSON.stringify(verdict, null, 2) },
+        ],
+      };
+    }
+
+    if (name === "propose_patch") {
+      const path = resolveReportRef(reportsDir, args);
+      const report = await loadReport(path);
+      const opportunityId = typeof args["opportunityId"] === "string" ? args["opportunityId"] : undefined;
+      const filterUrl = typeof args["url"] === "string" ? args["url"] : undefined;
+      const maxPatches = parseLimit(args["maxPatches"], 10);
+      const result = proposePatches({
+        report,
+        ...(opportunityId ? { opportunityId } : {}),
+        ...(filterUrl ? { url: filterUrl } : {}),
+        maxPatches,
+      });
+      const summaryLines: string[] = [];
+      summaryLines.push(`propose_patch: ${String(result.patches.length)} patch(es) for ${report.meta.url}`);
+      for (const p of result.patches) {
+        const impact = p.expectedImpactMs !== undefined ? `~${p.expectedImpactMs.toFixed(0)}ms ${p.expectedMetric ?? ""}` : "impact unknown";
+        summaryLines.push(`  • [${p.archetype}] ${p.url} (${impact}, confidence=${p.confidence})`);
+      }
+      if (result.skipped.length > 0) {
+        summaryLines.push("Skipped:");
+        for (const s of result.skipped) {
+          summaryLines.push(`  • ${s.opportunityId}: ${s.reason}`);
+        }
+      }
+      return {
+        content: [
+          { type: "text", text: summaryLines.join("\n") },
+          { type: "text", text: JSON.stringify(result, null, 2) },
         ],
       };
     }

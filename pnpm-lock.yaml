@@ -189,6 +189,9 @@ importers:
       '@ohmyperf/driver-playwright':
         specifier: workspace:*
         version: link:../../packages/driver-playwright
+      '@ohmyperf/fixers':
+        specifier: workspace:*
+        version: link:../../packages/fixers
       '@ohmyperf/plugins-builtin':
         specifier: workspace:*
         version: link:../../packages/plugins-builtin
@@ -421,6 +424,16 @@ importers:
       eslint:
         specifier: ^9.0.0
         version: 9.39.4(jiti@2.7.0)
+      vitest:
+        specifier: 'catalog:'
+        version: 2.1.9(@types/node@22.19.18)(lightningcss@1.32.0)
+
+  packages/fixers:
+    dependencies:
+      '@ohmyperf/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
       vitest:
         specifier: 'catalog:'
         version: 2.1.9(@types/node@22.19.18)(lightningcss@1.32.0)
