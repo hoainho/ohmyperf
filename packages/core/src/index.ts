@@ -1,3 +1,5 @@
+import { createSilentLogger } from "./logger.js";
+
 export const PACKAGE_NAME = "@ohmyperf/core" as const;
 export const SCHEMA_VERSION = "1.0.0" as const;
 
@@ -181,7 +183,55 @@ export async function measure(opts: MeasureOptions): Promise<Report> {
     );
   }
 
-  throw new Error(
-    "ohmyperf measure() is not yet implemented. The engine is in P0 development; see openspec/changes/add-ohmyperf-mvp/ for the implementation plan.",
-  );
+  type DriverModule = {
+    createPlaywrightAdapter: (config: { kind: "chromium" | "firefox" | "webkit" }) => {
+      driver: import("./types.js").Driver;
+      adapter: import("./engine.js").EngineLaunchAdapter;
+    };
+  };
+  let driverMod: DriverModule;
+  const { existsSync } = await import("node:fs");
+  const { join, dirname } = await import("node:path");
+  const { pathToFileURL } = await import("node:url");
+  const candidates: string[] = [];
+  let dir = process.cwd();
+  for (let i = 0; i < 10; i++) {
+    candidates.push(join(dir, "node_modules", "@ohmyperf", "driver-playwright", "dist", "index.js"));
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  let driverEntry: string | null = null;
+  for (const p of candidates) {
+    if (existsSync(p)) {
+      driverEntry = p;
+      break;
+    }
+  }
+  if (driverEntry) {
+    try {
+      driverMod = (await import(pathToFileURL(driverEntry).href)) as DriverModule;
+    } catch (err) {
+      throw new Error(
+        `ohmyperf measure() found @ohmyperf/driver-playwright at ${driverEntry} but failed to import: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  } else {
+    try {
+      driverMod = (await import(
+        "@ohmyperf/driver-playwright" as string
+      )) as DriverModule;
+    } catch (err) {
+      throw new Error(
+        `ohmyperf measure() requires @ohmyperf/driver-playwright. Install it: 'npm install @ohmyperf/driver-playwright @ohmyperf/core'. Searched ${String(candidates.length)} candidate node_modules paths from ${process.cwd()} upward. Last error: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+  const { driver, adapter } = driverMod.createPlaywrightAdapter({ kind: "chromium" });
+  const { runEngine } = await import("./engine.js");
+  return runEngine({ opts, driver, adapter, logger: createSilentLogger() });
 }
