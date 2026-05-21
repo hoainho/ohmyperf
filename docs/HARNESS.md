@@ -276,17 +276,78 @@ test:landing-self-measure   (REQUIRED for any change to apps/website,
   - CLS > 0.25 (poor band)
   - The output is missing CWV metrics entirely
 
+test:landing-real-browser   (REQUIRED for any change to apps/website,
+                              IN ADDITION TO test:landing-self-measure)
+  CLI measure proves the page loads + CWV are OK. It does NOT prove the
+  page is usable. A landing page can have perfect LCP and still ship
+  dead links, console errors, and broken click flows. CLI measure
+  cannot catch these — only a real browser interaction can.
+
+  This layer is the lesson from session 2026-05-21: agent shipped a
+  landing redesign with passing CWV (LCP 296ms GOOD) but the user
+  caught 6 bugs in a single click test — 4 dead links (GitHub org wrong,
+  share-pending 404, favicon 404, CSP meta ignored), 1 CSS console
+  noise, 1 critical dead-end UX on the primary Measure button. CLI
+  measure missed all 6.
+
+  Concretely, after deploy-pages.yml runs (and after test:landing-
+  self-measure passes), the agent MUST also:
+
+    1. Open the deployed URL via Playwright MCP (or equivalent real
+       browser automation). Wait for network idle.
+    2. Capture console errors via `browser_console_messages` with
+       level=error. Acceptable error allowlist:
+       - localhost/127.0.0.1 CORS probe failures from backend-detector
+         (tracked as issue #11 — design limit)
+       Anything else FAILS this gate.
+    3. Take a snapshot via `browser_snapshot`. Verify the snapshot
+       contains expected hero text + at least one CTA element.
+    4. Identify the primary user-action CTA on the landing (e.g.
+       "Measure", "Try it", "Get started"). Click it via
+       `browser_click`. Wait for navigation or DOM change.
+    5. Capture console errors on the post-click view. Same allowlist
+       as step 2.
+    6. Take a second snapshot. Verify the post-click view shows
+       EITHER:
+       (a) The expected next-step content (form, dashboard, output)
+       (b) A graceful "no backend / not available" guide with concrete
+           next steps (CLI command, install link, fallback path) —
+           NOT a generic error toast or empty state
+    7. Paste a 5-10 line summary into the deploy commit message:
+       - URL probed
+       - Console error count on landing + on post-click
+       - Whether primary CTA produced a usable next-step view
+
+  Real-browser gate fails if:
+  - Any console error outside the allowlist on initial page load
+  - Any console error outside the allowlist after CTA click
+  - Primary CTA produces empty state / generic error / no visible
+    response within 3 seconds
+  - Snapshot shows dead-link href values (wrong org names, 404 paths)
+  - Hero text or stat block missing from snapshot (build artifact
+    not reaching production)
+
+  Operational note: agents using OpenCode + Playwright MCP can invoke
+  this gate with ~4 tool calls (navigate, console_messages, click,
+  console_messages). Agents without browser automation MUST defer to
+  a human checker before declaring landing deploy complete. CLI-only
+  proof is necessary but NOT sufficient.
+
 test:release   (before deploy)
   pnpm -r publish --dry-run --no-git-checks   # must exit 0
 ```
 
 **Lane → required layers:**
 
-| Lane | validate:quick | test:integration | test:e2e | test:real-world | test:landing-self-measure |
-|------|:-:|:-:|:-:|:-:|:-:|
-| tiny | ✓ | — | — | — | — |
-| normal | ✓ | ✓ | — | ✓ (if URL-consuming) | ✓ (if touches apps/website) |
-| high-risk | ✓ | ✓ | ✓ | ✓ | ✓ (if touches apps/website) |
+| Lane | validate:quick | test:integration | test:e2e | test:real-world | test:landing-self-measure | test:landing-real-browser |
+|------|:-:|:-:|:-:|:-:|:-:|:-:|
+| tiny | ✓ | — | — | — | — | — |
+| normal | ✓ | ✓ | — | ✓ (if URL-consuming) | ✓ (if touches apps/website) | ✓ (if touches apps/website) |
+| high-risk | ✓ | ✓ | ✓ | ✓ | ✓ (if touches apps/website) | ✓ (if touches apps/website) |
+
+Both landing layers are required together for any `apps/website/`
+change. CLI measure proves the page loads. Real-browser click test
+proves the page works.
 
 Agents must not claim a layer passes until it has been run and output verified.
 
@@ -572,6 +633,19 @@ the change becomes part of the trunk.
     issue must be filed before the next user-facing change ships. The tool
     must demonstrate competence on its own surface; ship slow demo = ship
     proof the tool doesn't work.
+16. **Claiming a UI ships without a real-browser click test.** Passing CLI
+    measure (`test:landing-self-measure`) proves the page loads. It does NOT
+    prove the page is usable. Dead links, console errors, broken click flows,
+    and dead-end empty states are all invisible to CLI measure. A landing
+    deploy is NOT complete until the agent has, via Playwright MCP or
+    equivalent real browser, (a) loaded the page and counted console errors,
+    (b) clicked the primary CTA and verified the post-click view is usable.
+    The summary must be pasted into the deploy commit. Session 2026-05-21
+    is the canonical case: 6 production bugs (4 dead links, 1 CSS noise,
+    1 critical dead-end UX on the Measure button) all passed CLI measure,
+    all were caught in one click test. CLI-only proof is necessary but not
+    sufficient — pair the two layers always. See `test:landing-real-browser`
+    in the Validation Ladder for the procedural steps.
 
 ## GitHub Issue Tracking
 
