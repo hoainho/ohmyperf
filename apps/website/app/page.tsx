@@ -4,7 +4,6 @@ import { ArrowRight, ExternalLink, Github, Sparkles, Star } from 'lucide-react';
 import { SiteHeader } from '@/components/layout/site-header';
 import { SiteFooter } from '@/components/layout/site-footer';
 import { UrlFormLanding } from '@/components/measure/url-form-landing';
-import { BackendCardLazy } from '@/components/measure/backend-card-lazy';
 import { TerminalDemo } from '@/components/landing/terminal-demo';
 import { AgentLoopDiagram } from '@/components/landing/agent-loop-diagram';
 import { CwvComparison } from '@/components/landing/cwv-comparison';
@@ -63,7 +62,9 @@ export default function LandingPage() {
 
                 <div className="mt-8 max-w-[560px]">
                   <UrlFormLanding autoFocus />
-                  <BackendCardLazy className="mt-3" />
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Hit <span className="font-medium text-foreground">Measure</span> and pick CLI · Chrome extension · MCP server on the next screen — no backend required to start.
+                  </p>
                 </div>
 
                 <div className="mt-6 flex flex-wrap items-center gap-3 text-sm">

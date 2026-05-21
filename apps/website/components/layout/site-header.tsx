@@ -20,17 +20,20 @@ export function SiteHeader() {
               <span aria-hidden className="mr-1">●</span>Share connected
             </span>
           ) : (
-            <Link
-              href="/docs/measurement-spa-deploy.md"
+            <a
+              href="https://github.com/hoainho/ohmyperf/issues/9"
+              target="_blank"
+              rel="noreferrer"
               className="hidden sm:inline-block rounded-full border border-border bg-muted px-2 py-0.5 text-xs hover:text-foreground transition-colors"
-              title="No share endpoint configured"
+              title="Share-server hosted endpoint pending — see issue #9"
             >
-              Share not set
-            </Link>
+              Share pending
+            </a>
           )}
           <a
-            href="https://github.com/ohmyperf/ohmyperf"
-            rel="noopener noreferrer"
+            href="https://github.com/hoainho/ohmyperf"
+            target="_blank"
+            rel="noreferrer"
             className="hover:text-foreground transition-colors"
           >
             GitHub

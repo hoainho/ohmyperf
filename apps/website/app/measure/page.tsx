@@ -187,7 +187,7 @@ function MeasureContent() {
 
   const handleMeasure = useCallback(async (measureUrl: string, options?: Partial<MeasureRequest>) => {
     if (backend.kind === 'none') {
-      toast.error('No backend detected. Install the extension or start the local runner.');
+      toast.info('No backend detected — see options below or run the CLI locally.');
       return;
     }
 
@@ -265,14 +265,86 @@ function MeasureContent() {
               </button>
             </div>
           )}
-          {currentJob.phase === 'idle' && (
+          {currentJob.phase === 'idle' && backend.kind === 'none' && (
+            <NoBackendGuide url={url} />
+          )}
+          {currentJob.phase === 'idle' && backend.kind !== 'none' && (
             <div className="rounded-lg border border-dashed border-border p-12 text-center text-muted-foreground">
-              <p className="text-sm">Enter a URL above to start measuring.</p>
+              <p className="text-sm">Enter a URL above and click Measure to start.</p>
             </div>
           )}
         </div>
       </main>
     </>
+  );
+}
+
+function NoBackendGuide({ url }: { url: string }) {
+  const command = url
+    ? `npx -y @ohmyperf/cli@latest run ${url} --runs 5`
+    : `npx -y @ohmyperf/cli@latest run https://your-site.com --runs 5`;
+  return (
+    <div className="rounded-2xl border border-border bg-card overflow-hidden">
+      <div className="bg-muted/40 px-5 py-3 border-b border-border">
+        <p className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+          {url ? 'Ready when a backend is connected' : 'How to measure'}
+        </p>
+        <p className="mt-1 text-sm">
+          {url
+            ? <>To measure <code className="font-mono text-foreground">{url}</code>, pick one of the three paths below.</>
+            : 'This page is a thin client for the OhMyPerf engine — it needs a backend that owns a real Chromium. Pick a path:'}
+        </p>
+      </div>
+
+      <div className="grid sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border">
+        <div className="p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-[oklch(0.55_0.18_245)]/12 text-[oklch(0.40_0.18_245)] dark:text-[oklch(0.82_0.18_245)] text-xs font-semibold">1</span>
+            <h3 className="font-semibold text-sm">Run the CLI now</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
+            Single command. Drops a <code className="font-mono">report.json</code> you can drag onto <a href="/viewer/" className="underline underline-offset-2 hover:text-foreground">/viewer</a>.
+          </p>
+          <pre className="rounded-md bg-muted/60 px-3 py-2 text-[11px] font-mono text-foreground/85 overflow-x-auto">{command}</pre>
+        </div>
+
+        <div className="p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-[oklch(0.55_0.16_70)]/12 text-[oklch(0.40_0.16_70)] dark:text-[oklch(0.82_0.16_70)] text-xs font-semibold">2</span>
+            <h3 className="font-semibold text-sm">Install the Chrome extension</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
+            One-click measure on any tab. This page picks the extension up automatically.
+          </p>
+          <a
+            href="https://chrome.google.com/webstore/detail/ohmyperf"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-medium text-[oklch(0.50_0.18_245)] dark:text-[oklch(0.78_0.18_245)] hover:underline"
+          >
+            Open Chrome Web Store →
+          </a>
+        </div>
+
+        <div className="p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-[oklch(0.55_0.17_145)]/12 text-[oklch(0.40_0.17_145)] dark:text-[oklch(0.82_0.17_145)] text-xs font-semibold">3</span>
+            <h3 className="font-semibold text-sm">Use the MCP server</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
+            Drop into Claude / OpenCode / Cursor — 16 tools including <code className="font-mono">measure</code> + <code className="font-mono">verify_fix</code>.
+          </p>
+          <pre className="rounded-md bg-muted/60 px-3 py-2 text-[11px] font-mono text-foreground/85 overflow-x-auto">npx -y @ohmyperf/mcp-server</pre>
+        </div>
+      </div>
+
+      <div className="bg-muted/20 px-5 py-3 border-t border-border text-xs text-muted-foreground">
+        Already have a <code className="font-mono text-foreground">report.json</code>?{' '}
+        <a href="/viewer/" className="underline underline-offset-2 hover:text-foreground font-medium">
+          Drop it on the viewer →
+        </a>
+      </div>
+    </div>
   );
 }
 

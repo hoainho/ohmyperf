@@ -28,7 +28,6 @@ const CSP = [
   `script-src ${SCRIPT_SRC}`,
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
-  "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
   "object-src 'none'",
