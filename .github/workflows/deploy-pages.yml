@@ -53,6 +53,7 @@ jobs:
       - name: Build website (static export with basePath=/ohmyperf)
         env:
           OHMYPERF_BASE_PATH: /ohmyperf
+          NEXT_PUBLIC_EXTENSION_ID: emhengbdmoiimmchfnmpajaifkgobdfd
         run: pnpm --filter '@ohmyperf/website...' build
 
       - name: Verify out/ exists

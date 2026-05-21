@@ -9,8 +9,13 @@ const envSchema = z.object({
   NEXT_PUBLIC_SHARE_ENDPOINT: z.string().url().optional().or(z.literal('')),
 });
 
+const DEFAULT_PUBLISHED_EXTENSION_ID = 'emhengbdmoiimmchfnmpajaifkgobdfd';
+
 function readRawEnv(): Record<string, string> {
-  const out: Record<string, string> = {};
+  const out: Record<string, string> = {
+    NEXT_PUBLIC_EXTENSION_ID: DEFAULT_PUBLISHED_EXTENSION_ID,
+    NEXT_PUBLIC_RUNNER_PORT: '5174',
+  };
   try {
     if (typeof process !== 'undefined' && process.env) {
       if (process.env.NEXT_PUBLIC_EXTENSION_ID) {
