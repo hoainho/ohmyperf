@@ -113,7 +113,7 @@ Then your LLM has 16 tools available: `measure`, `propose_patch`, `verify_fix`, 
         ├──► MCP server          16 tools for LLM agents
         ├──► Chrome extension    click toolbar icon → measure current tab
         ├──► VSCode extension    Cmd+Shift+P → OhMyPerf: Measure URL
-        ├──► Website             ohmyperf.dev — drop a report.json on /viewer
+        ├──► Website             hoainho.github.io/ohmyperf — drop report.json on /viewer
         ├──► Share-server        Cloudflare Workers or Node
         ├──► ESLint plugin       7 CWV-linked rules at editor-save time
         └──► Fixers SDK          archetype registry + proposePatches()
@@ -332,24 +332,23 @@ Saved reports surface as resources at `ohmyperf://reports/<timestamp>-<id>.json`
 
 End-to-end loop time: ~5.5s against a real public URL ([commit `a41301f`](https://github.com/hoainho/ohmyperf/commit/a41301f) verified composition). Patches archetypes covering ~80% of typical opportunities (render-blocking scripts/stylesheets, LCP image fetchpriority + preload).
 
-## Website (`ohmyperf.dev`)
+## Website
+
+Live at **[hoainho.github.io/ohmyperf](https://hoainho.github.io/ohmyperf/)** (zero-credential GitHub Pages mirror, deployed via `.github/workflows/deploy-pages.yml`). Cloudflare Pages deploy at `ohmyperf.dev` is pending domain registration ([#9](https://github.com/hoainho/ohmyperf/issues/9)).
 
 ```bash
 cd apps/website
-pnpm build
-# site-dist/ ready for static deploy:
-#   wrangler pages publish site-dist
-#   netlify deploy --dir=site-dist
-#   gh-pages -d site-dist
+pnpm build                              # Next.js static export to out/
+OHMYPERF_BASE_PATH=/ohmyperf pnpm build # for GitHub Pages subpath
 ```
 
 Routes:
 
 - `/` — landing page (light/dark theme, no external network requests)
-- `/viewer.html` — drag-drop `report.json` to render in browser (no upload)
+- `/viewer/` — drag-drop `report.json` to render in browser (no upload, no analytics, no signup)
+- `/measure/` — in-browser measurement SPA (CDP via the Chrome extension when installed)
+- `/report/` — local measurement history
 - `/r/:id` — served by the share-server when deployed alongside
-
-Cloudflare Pages + Workers production deployment defers to a separate ops project.
 
 ## Share-server (hosted shareable links)
 
