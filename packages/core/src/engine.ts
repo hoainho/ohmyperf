@@ -389,7 +389,9 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
   const reportOpportunities = aggregateOpportunities(runReports);
 
   const primaryOrigin = parseOriginInfo(opts.url);
-  const orgDomains = resolveOrgDomains(opts.orgDomains, process.env);
+  const envSource: Record<string, string | undefined> =
+    typeof process !== "undefined" && process.env ? process.env : {};
+  const orgDomains = resolveOrgDomains(opts.orgDomains, envSource);
   const enrichedRuns: RunReport[] = runReports.map((r) => ({
     ...r,
     resources: r.resources.map((res) => ({
@@ -680,7 +682,10 @@ function buildMeta(input: BuildMetaInput): ReportMeta {
     host: {
       os: `${osPlatform()} ${osRelease()}`,
       arch: osArch(),
-      nodeVersion: process.version,
+      nodeVersion:
+        typeof process !== "undefined" && typeof process.version === "string"
+          ? process.version
+          : "browser",
     },
     parity: {
       mode: headless,

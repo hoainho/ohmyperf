@@ -60,6 +60,12 @@ const common = {
   sourcemap: false,
   minify: false,
   legalComments: "none",
+  define: {
+    "process.env": "{}",
+    "process.version": "\"browser\"",
+    "process.versions": "{}",
+    "process.platform": "\"browser\"",
+  },
   alias: {
     "node:crypto": join(stubDir, "node-stub.mjs"),
     "node:fs": join(stubDir, "node-stub.mjs"),

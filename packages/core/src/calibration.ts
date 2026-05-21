@@ -192,7 +192,10 @@ function computeFingerprint(driver: Driver): string {
 }
 
 function defaultCacheDir(): string {
-  const env = process.env["OHMYPERF_CACHE_DIR"];
+  const env =
+    typeof process !== "undefined" && process.env
+      ? process.env["OHMYPERF_CACHE_DIR"]
+      : undefined;
   if (env && env.length > 0) return env;
   return join(homedir(), ".ohmyperf-cache");
 }

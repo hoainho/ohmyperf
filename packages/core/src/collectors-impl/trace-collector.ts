@@ -67,11 +67,12 @@ export function createTraceCollector(session: CDPSessionLike, logger: Logger): T
       let body = "";
       let bytes = 0;
       let warned = false;
+      const encoder = new TextEncoder();
       try {
         while (true) {
           const chunk = (await session.send("IO.read", { handle: streamHandle, size: 1024 * 1024 })) as IoReadResult;
           body += chunk.data;
-          bytes += Buffer.byteLength(chunk.data, "utf8");
+          bytes += encoder.encode(chunk.data).length;
           if (!warned && bytes >= TRACE_WARN_BYTES) {
             warned = true;
             logger.warn("trace-collector: trace exceeds warn threshold", { bytes, warnAt: TRACE_WARN_BYTES });
