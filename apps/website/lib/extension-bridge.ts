@@ -15,7 +15,7 @@ import {
   type MeasureRequest,
 } from '@ohmyperf/shared-types';
 
-import { EXTENSION_ID } from './extension-id';
+import { EXTENSION_ID, getExtensionId } from './extension-id';
 
 export interface BridgePingResult {
   readonly version: string;
@@ -53,18 +53,19 @@ function sendBridgeMessage(req: BridgeRequestEnvelope): Promise<BridgeResponseEn
       }),
     );
   }
-  if (!EXTENSION_ID) {
+  const extId = getExtensionId();
+  if (!extId) {
     return Promise.reject(
       new ExtensionBridgeError({
         code: 'extension/internal',
-        message: 'NEXT_PUBLIC_EXTENSION_ID is not set',
+        message: 'Extension ID not discovered yet. Install the extension or paste its ID at /measure.',
         retriable: false,
       }),
     );
   }
   return new Promise((resolve, reject) => {
     try {
-      runtime.sendMessage(EXTENSION_ID, req, (response: unknown) => {
+      runtime.sendMessage(extId, req, (response: unknown) => {
         if (runtime.lastError) {
           reject(
             new ExtensionBridgeError({
@@ -139,6 +140,12 @@ export interface MeasureStartResult {
   readonly portName: string;
 }
 
+export interface MeasureStartAndStreamResult {
+  readonly jobId: string;
+  readonly portName: string;
+  readonly handle: StreamPortHandle;
+}
+
 export async function startMeasure(input: MeasureRequest): Promise<MeasureStartResult> {
   if ((input.runs ?? 1) > 1) {
     throw new ExtensionBridgeError({
@@ -166,6 +173,102 @@ export async function startMeasure(input: MeasureRequest): Promise<MeasureStartR
   }
   const ack = resp as MeasureAck;
   return { jobId: ack.jobId, portName: ack.portName };
+}
+
+export function startMeasureAndStream(input: MeasureRequest): Promise<MeasureStartAndStreamResult> {
+  if ((input.runs ?? 1) > 1) {
+    return Promise.reject(
+      new ExtensionBridgeError({
+        code: 'extension/unsupported-runs',
+        message: 'Extension backend supports single-run only; multi-run requires the runner backend.',
+        retriable: false,
+      }),
+    );
+  }
+  const req: BridgeMeasureRequest = {
+    protocolVersion: PROTOCOL_VERSION,
+    type: 'ohmyperf/measure',
+    url: input.url,
+    runs: 1,
+    mode: input.mode ?? 'real',
+    ...(input.cacheMode !== undefined ? { cacheMode: input.cacheMode } : {}),
+  };
+  const runtime = getRuntime();
+  if (!runtime || typeof runtime.sendMessage !== 'function') {
+    return Promise.reject(
+      new ExtensionBridgeError({
+        code: 'extension/internal',
+        message: 'chrome.runtime.sendMessage unavailable',
+        retriable: false,
+      }),
+    );
+  }
+  const extId = getExtensionId();
+  if (!extId) {
+    return Promise.reject(
+      new ExtensionBridgeError({
+        code: 'extension/internal',
+        message: 'Extension ID not discovered. Install extension or paste ID at /measure.',
+        retriable: false,
+      }),
+    );
+  }
+  return new Promise((resolve, reject) => {
+    try {
+      runtime.sendMessage(extId, req, (response: unknown) => {
+        if (runtime.lastError) {
+          reject(
+            new ExtensionBridgeError({
+              code: 'extension/internal',
+              message: runtime.lastError.message,
+              retriable: true,
+            }),
+          );
+          return;
+        }
+        if (!response || typeof response !== 'object') {
+          reject(
+            new ExtensionBridgeError({
+              code: 'extension/internal',
+              message: 'Malformed response from extension',
+              retriable: false,
+            }),
+          );
+          return;
+        }
+        const resp = response as BridgeResponseEnvelope;
+        if (isErrorResponse(resp)) {
+          reject(new ExtensionBridgeError(resp.error));
+          return;
+        }
+        if (resp.type !== 'ohmyperf/measure/ack') {
+          reject(
+            new ExtensionBridgeError({
+              code: 'extension/internal',
+              message: `Unexpected response type: ${resp.type}`,
+              retriable: false,
+            }),
+          );
+          return;
+        }
+        const ack = resp as MeasureAck;
+        try {
+          const handle = streamPort(ack.portName);
+          resolve({ jobId: ack.jobId, portName: ack.portName, handle });
+        } catch (err) {
+          reject(err);
+        }
+      });
+    } catch (err) {
+      reject(
+        new ExtensionBridgeError({
+          code: 'extension/internal',
+          message: err instanceof Error ? err.message : String(err),
+          retriable: false,
+        }),
+      );
+    }
+  });
 }
 
 export async function cancelJob(jobId: string): Promise<boolean> {
@@ -259,14 +362,15 @@ export interface StreamPortHandle {
 
 export function streamPort(portName: string): StreamPortHandle {
   const runtime = getRuntime();
-  if (!runtime || !EXTENSION_ID) {
+  const extId = getExtensionId();
+  if (!runtime || !extId) {
     throw new ExtensionBridgeError({
       code: 'extension/internal',
       message: 'chrome.runtime.connect unavailable',
       retriable: false,
     });
   }
-  const port = runtime.connect(EXTENSION_ID, { name: portName });
+  const port = runtime.connect(extId, { name: portName });
 
   const queue: ProgressEvent[] = [];
   let resolveNext: ((v: IteratorResult<ProgressEvent>) => void) | null = null;

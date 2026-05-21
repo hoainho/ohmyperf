@@ -11,9 +11,8 @@ import { SiteHeader } from '@/components/layout/site-header';
 import { useStore } from '@/lib/store';
 import { submitMeasure, streamJob, RunnerClientError, type StreamHandle } from '@/lib/runner-client';
 import {
-  startMeasure as extStartMeasure,
+  startMeasureAndStream as extStartMeasureAndStream,
   cancelJob as extCancelJob,
-  streamPort as extStreamPort,
   ExtensionBridgeError,
   type StreamPortHandle,
 } from '@/lib/extension-bridge';
@@ -111,11 +110,11 @@ function MeasureContent() {
     const extRequest: MeasureRequest = { ...request, runs: 1 };
 
     let jobId: string;
-    let portName: string;
+    let handle: StreamPortHandle;
     try {
-      const ack = await extStartMeasure(extRequest);
-      jobId = ack.jobId;
-      portName = ack.portName;
+      const result = await extStartMeasureAndStream(extRequest);
+      jobId = result.jobId;
+      handle = result.handle;
     } catch (err) {
       const code = err instanceof ExtensionBridgeError ? err.code : 'extension/internal';
       const message = err instanceof Error ? err.message : String(err);
@@ -124,19 +123,9 @@ function MeasureContent() {
     }
 
     extensionJobIdRef.current = jobId;
-    setJobStreaming(jobId);
-    await saveJob({ id: jobId, url: measureUrl, status: 'running', startedAt: Date.now() });
-
-    let handle: StreamPortHandle;
-    try {
-      handle = extStreamPort(portName);
-    } catch (err) {
-      const code = err instanceof ExtensionBridgeError ? err.code : 'extension/internal';
-      const message = err instanceof Error ? err.message : String(err);
-      setJobError(code, message, jobId);
-      return;
-    }
     extensionHandleRef.current = handle;
+    setJobStreaming(jobId);
+    void saveJob({ id: jobId, url: measureUrl, status: 'running', startedAt: Date.now() });
 
     let report: Report | null = null;
     let errorEvent: { code: string; message: string } | null = null;
