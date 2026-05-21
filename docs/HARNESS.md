@@ -646,6 +646,43 @@ the change becomes part of the trunk.
     all were caught in one click test. CLI-only proof is necessary but not
     sufficient — pair the two layers always. See `test:landing-real-browser`
     in the Validation Ladder for the procedural steps.
+17. **Chrome extension allowlist + ID hardcoded inconsistently.** A Chrome
+    extension that talks to a hosted SPA has THREE independent allowlists
+    that MUST stay in sync, plus an ID resolution path that MUST handle
+    per-user variance. Mismatch on ANY layer = silent rejection +
+    "extension not detected" UX with no diagnostic. Session 2026-05-21
+    is the canonical case: same single user-reported bug ("No runner
+    detected") took 4 fix commits to fully resolve because each layer
+    failed independently and the agent did not enumerate all layers up
+    front. The required invariants:
+    - **Layer A — Manifest `externally_connectable.matches`** in
+      `apps/extension-chrome/static/manifest.json`. Chrome's gate. Wrong
+      list → message never reaches the service worker.
+    - **Layer B — Runtime regex allowlist** in
+      `apps/extension-chrome/src/background.ts` (search for
+      `MANIFEST_MATCH_PATTERNS`). JavaScript's gate inside the SW.
+      Defense-in-depth, but missing entry = silent error response.
+      Comment on the array MUST cite Layer A as source of truth.
+    - **Layer C — SPA env `NEXT_PUBLIC_EXTENSION_ID`** in
+      `apps/website/lib/env.ts` (or wherever the extension ID is read).
+      Empty = `pingExtension()` short-circuits to null before ever
+      calling `runtime.sendMessage`. Must have a hardcoded default that
+      covers Web Store install AND a runtime override path for
+      unpacked-extension users.
+    - **Layer D — ID discovery for unpacked extensions.** A single
+      hardcoded ID can never serve all users (unpacked extensions get
+      per-machine IDs derived from the loaded folder). Therefore the
+      extension MUST self-announce its `chrome.runtime.id` via
+      `chrome.scripting.executeScript` + `window.postMessage` on
+      `onInstalled` + `tabs.onUpdated`, and the SPA MUST listen,
+      cache in `localStorage`, and prefer the runtime-captured ID over
+      any compile-time default. A paste-ID manual override is the final
+      fallback.
+
+    When adding a new SPA origin, the agent MUST touch all four layers
+    in one commit. When debugging "extension not detected", the agent
+    MUST verify every layer before guessing — bisecting one layer at a
+    time wastes commits.
 
 ## GitHub Issue Tracking
 
