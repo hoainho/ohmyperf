@@ -61,7 +61,7 @@ describe("ide-vscode extension", () => {
     await ext.openReportCommand(fakeContext);
 
     expect(panel.webview.html).toContain("<!doctype html>");
-    expect(panel.webview.html).toContain("OhMyPerf v1.0.0 report");
+    expect(panel.webview.html).toContain("Performance Report");
     expect(panel.webview.html).toContain("https://example.com");
   });
 

@@ -6,6 +6,8 @@ import type {
   Logger,
 } from "@ohmyperf/core";
 import { createSilentLogger } from "@ohmyperf/core";
+import type { BrowserContext } from "playwright";
+import { wrap } from "./cdp-compat.js";
 import {
   createPlaywrightDriver,
   pageHandleAsTarget,
@@ -42,16 +44,57 @@ export function createPlaywrightAdapter(opts: PlaywrightAdapterOptions): Playwri
       const page = await driver.newPage(browser);
       const target = pageHandleAsTarget(page);
 
+      const internalBrowser = browser as unknown as {
+        browser: { close(): Promise<void> };
+        context: BrowserContext;
+        kind: string;
+      };
+      const browserContext = internalBrowser.context;
+      const isChromium = internalBrowser.kind === "chromium";
+
       const collectedFrames: EngineAttachedFrame[] = [];
+      const childSessions: CDPSessionLike[] = [];
+      const pendingFrameSessions: Promise<void>[] = [];
+
       const oopifAttachOptions = {
         logger,
         onAttach: (t: AttachedTarget) => {
-          collectedFrames.push({
+          const frameRecord: { -readonly [K in keyof EngineAttachedFrame]: EngineAttachedFrame[K] } = {
             frameId: t.targetId,
             url: t.url,
             isOOPIF: t.type === "iframe",
             session: null,
-          });
+          };
+          collectedFrames.push(frameRecord);
+
+          if (!isChromium || t.frame === undefined) return;
+          const frame = t.frame;
+          const p = (async () => {
+            try {
+              const raw = await browserContext.newCDPSession(frame);
+              const client = wrap(raw);
+              const sessionLike: CDPSessionLike = {
+                async send(method, params) {
+                  return client.send(method, params);
+                },
+                on(event, handler) {
+                  client.on(event, handler);
+                },
+                async detach() {
+                  return client.detach();
+                },
+              };
+              frameRecord.session = sessionLike;
+              childSessions.push(sessionLike);
+            } catch (err) {
+              logger.debug("playwright-adapter: newCDPSession(frame) failed", {
+                frameId: t.targetId,
+                url: t.url,
+                error: err instanceof Error ? err.message : String(err),
+              });
+            }
+          })();
+          pendingFrameSessions.push(p);
         },
       };
       const oopifController = await driver.attachOopif(
@@ -67,9 +110,6 @@ export function createPlaywrightAdapter(opts: PlaywrightAdapterOptions): Playwri
           close(): Promise<void>;
         };
       };
-      const internalBrowser = browser as unknown as {
-        browser: { close(): Promise<void> };
-      };
 
       const ctx: EnginePageContext = {
         browserVersion: driver.browserVersion,
@@ -81,8 +121,20 @@ export function createPlaywrightAdapter(opts: PlaywrightAdapterOptions): Playwri
         },
         async waitForLoadIdle(timeoutMs: number): Promise<void> {
           await internal.page.waitForLoadState("networkidle", { timeout: timeoutMs });
+          await Promise.all(pendingFrameSessions.splice(0, pendingFrameSessions.length));
         },
         async close(): Promise<void> {
+          await Promise.all(
+            childSessions.map(async (s) => {
+              try {
+                await s.detach();
+              } catch (err) {
+                logger.debug("playwright-adapter: child session detach threw", {
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              }
+            }),
+          );
           try {
             await oopifController.detachAll();
           } catch (err) {

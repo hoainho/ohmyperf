@@ -55,11 +55,5 @@ describe("@ohmyperf/core surface", () => {
         measure({ url: "https://example.com/", runs: 1.5 }),
       ).rejects.toMatchObject({ field: "runs" });
     });
-
-    it("throws not-yet-implemented for valid options (P0 placeholder)", async () => {
-      await expect(measure({ url: "https://example.com/" })).rejects.toThrow(
-        /not yet implemented/i,
-      );
-    });
   });
 });

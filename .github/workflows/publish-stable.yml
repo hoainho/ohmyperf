@@ -20,6 +20,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,23 +32,73 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24"
           registry-url: "https://registry.npmjs.org"
           cache: pnpm
 
       - name: Bot-commit guard (prevent loop)
         id: guard
+        env:
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           AUTHOR=$(git log -1 --pretty=format:'%an')
           MSG=$(git log -1 --pretty=format:'%s')
           echo "Author: $AUTHOR"
           echo "Message: $MSG"
-          if [[ "$AUTHOR" == "github-actions[bot]" ]] || echo "$MSG" | grep -q "\[skip ci\]"; then
+          echo "Event: $EVENT_NAME"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "workflow_dispatch trigger — guard bypassed"
+          elif [[ "$AUTHOR" == "github-actions[bot]" ]] || echo "$MSG" | grep -q "\[skip ci\]"; then
             echo "skip=true" >> $GITHUB_OUTPUT
             echo "Bot commit / skip-ci marker detected — skipping publish"
           else
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Preflight — verify NPM_TOKEN authenticates against registry (skipped in OIDC-only mode)
+        if: steps.guard.outputs.skip == 'false'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set +e
+          if [ -z "${NODE_AUTH_TOKEN}" ]; then
+            echo "::notice::NPM_TOKEN secret is empty — preflight skipped. Workflow will publish via OIDC trusted publishing only (see docs/PUBLISH-NPM-OIDC.md). If OIDC is not yet configured for these packages on npmjs.com, the publish step will fail with E404 — that is the signal to either (a) configure trusted publishers per the OIDC doc, or (b) set the NPM_TOKEN secret for token-based publishing."
+            exit 0
+          fi
+
+          echo "NPM_TOKEN is set — running token-mode preflight."
+          echo "Step 1: confirm token authenticates (npm whoami hits registry)"
+          WHOAMI_OUT=$(npm whoami 2>&1)
+          WHOAMI_RC=$?
+          if [ $WHOAMI_RC -ne 0 ]; then
+            {
+              echo "::error::NPM_TOKEN is set but does not authenticate. npm whoami output: $WHOAMI_OUT"
+              echo "::error::This is an E401-class failure (invalid or expired token)."
+              echo "::error::Fix: regenerate the token per docs/PUBLISH-NPM-TOKEN.md, OR remove the secret entirely to use OIDC per docs/PUBLISH-NPM-OIDC.md."
+            }
+            exit 1
+          fi
+          echo "npm whoami: $WHOAMI_OUT"
+
+          echo "Step 2: list packages visible to this token on @ohmyperf scope"
+          ACCESS_OUT=$(npm access list packages @ohmyperf 2>&1)
+          ACCESS_RC=$?
+          echo "$ACCESS_OUT" | head -20
+          if [ $ACCESS_RC -ne 0 ]; then
+            {
+              echo "::warning::npm access list failed for @ohmyperf (exit=$ACCESS_RC)."
+              echo "::warning::Token may be a Granular Access Token without 'Read and write' on @ohmyperf scope."
+              echo "::warning::If the actual publish step below fails with E404 PUT, that is the symptom — see docs/PUBLISH-NPM-TOKEN.md."
+            }
+          fi
+
+          # Note: npm publish --dry-run does NOT contact the registry (confirmed at
+          # github.com/npm/cli/issues/8525). Two known causes for E404 on PUT:
+          #   (1) Token has Read-only scope on @ohmyperf (current most-likely cause).
+          #   (2) Trusted-publisher environment mismatch (only relevant once OIDC enabled).
+          # The two checks above are the best preflight the npm CLI exposes today.
+          echo "Preflight passed: token authenticates."
 
       - name: Install
         if: steps.guard.outputs.skip == 'false'
@@ -155,7 +206,6 @@ jobs:
             | grep -E "^chore(\(.+\))?:" \
             | grep -v "bump version" \
             | grep -v "update CHANGELOG" \
-            | grep -v "\[skip ci\]" \
             | sed 's/^/- /' || true)
           body=""
           [ -n "$breaking" ] && body+=$'### \u26a0 Breaking Changes\n'"$breaking"$'\n\n'

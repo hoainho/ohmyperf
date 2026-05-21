@@ -6,6 +6,7 @@ import {
   emptyCollectorResult,
 } from "../collectors.js";
 import type { CDPSessionLike, Metric, MetricAttribution } from "../types.js";
+import { buildSourceLocation } from "../sourcemap-resolver.js";
 import { CWV_INLINE_SCRIPT } from "./cwv-inline-script.js";
 
 interface CwvSnapshot {
@@ -49,7 +50,7 @@ interface InpAttributionRaw {
   processingDuration?: number;
   presentationDelay?: number;
   longestScript?: {
-    entry?: { invoker?: string; invokerType?: string };
+    entry?: { invoker?: string; invokerType?: string; sourceURL?: string };
     intersectingDuration?: number;
     subpart?: "input-delay" | "processing" | "presentation";
   };
@@ -195,8 +196,12 @@ function mapInp(raw: InpAttributionRaw | undefined): MetricAttribution | undefin
       duration: raw.longestScript.intersectingDuration,
       subpart: raw.longestScript.subpart,
     };
-    if (typeof raw.longestScript.entry?.invoker === "string") ls.url = raw.longestScript.entry.invoker;
-    if (typeof raw.longestScript.entry?.invokerType === "string") ls.invoker = raw.longestScript.entry.invokerType;
+    if (typeof raw.longestScript.entry?.sourceURL === "string") ls.url = raw.longestScript.entry.sourceURL;
+    if (typeof raw.longestScript.entry?.invoker === "string") ls.invoker = raw.longestScript.entry.invoker;
+    if (typeof ls.url === "string") {
+      const sl = buildSourceLocation(ls.url);
+      if (sl) ls.sourceLocation = sl;
+    }
     a.longestScript = ls;
   }
   return Object.keys(a).length > 0 ? (a as MetricAttribution) : undefined;

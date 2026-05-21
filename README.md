@@ -1,41 +1,125 @@
 # OhMyPerf
 
-> Real-machine, real-browser web performance measurement.
-> Lighthouse and PageSpeed Insights run on synthetic CPUs in a Google datacenter.
-> OhMyPerf runs on **your hardware** with **your browser** and reports what your users actually experience.
+> **The first perf tool an LLM agent can actually fix your site with — statistical proof, not vibes.**
 
-**v0.1.0** · **License**: Apache-2.0 · **npm**: [`@ohmyperf/cli`](https://www.npmjs.com/package/@ohmyperf/cli) + [`@ohmyperf/mcp-server`](https://www.npmjs.com/package/@ohmyperf/mcp-server) · **Repo**: [`hoainho/ohmyperf`](https://github.com/hoainho/ohmyperf)
+🌐 **Try the viewer live**: [hoainho.github.io/ohmyperf/viewer/](https://hoainho.github.io/ohmyperf/viewer/) — drag any `report.json` onto the page and inspect every metric, every long-task, every render-blocking opportunity in your browser. No install, no signup.
+
+[![npm](https://img.shields.io/npm/v/@ohmyperf/cli?label=%40ohmyperf%2Fcli&color=cb3837)](https://www.npmjs.com/package/@ohmyperf/cli)
+[![MCP](https://img.shields.io/badge/MCP-compatible-7c3aed)](https://modelcontextprotocol.io)
+[![Chromium](https://img.shields.io/badge/real--browser-Chromium-4285f4)](https://www.chromium.org/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE)
+
+OhMyPerf measures Core Web Vitals on a **real machine** with a **real Chromium**, then closes the loop: an AI agent can call **`measure → propose_patch → verify_fix`** in one conversation turn — and prove the fix improved your LCP/INP/CLS with a **Mann-Whitney U test at α=0.05**, not "looks better to me."
+
+```
+┌──────────┐    ┌───────────────┐    ┌──────────────┐
+│ measure  │ →  │ propose_patch │ →  │  verify_fix  │
+│ real CWV │    │ ranked, ROI   │    │  p-value per │
+│ + trust  │    │ first-party   │    │   metric     │
+└──────────┘    └───────────────┘    └──────────────┘
+     ↓                  ↓                    ↓
+ trustScore         fixPlan             verdict:
+ servability       (18 patches         improvement |
+ originClass        for tradeit.gg)    neutral |
+                                       regression
+```
+
+## 30-second demo
+
+Real CLI output, no editing:
+
+```bash
+$ npx -y @ohmyperf/cli@latest run https://example.com --runs 2 --format json
+[ohmyperf] INFO OhMyPerf v1.0.0 report
+[ohmyperf] INFO url:     https://example.com
+[ohmyperf] INFO browser: chromium 148.0.7778.0 (bundled)
+[ohmyperf] INFO mode:    real; runs=2; duration=2430ms
+[ohmyperf] INFO aggregated:
+[ohmyperf] INFO   lcp        median=  256.0  cov=25.0%  n=2
+[ohmyperf] INFO   cls        median=  0.000  cov= 0.0%  n=2
+[ohmyperf] INFO   fcp        median=  256.0  cov=25.0%  n=2
+[ohmyperf] INFO   ttfb       median=  224.5  cov=25.5%  n=2
+[ohmyperf] INFO   tbt        median=    0.0  cov= 0.0%  n=2
+[ohmyperf] INFO   runtime.taskDuration median=   25.2  cov=20.2%  n=2
+[ohmyperf] INFO wrote /path/to/ohmyperf-out/report.json
+```
+
+The full [`report.json`](packages/core/src/types.ts) is what LLM agents see — including (v0.2.0, pending publish):
+
+- `Report.trustScore` — overall + per-metric `{level, sampleConfidence, effectConfidence, recommendedAction}`
+- `Report.fixPlan` — ranked, deduped, ROI-scored patches with `applicability: first-party | third-party-cannot-apply`
+- `Report.meta.servability` — `real-page | bot-challenge-suspected | error-page | timeout-partial | unknown`
+- Every `Resource` tagged with `originClass: same-origin | same-site | same-org | cross-site`
+
+CoV 25% on 2 runs (above 20% noise floor) → `trustScore: low` → agent's `recommendedAction: "rerun with --runs 10 or --mode ci-stable before drawing budget conclusions"`. Honest about its own variance, not vibes.
+
+## Why this exists
+
+| | Lighthouse / PSI | OhMyPerf |
+|---|---|---|
+| **Runs on** | Synthetic CPU in a Google datacenter | Your actual hardware |
+| **Cross-origin iframes** | Network-only (opaque inside) | Per-frame CDPSession (~99% coverage) |
+| **Agent-callable** | None | MCP server, 16 tools |
+| **Statistical proof of fix** | Threshold gates (flake-prone) | Mann-Whitney U, α=0.05, per-metric noise floors |
+| **First-party vs CDN** | Manual eyeballing | `originClass` + `same-org` tier for org-owned CDNs |
+| **Bot challenge detection** | Treats Cloudflare interstitials as real pages | `servability: bot-challenge-suspected` |
+| **Honest about variance** | One number, take it or leave it | `trustScore` + per-metric CoV + `recommendedAction` |
 
 ## Install
 
 ```bash
-# CLI for humans + CI
+# CLI
 npm install -g @ohmyperf/cli
 ohmyperf run https://your-site.com
 
-# MCP server for AI coding agents (Claude in OpenCode, Cursor, Copilot)
+# MCP server — for Claude (OpenCode/Cursor/Cline) to call tools directly
 npm install -g @ohmyperf/mcp-server
-```
 
-Or use `npx -y @ohmyperf/cli run https://your-site.com` for a zero-install one-off.
+# Zero-install one-off
+npx -y @ohmyperf/cli@latest run https://your-site.com
+```
 
 Requires Node ≥ 22. Playwright Chromium auto-downloads on first run (~150 MB).
 
+## Use it from an AI agent
+
+Add to your MCP client config (Claude Desktop example):
+
+```json
+{
+  "mcpServers": {
+    "ohmyperf": {
+      "command": "npx",
+      "args": ["-y", "@ohmyperf/mcp-server@latest"]
+    }
+  }
+}
+```
+
+Then your LLM has 16 tools available: `measure`, `propose_patch`, `verify_fix`, `get_fix_plan`, `get_trust_score`, `get_servability`, `diff`, `list_reports`, and more. Tested with Claude, OpenCode, Cursor, Cline.
+
+## Architecture
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  Engine: @ohmyperf/core (45-export API, frozen)                 │
+│  Engine: @ohmyperf/core (frozen 1.0.0 public API)               │
 │  · Playwright + raw CDP (Target.setAutoAttach for cross-origin) │
 │  · Plugin runtime · Calibration · Outlier rejection · Diff      │
+│  · LLM-first signals: trustScore · fixPlan · servability        │
 └─────────────────────────────────────────────────────────────────┘
         │
-        ├──► CLI                 npx ohmyperf run <url>
+        ├──► CLI                 npx -y @ohmyperf/cli run <url>
         ├──► npm SDK             import { runEngine } from "@ohmyperf/core"
-        ├──► Chrome extension    chrome.debugger driver, click → measure
-        ├──► Website             ohmyperf.dev landing + drag-drop /viewer
-        ├──► VSCode extension    OhMyPerf: Measure URL (command palette)
-        ├──► MCP server          AI agents call measure/diff tools
-        └──► Share-server        Hono on Cloudflare Workers or Node
+        ├──► MCP server          16 tools for LLM agents
+        ├──► Chrome extension    click toolbar icon → measure current tab
+        ├──► VSCode extension    Cmd+Shift+P → OhMyPerf: Measure URL
+        ├──► Website             hoainho.github.io/ohmyperf — drop report.json on /viewer
+        ├──► Share-server        Cloudflare Workers or Node
+        ├──► ESLint plugin       7 CWV-linked rules at editor-save time
+        └──► Fixers SDK          archetype registry + proposePatches()
 ```
+
+**Status**: v0.1.0 on npm. v0.2.0 ([issue #7](https://github.com/hoainho/ohmyperf/issues/7)) ships the agent fix loop + LLM-first signals + 2 new packages, pending credential refresh.
 
 ## Why OhMyPerf
 
@@ -57,12 +141,14 @@ Requires Node ≥ 22. Playwright Chromium auto-downloads on first run (~150 MB).
 | # | Surface | Package | Quickstart |
 |---|---|---|---|
 | 1 | **CLI** | [`@ohmyperf/cli`](apps/cli/) | `ohmyperf run https://example.com` |
-| 2 | **npm SDK** | [`@ohmyperf/core`](packages/core/) | `import { runEngine } from "@ohmyperf/core"` |
+| 2 | **npm SDK** | [`@ohmyperf/core`](packages/core/) | `import { runEngine, measure } from "@ohmyperf/core"` |
 | 3 | **Chrome extension** | [`apps/extension-chrome/`](apps/extension-chrome/) | Load unpacked → click toolbar icon |
 | 4 | **Website (SPA)** | [`apps/website/`](apps/website/) · spec [`measurement-spa`](openspec/specs/measurement-spa/spec.md) | `pnpm --filter @ohmyperf/website dev` → measure at `/measure`, view at `/viewer`, history at `/report`. Static export to CF Pages. |
 | 5 | **VSCode extension** | [`apps/ide-vscode/`](apps/ide-vscode/) | `Cmd+Shift+P` → `OhMyPerf: Measure URL` |
-| 6 | **MCP server** | [`apps/mcp-server/`](apps/mcp-server/) | `tools/measure({ url })` from any MCP client |
+| 6 | **MCP server** | [`apps/mcp-server/`](apps/mcp-server/) | 14 tools incl. `measure`, `propose_patch` (v0.2.0), `verify_fix` (v0.2.0) |
 | 7 | **Share-server** | [`packages/share-server/`](packages/share-server/) | Cloudflare Workers or `node dist/node.js` |
+| 8 | **ESLint plugin** *(v0.2.0)* | [`@ohmyperf/eslint-plugin`](packages/eslint-plugin/) | `npm i -D @ohmyperf/eslint-plugin` + `extends: ['plugin:ohmyperf/recommended']` |
+| 9 | **Fixer SDK** *(v0.2.0)* | [`@ohmyperf/fixers`](packages/fixers/) | `import { proposePatches } from "@ohmyperf/fixers"` |
 
 ## CLI quickstart
 
@@ -212,31 +298,57 @@ OhMyPerf ships an MCP (Model Context Protocol) server so AI agents like **Claude
 
 ### Tools exposed
 
+> **What's available where**: `@ohmyperf/mcp-server@0.1.0` currently on npm exposes the 12 tools NOT marked `(v0.2.0)`. The 2 v0.2.0-tagged tools (`propose_patch`, `verify_fix`) are committed on `main` and will land when v0.2.0 publishes — track at [issue #7](https://github.com/hoainho/ohmyperf/issues/7).
+
 | Tool | Input | Output |
 |---|---|---|
-| `measure` | `{ url, runs?, mode?, plugins?, browserPath? }` | Human summary + `aggregated` JSON; full report saved + exposed as resource |
+| `measure` | `{ url, runs?, mode?, plugins?, browserPath?, collectTrace? }` | Human summary + `Saved to: <path>` + `aggregated` JSON; full report saved + exposed as resource |
 | `diff` | `{ baseline, candidate, failOnRegression? }` | Mann-Whitney significance table + `{ hasRegressions, metrics }` |
+| `analyze_report` | `{ reportPath \| uri, insightName, limit? }` | Slice for one insight (lcp-breakdown / render-blocking / long-tasks / third-parties / opportunities / audits / resources / frames) |
+| `generate_markdown_summary` | `{ reportPath \| uri, title? }` | PR-comment-ready Markdown summary with 🟢/🟡/🔴 verdict block |
+| `generate_html_report` | `{ reportPath \| uri, outputDir?, theme?, style? }` | Single-file HTML viewer written to disk |
+| `generate_deck` | `{ reportPath \| uri, outputDir?, style?, title? }` | Multi-slide HTML presentation (⌘P → PDF for stakeholder distribution) |
+| `find_regression_cause` | `{ baseline, candidate }` | Ranked hypotheses (new render-blocking, grown assets, new long tasks, new third-parties) with evidence |
+| `enforce_budget` | `{ url, budget, mode?, runs? }` | CI-style pass/fail per metric with exit-code-style verdict |
+| `track_url` | `{ url, runs?, mode?, ... }` | Measure + append to time-series + return improving/stable/regressing trend |
+| **`propose_patch`** *(v0.2.0)* | `{ reportPath \| uri, opportunityId?, url?, maxPatches? }` | Structured `{ archetype, url, search, replace, rationale, expectedImpactMs, confidence }[]` patches an agent can apply |
+| **`verify_fix`** *(v0.2.0)* | `{ baselineReportPath \| baselineUri, candidateUrl, runs?, mode? }` | Re-measures candidate + Mann-Whitney U diff vs baseline; verdict `✅ no regression` / `❌ REGRESSION DETECTED` |
+| `list_runs` / `list_styles` / `diff_resources` | various | Resource browsing + brand catalog + URI-based diff |
 
 Saved reports surface as resources at `ohmyperf://reports/<timestamp>-<id>.json` so the agent can read them back later without re-measuring.
 
-## Website (`ohmyperf.dev`)
+### Killer flow: closed agent fix loop (v0.2.0)
+
+```
+1. measure(url)              → report.json + opportunities
+2. propose_patch(reportPath) → { archetype: "render-blocking-script-add-defer",
+                                  search: '<script src="vendor.js"',
+                                  replace: '<script src="vendor.js" defer',
+                                  expectedImpactMs: 320,
+                                  confidence: "high" }
+3. (agent applies patch + deploys to preview)
+4. verify_fix(baseline, candidateUrl) → ✅ no regression / ❌ REGRESSION
+```
+
+End-to-end loop time: ~5.5s against a real public URL ([commit `a41301f`](https://github.com/hoainho/ohmyperf/commit/a41301f) verified composition). Patches archetypes covering ~80% of typical opportunities (render-blocking scripts/stylesheets, LCP image fetchpriority + preload).
+
+## Website
+
+Live at **[hoainho.github.io/ohmyperf](https://hoainho.github.io/ohmyperf/)** (zero-credential GitHub Pages mirror, deployed via `.github/workflows/deploy-pages.yml`). Cloudflare Pages deploy at `ohmyperf.dev` is pending domain registration ([#9](https://github.com/hoainho/ohmyperf/issues/9)).
 
 ```bash
 cd apps/website
-pnpm build
-# site-dist/ ready for static deploy:
-#   wrangler pages publish site-dist
-#   netlify deploy --dir=site-dist
-#   gh-pages -d site-dist
+pnpm build                              # Next.js static export to out/
+OHMYPERF_BASE_PATH=/ohmyperf pnpm build # for GitHub Pages subpath
 ```
 
 Routes:
 
 - `/` — landing page (light/dark theme, no external network requests)
-- `/viewer.html` — drag-drop `report.json` to render in browser (no upload)
+- `/viewer/` — drag-drop `report.json` to render in browser (no upload, no analytics, no signup)
+- `/measure/` — in-browser measurement SPA (CDP via the Chrome extension when installed)
+- `/report/` — local measurement history
 - `/r/:id` — served by the share-server when deployed alongside
-
-Cloudflare Pages + Workers production deployment defers to a separate ops project.
 
 ## Share-server (hosted shareable links)
 
@@ -339,44 +451,58 @@ Cross-browser deep-inspection is Chromium-only. Firefox and WebKit get CWV via t
 
 Documented per surface in each commit message. Not blockers for v0 dogfood:
 
-- Chrome Web Store + VSCode Marketplace + JetBrains Marketplace submissions (require publisher accounts + review cycles)
+- ~~Per-frame collector support in Chrome extension's measurement path~~ **Done (v0.2.0)**: cross-origin OOPIFs get real CDP sessions via `context.newCDPSession(frame)`.
+- ~~Source-map detection on `longestScript`~~ **Done stage-1 (v0.2.0)**: schema slot + `sourceMappingURL` regex detection. Stage 2 (VLQ decode + fetch + repo-root mapping) deferred to v0.3 — depends on adding `@jridgewell/sourcemap-codec`.
+- VSCode Marketplace publish **engineering ready (v0.2.0)** — `.github/workflows/publish-vscode.yml` + `vsce package` verified locally produces valid .vsix; needs anh's `VSCE_PAT` secret. See [`docs/PUBLISH-VSCODE.md`](docs/PUBLISH-VSCODE.md).
+- Cloudflare Pages website deploy **engineering ready (v0.2.0)** — `.github/workflows/deploy-website.yml` ready; needs anh's `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` secrets. See [`docs/DEPLOY-WEBSITE.md`](docs/DEPLOY-WEBSITE.md).
+- smithery.ai + glama.ai MCP listings **engineering ready (v0.2.0)** — `smithery.yaml` configured for stdio runtime. See [`docs/PUBLISH-MCP-LISTINGS.md`](docs/PUBLISH-MCP-LISTINGS.md).
+- Chrome Web Store extension publish (requires publisher account + privacy policy URL + review cycle)
+- JetBrains Marketplace + IntelliJ plugin (v0.3+)
 - GDPR / Privacy Policy / DPA / Terms / DSAR endpoint (require legal review)
 - Argon2id password hashing in share-server (v0 uses SHA-256; Workers doesn't expose Argon2id natively)
-- Source-map decorations + CodeLens in VSCode extension (v1.x)
-- Per-frame collector support in Chrome extension's measurement path (v1.x)
-- Scenario user-flow files in CLI (v1.x — engine assumes single-URL goto)
-- TypeScript loader for `.ts` scenario files (v1.x; v0 supports `.mjs` only)
+- Source-map decorations + CodeLens in VSCode extension (v0.3+)
+- Scenario user-flow files in CLI (v0.3+ — engine assumes single-URL goto)
+- TypeScript loader for `.ts` scenario files (v0.3+; v0 supports `.mjs` only)
 - Cloud real-device farm (explicit non-goal per ADR-002)
 - RUM SDK (different product category, explicit non-goal)
-- Mobile-native apps (Android/iOS WebView remote debugging is v2+)
+- Mobile-native apps (Android/iOS WebView remote debugging is v0.4+)
 
 ## Repository state
 
-109 tests across 11 workspaces, all passing against real Chromium + real Hono server + mocked `chrome.debugger`/`vscode` APIs:
+365 tests across 13 workspaces, all passing on Node 22 and Node 24, against real Chromium + real Hono server + mocked `chrome.debugger`/`vscode` APIs:
 
 ```
-@ohmyperf/core                39
-@ohmyperf/driver-playwright    6
-@ohmyperf/driver-extension     6
-@ohmyperf/viewer              11
-@ohmyperf/reporter-markdown    8
-@ohmyperf/share-server        10
-@ohmyperf/website              2
-ohmyperf-vscode                2
-@ohmyperf/extension-chrome     2
-@ohmyperf/mcp-server           3
-@ohmyperf/tests-oopif-corpus  20
-                          ──────
-                             109
+@ohmyperf/core                 94
+@ohmyperf/driver-playwright     6
+@ohmyperf/driver-extension      6
+@ohmyperf/viewer               83
+@ohmyperf/reporter-markdown     8
+@ohmyperf/reporter-deck        50
+@ohmyperf/share-server         10
+@ohmyperf/design-tokens        32
+@ohmyperf/website               7
+ohmyperf-vscode                 2
+@ohmyperf/extension-chrome      4  (+ 1 deferred-skip integration test)
+@ohmyperf/mcp-server           13
+@ohmyperf/tests-oopif-corpus   19
+@ohmyperf/tests-visual-regression  3
+@ohmyperf/eslint-plugin         7  (v0.2.0 — RuleTester)
+@ohmyperf/fixers                9  (v0.2.0 — proposePatches + archetype registry)
+ohmyperf-cli                   10
+@ohmyperf/runner               24
+                            ──────
+                              387 (+ 1 skip)
 ```
 
 Quality gates wired in CI:
 
-- `pnpm typecheck` across 27 workspaces (strict TS, exactOptionalPropertyTypes, noUncheckedIndexedAccess)
+- `pnpm typecheck` across 31 workspaces (strict TS, exactOptionalPropertyTypes, noUncheckedIndexedAccess)
 - `pnpm lint` with import-layering rules (plugins can't import core internals, viewer can't import drivers, CDP types stay inside driver packages)
 - `pnpm test` (Vitest) with `OHMYPERF_CHROMIUM_PATH` for real-browser tests
-- `pnpm license:audit` — 396 packages scanned, allow-list of Apache-2.0 / MIT / ISC / BSD / MPL-2.0
+- `pnpm license:audit` — 396+ packages scanned, allow-list of Apache-2.0 / MIT / ISC / BSD / MPL-2.0
 - `pnpm --filter @ohmyperf/core api:check` — api-extractor enforces the frozen 1.0.0 public surface
+- `actionlint v1.7.12` across all 7 workflows (0 warnings)
+- `publish-stable.yml` preflight: `npm whoami` + `npm access list packages @ohmyperf` to catch misconfigured tokens before pipeline cost (skips itself in OIDC-only mode)
 
 ## Contributing
 

@@ -43,11 +43,11 @@ export const shareCommand = defineCommand({
     const logger = createConsoleLogger({ level: "info", prefix: "ohmyperf:share" });
 
     const endpoint = String(
-      args.endpoint ?? process.env["OHMYPERF_SHARE_ENDPOINT"] ?? "",
+      args.endpoint ?? process.env["OHMYPERF_SHARE_ENDPOINT"] ?? "https://ohmyperf.dev",
     );
-    if (!endpoint || !/^https?:\/\//.test(endpoint)) {
+    if (!/^https?:\/\//.test(endpoint)) {
       logger.error(
-        "missing share-server --endpoint (or OHMYPERF_SHARE_ENDPOINT env). Example: --endpoint http://localhost:4170",
+        `invalid --endpoint URL: ${endpoint}. Must be http(s)://. Default: https://ohmyperf.dev`,
       );
       process.exit(EXIT_CODES.invalidUsage);
     }
@@ -101,7 +101,30 @@ export const shareCommand = defineCommand({
             : EXIT_CODES.invalidUsage,
         );
       }
-      logger.error(`share failed: ${err instanceof Error ? err.message : String(err)}`);
+      const message = err instanceof Error ? err.message : String(err);
+      const isDefaultEndpoint = endpoint === "https://ohmyperf.dev";
+      const isNetworkError =
+        /ENOTFOUND|EAI_AGAIN|getaddrinfo|fetch failed|ECONNREFUSED/i.test(message);
+      if (isDefaultEndpoint && isNetworkError) {
+        logger.error(`share failed: cannot reach default endpoint https://ohmyperf.dev (${message}).`);
+        logger.error("");
+        logger.error("ohmyperf.dev is not deployed yet. Options:");
+        logger.error("  1. Self-host the share-server (free, ~30 seconds on Cloudflare Workers):");
+        logger.error("     pnpm --filter @ohmyperf/share-server deploy:workers");
+        logger.error("     then: ohmyperf share <file> --endpoint=https://your-worker.workers.dev");
+        logger.error("");
+        logger.error("  2. Self-host as a Node service:");
+        logger.error("     node ./packages/share-server/dist/node.js");
+        logger.error("     then: ohmyperf share <file> --endpoint=http://localhost:8787");
+        logger.error("");
+        logger.error("  3. Skip sharing and use the static viewer:");
+        logger.error("     open ohmyperf-out/report.html  # generated alongside report.json");
+        logger.error("     # or drag report.json onto https://ohmyperf.dev/viewer (when deployed)");
+        logger.error("");
+        logger.error("Track the hosted share endpoint at https://github.com/hoainho/ohmyperf/issues/7");
+      } else {
+        logger.error(`share failed: ${message}`);
+      }
       process.exit(EXIT_CODES.invalidUsage);
     }
   },

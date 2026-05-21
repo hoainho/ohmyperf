@@ -22,6 +22,8 @@ export interface AttachedTarget {
   readonly openerId: string | undefined;
   readonly client: CdpClient;
   readonly attachedAt: number;
+  /** Playwright Frame when discovered via the frame tree. Pass to `context.newCDPSession(frame)` to obtain a per-frame CDPSession. Undefined when only CDP enrichment fired. */
+  readonly frame: Frame | undefined;
 }
 
 export interface OopifAttachOptions {
@@ -90,7 +92,6 @@ export async function setupOopifAutoAttach(
 
   const recordFrameAttach = (frame: Frame): void => {
     if (frame === page.mainFrame()) return;
-    if (frame.parentFrame() !== page.mainFrame()) return;
     if (seenFrames.has(frame)) return;
     seenFrames.add(frame);
 
@@ -124,6 +125,7 @@ export async function setupOopifAutoAttach(
       openerId: undefined,
       client: noopClient(),
       attachedAt: Date.now(),
+      frame,
     };
     attached.set(synthSessionId, record);
     void Promise.resolve(onAttach(record)).catch((err: unknown) => {
@@ -136,7 +138,6 @@ export async function setupOopifAutoAttach(
 
   const reconcileFrameNavigated = (frame: Frame): void => {
     if (frame === page.mainFrame()) return;
-    if (frame.parentFrame() !== page.mainFrame()) return;
     const synthSessionId = frameToSessionId.get(frame);
     if (synthSessionId === undefined) return;
     const url = frame.url();

@@ -51,6 +51,21 @@ describe("mannWhitneyPValue", () => {
     expect(p).toBeGreaterThanOrEqual(0);
     expect(p).toBeLessThanOrEqual(1);
   });
+
+  it("n=2 vs n=2 full separation returns p > 0.05 (honest tiny-sample limit, exact-test min is ~0.333)", () => {
+    const p = mannWhitneyPValue([1, 2], [100, 200]);
+    expect(p).toBeGreaterThan(0.05);
+  });
+
+  it("n=3 vs n=3 full separation returns p > 0.05 (still too small for default alpha)", () => {
+    const p = mannWhitneyPValue([1, 2, 3], [100, 200, 300]);
+    expect(p).toBeGreaterThan(0.05);
+  });
+
+  it("n=5 vs n=5 full separation returns p < 0.05 (enough power)", () => {
+    const p = mannWhitneyPValue([1, 2, 3, 4, 5], [100, 200, 300, 400, 500]);
+    expect(p).toBeLessThan(0.05);
+  });
 });
 
 describe("diffReports", () => {

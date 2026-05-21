@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+The next release will ship as **v0.2.0** (not v0.1.1 — Wave 1 fixes were rolled forward into v0.2.0). Will land when [issue #7](https://github.com/hoainho/ohmyperf/issues/7) clears the npm credential gate. The `publish-stable.yml` workflow auto-generates the categorised changelog from conventional-commit titles in `git log v0.1.0..HEAD`.
+
+Highlights staged for v0.2.0 (see [issue #7](https://github.com/hoainho/ohmyperf/issues/7) for full inventory):
+
+- **Agent fix loop**: new MCP tools `propose_patch` + `verify_fix` (issue #6). The only perf tool where an AI agent can both fix a CWV regression and statistically prove the fix improved metrics, in one conversation turn.
+- **LLM-first report signals** (Phase 1-6 of the v0.2.0 session):
+  - `Report.trustScore` — overall + per-metric verdict (high|medium|low|unreliable) with `sampleConfidence` + `effectConfidence` decomposition and `recommendedAction` for noisy measurements.
+  - `Report.fixPlan` — ranked, deduped, ROI-scored list of actionable patches. Each entry has `applicability: first-party | third-party-cannot-apply | unknown`.
+  - `Report.meta.servability` — heuristic classification (real-page | bot-challenge-suspected | error-page | timeout-partial | unknown) so agents skip un-actionable measurements.
+  - `Resource.originClass` — same-origin | same-site | same-org | cross-site | unknown. New `MeasureOptions.orgDomains` (+ `OHMYPERF_ORG_DOMAINS` env var) marks org-owned CDNs as first-party.
+- **3 new MCP tools** (precomputed slices for LLM agents): `get_fix_plan`, `get_trust_score`, `get_servability`.
+- **`@ohmyperf/eslint-plugin`** v0.2.0 — 7 CWV-linked ESLint rules.
+- **`@ohmyperf/fixers`** v0.2.0 — Archetype registry + `proposePatches()` engine.
+- **Real cross-origin OOPIF inspection** — each cross-origin iframe gets a per-frame CDP session.
+- **INP measurable in CI** — `--synthetic-interaction=auto-click` fires a trusted-event pipeline.
+- **Source-map detection** — `longestScript.sourceLocation` schema slot (stage 1; full VLQ decode deferred to v0.3, issue #4).
+- **8 Wave-1 CLI/MCP/Core fixes** rolled forward — see commit [`415ad60`](https://github.com/hoainho/ohmyperf/commit/415ad60) for the per-fix list.
+
+### Type-level additive-but-breaking-for-constructors changes (v0.2.0)
+
+These are additive for READERS but require updates for code that CONSTRUCTS these types (test fixtures, mock data, downstream JSON producers):
+
+- `OriginClass` union gained `"same-org"` member. Exhaustive `switch` statements over `OriginClass` need a new `case`. In this workspace: no consumers affected.
+- `MetricTrustVerdict` gained two required fields `sampleConfidence` + `effectConfidence`. Code that constructs `MetricTrustVerdict` literals (e.g. test mocks) must populate them. The existing `level` field is preserved and still equals `worstLevel(sample, effect)` for backward-compat readers.
+
 ## [0.1.0] - 2026-05-19
 
 First public release. **15 `@ohmyperf/*` packages** published to npm.

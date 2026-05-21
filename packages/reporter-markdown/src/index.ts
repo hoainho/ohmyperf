@@ -16,11 +16,79 @@ export interface MarkdownReporterResult {
 const HEADLINE_METRICS = ["lcp", "fcp", "ttfb", "inp", "cls", "tbt"] as const;
 const UNSTABLE_COV_THRESHOLD = 0.2;
 
+type CwvStatus = "good" | "needs-improvement" | "poor" | "unknown";
+
+interface CwvThreshold {
+  readonly good: number;
+  readonly poor: number;
+}
+
+const CWV_THRESHOLDS: Readonly<Record<string, CwvThreshold>> = {
+  lcp: { good: 2500, poor: 4000 },
+  fcp: { good: 1800, poor: 3000 },
+  ttfb: { good: 800, poor: 1800 },
+  inp: { good: 200, poor: 500 },
+  cls: { good: 0.1, poor: 0.25 },
+  tbt: { good: 200, poor: 600 },
+};
+
+function classifyCwv(metric: string, value: number): CwvStatus {
+  const t = CWV_THRESHOLDS[metric.toLowerCase()];
+  if (!t || !Number.isFinite(value)) return "unknown";
+  if (value <= t.good) return "good";
+  if (value <= t.poor) return "needs-improvement";
+  return "poor";
+}
+
+function verdictEmoji(status: CwvStatus): string {
+  switch (status) {
+    case "good": return "🟢";
+    case "needs-improvement": return "🟡";
+    case "poor": return "🔴";
+    default: return "⚪";
+  }
+}
+
+function worstStatus(statuses: ReadonlyArray<CwvStatus>): CwvStatus {
+  if (statuses.includes("poor")) return "poor";
+  if (statuses.includes("needs-improvement")) return "needs-improvement";
+  if (statuses.every((s) => s === "unknown")) return "unknown";
+  return "good";
+}
+
+function verdictHeadline(status: CwvStatus): string {
+  switch (status) {
+    case "good": return "🟢 PASS — all Core Web Vitals are in the **good** range";
+    case "needs-improvement": return "🟡 NEEDS IMPROVEMENT — at least one CWV is in the **needs-improvement** range";
+    case "poor": return "🔴 FAIL — at least one CWV is **poor**";
+    default: return "⚪ UNKNOWN — no Core Web Vitals were measured";
+  }
+}
+
 export function renderMarkdown(report: Report, opts: MarkdownReporterOptions = {}): string {
   const title = opts.title ?? "OhMyPerf report";
   const lines: string[] = [];
   lines.push(`## ${title}`);
   lines.push("");
+
+  const headlineStatuses: CwvStatus[] = [];
+  const headlineCells: string[] = [];
+  for (const name of HEADLINE_METRICS) {
+    const agg = report.aggregated[name];
+    if (!agg) continue;
+    const status = classifyCwv(name, agg.median);
+    headlineStatuses.push(status);
+    const formatted = name === "cls" ? agg.median.toFixed(3) : `${agg.median.toFixed(0)}ms`;
+    headlineCells.push(`${verdictEmoji(status)} **${name.toUpperCase()}** ${formatted}`);
+  }
+  if (headlineCells.length > 0) {
+    const overall = worstStatus(headlineStatuses);
+    lines.push(`### ${verdictHeadline(overall)}`);
+    lines.push("");
+    lines.push(headlineCells.join(" · "));
+    lines.push("");
+  }
+
   lines.push(`- **URL**: \`${report.meta.url}\``);
   lines.push(
     `- **Mode**: \`${report.meta.mode}\` · **Runs**: ${String(report.meta.runs)} · **Headless**: \`${report.meta.parity.mode}\``,
@@ -41,8 +109,8 @@ export function renderMarkdown(report: Report, opts: MarkdownReporterOptions = {
 
   lines.push("### Core Web Vitals");
   lines.push("");
-  lines.push("| Metric | Median | p75 | p95 | CoV | n |");
-  lines.push("|--------|-------:|----:|----:|----:|---:|");
+  lines.push("| Status | Metric | Median | p75 | p95 | CoV | n |");
+  lines.push("|:------:|--------|-------:|----:|----:|----:|---:|");
   for (const name of HEADLINE_METRICS) {
     const agg = report.aggregated[name];
     if (!agg) continue;
@@ -110,7 +178,8 @@ function formatAggregatedRow(name: string, agg: AggregatedMetric): string {
   const p95 = formatValue(agg.p95, name, digits);
   const covPct = (agg.cov * 100).toFixed(1) + "%";
   const unstableMark = agg.cov > UNSTABLE_COV_THRESHOLD ? " ⚠️" : "";
-  return `| **${name.toUpperCase()}** | ${median} | ${p75} | ${p95} | ${covPct}${unstableMark} | ${String(agg.runs)} |`;
+  const status = classifyCwv(name, agg.median);
+  return `| ${verdictEmoji(status)} | **${name.toUpperCase()}** | ${median} | ${p75} | ${p95} | ${covPct}${unstableMark} | ${String(agg.runs)} |`;
 }
 
 function formatValue(value: number, name: string, digits: number): string {

@@ -35,6 +35,13 @@ export { longTaskCollectorFactory } from "./collectors-impl/longtask-collector.j
 export { resourceCollectorFactory } from "./collectors-impl/resource-collector.js";
 
 export {
+  resolveSourceMappingUrl,
+  buildSourceLocation,
+  buildSourceLocationFromUrl,
+} from "./sourcemap-resolver.js";
+export type { SourceMapResolverOptions } from "./sourcemap-resolver.js";
+
+export {
   CALIBRATION_REFERENCE_MS,
   CALIBRATION_REFERENCE_NAME,
   CalibrationFailedError,
@@ -87,6 +94,9 @@ export type {
   DriverRef,
   EmulationConfig,
   EngineHooks,
+  FixArchetypeId,
+  FixEffort,
+  FixPlanEntry,
   FrameCtx,
   FrameNode,
   FrameTree,
@@ -97,9 +107,11 @@ export type {
   MeasureOptions,
   Metric,
   MetricAttribution,
+  MetricTrustVerdict,
   Mode,
   NavigationEvent,
   Opportunity,
+  OriginClass,
   PageHandle,
   ParityInfo,
   Plugin,
@@ -118,11 +130,23 @@ export type {
   ScenarioFn,
   ScenarioStep,
   SchemaVersion,
+  ServabilityClass,
+  ServabilityInfo,
   SetupCtx,
   ShareCtx,
   TargetHandle,
   TeardownCtx,
+  TrustLevel,
+  TrustScore,
 } from "./types.js";
+
+export {
+  buildFixPlan,
+  classifyOrigin,
+  classifyServability,
+  computeTrustScore,
+  parseOriginInfo,
+} from "./llm-signals/index.js";
 
 import type {
   MeasureOptions,
@@ -181,7 +205,13 @@ export async function measure(opts: MeasureOptions): Promise<Report> {
     );
   }
 
-  throw new Error(
-    "ohmyperf measure() is not yet implemented. The engine is in P0 development; see openspec/changes/add-ohmyperf-mvp/ for the implementation plan.",
-  );
+  if (typeof process === "undefined" || !process.versions?.node) {
+    throw new Error(
+      "ohmyperf measure() requires a Node.js runtime (process.versions.node). Browser environments are not supported; use the CLI or MCP server.",
+    );
+  }
+  const mod = (await import("./measure-node.js")) as {
+    measureNode: (o: MeasureOptions) => Promise<Report>;
+  };
+  return mod.measureNode(opts);
 }

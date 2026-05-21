@@ -221,7 +221,7 @@ describe("ohmyperf CLI", () => {
 
       const html = await readFile(summary.htmlPath!, "utf8");
       expect(html.startsWith("<!doctype html>")).toBe(true);
-      expect(html).toContain("OhMyPerf v1.0.0 report");
+      expect(html).toContain("Performance Report");
       expect(html).toContain(url);
       expect(html).not.toMatch(/<script[^>]+src\s*=\s*["']https?:/i);
       expect(html).not.toMatch(/<link\b[^>]+rel\s*=\s*["']stylesheet["']/i);

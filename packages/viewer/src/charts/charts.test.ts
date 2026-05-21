@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderDonut } from "./donut.js";
 import { renderHorizontalBars } from "./bar-chart.js";
 import { renderCwvCard } from "./cwv-traffic-light.js";
-import { classifyCwv, cwvStatusIcon } from "./cwv-thresholds.js";
+import { classifyCwv, cwvStatusIcon, cwvStatusSvg } from "./cwv-thresholds.js";
 import { renderSparkline } from "./sparkline.js";
 
 describe("donut", () => {
@@ -102,8 +102,37 @@ describe("cwvStatusIcon", () => {
   });
 });
 
-describe("renderSparkline (deferred to v1.1)", () => {
-  it("throws a recognisable error so callers know it's not implemented", () => {
-    expect(() => renderSparkline()).toThrow(/sparkline-deferred-v1.1/);
+describe("cwvStatusSvg", () => {
+  it("returns a self-contained inline SVG circle per status", () => {
+    for (const s of ["good", "needs-improvement", "poor", "unknown"] as const) {
+      const svg = cwvStatusSvg(s);
+      expect(svg).toContain("<svg");
+      expect(svg).toContain('class="cwv-status-dot"');
+      expect(svg).toContain("<circle");
+      expect(svg).toContain('aria-hidden="true"');
+    }
+  });
+  it("colors each status differently", () => {
+    const good = cwvStatusSvg("good");
+    const ni = cwvStatusSvg("needs-improvement");
+    const poor = cwvStatusSvg("poor");
+    expect(good).not.toBe(ni);
+    expect(ni).not.toBe(poor);
+    expect(good).toContain("--success");
+    expect(ni).toContain("--warning");
+    expect(poor).toContain("--danger");
+  });
+  it("respects the size argument", () => {
+    expect(cwvStatusSvg("good", 18)).toContain('width="18"');
+    expect(cwvStatusSvg("good", 18)).toContain('height="18"');
+  });
+});
+
+describe("renderSparkline", () => {
+  it("renders an SVG polyline with the expected number of points", () => {
+    const svg = renderSparkline({ values: [100, 150, 120, 90], width: 80, height: 20 });
+    expect(svg).toContain("<svg");
+    expect(svg).toContain("<polyline");
+    expect(svg).toContain('class="cwv-sparkline"');
   });
 });

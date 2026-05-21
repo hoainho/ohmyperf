@@ -104,7 +104,7 @@ describe("share-server app", () => {
     expect(htmlRes.headers.get("Content-Type") ?? "").toMatch(/text\/html/i);
     const html = await htmlRes.text();
     expect(html.startsWith("<!doctype html>")).toBe(true);
-    expect(html).toContain("OhMyPerf v1.0.0 report");
+    expect(html).toContain("Performance Report");
   });
 
   it("rejects malformed reports (400)", async () => {

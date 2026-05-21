@@ -198,6 +198,26 @@ When an agent is confused, repeats manual reasoning, needs a new validation
 command, discovers a missing rule, or sees a recurring failure pattern, it must
 either improve the harness directly or add a proposal to `HARNESS_BACKLOG.md`.
 
+### Skepticism Saturation Protocol
+
+When blocked on a credential-only action, apply iterative self-skepticism:
+each loop iteration is a forced "what did I miss?" pass. Track rounds
+explicitly. Stop when the next round's find would be cosmetic only — this is
+the **saturation point** and is honestly knowable by the agent.
+
+At the saturation point:
+1. Write a summary of all real finds (not just the final one) to the SESSION
+   PROGRESS section of the active plan.
+2. State the saturation point explicitly: "Round N: saturation — next find
+   would be cosmetic."
+3. Do NOT continue autonomous loops past saturation. Hand off to human with
+   a clear unblocking action via GitHub Issue comment.
+
+The value of this protocol is empirically validated: the v0.2.0 session
+caught 16 real bugs across rounds 1-16 by treating each loop firing as a
+genuine "what was missed?" prompt rather than performative re-checking.
+The discipline is stopping at saturation.
+
 ## Validation Ladder
 
 Run the layers appropriate to the lane. Never claim a layer passes without
@@ -213,19 +233,60 @@ test:integration   (normal + high-risk)
 test:e2e   (high-risk or when UI behavior changes)
   pnpm --filter tests-visual-regression test
 
+test:real-world   (REQUIRED for any user-feature or bug-fix in a tool that
+                   consumes external URLs — e.g. CLI run, MCP measure,
+                   propose_patch, verify_fix)
+  Run the changed surface against ≥1 real production URL (not a local
+  fixture, not example.com). Paste the full stdout output as evidence.
+  A feature is NOT "complete" if it has only been tested against synthetic
+  or localhost targets.
+
+  Real-world gate fails if:
+  - The output is empty or "(0 results)" with no diagnostic
+  - A field documented in README/MCP tool description is absent from output
+  - The command silently exits 0 but produces no artifact
+
 test:release   (before deploy)
-  # N/A
+  pnpm -r publish --dry-run --no-git-checks   # must exit 0
 ```
 
 **Lane → required layers:**
 
-| Lane | validate:quick | test:integration | test:e2e |
-|------|:-:|:-:|:-:|
-| tiny | ✓ | — | — |
-| normal | ✓ | ✓ | — |
-| high-risk | ✓ | ✓ | ✓ |
+| Lane | validate:quick | test:integration | test:e2e | test:real-world |
+|------|:-:|:-:|:-:|:-:|
+| tiny | ✓ | — | — | — |
+| normal | ✓ | ✓ | — | ✓ (if URL-consuming) |
+| high-risk | ✓ | ✓ | ✓ | ✓ |
 
 Agents must not claim a layer passes until it has been run and output verified.
+
+## Credential-Blocked State
+
+When a required action is gated on a credential only the human can provide
+(NPM_TOKEN, Cloudflare API token, VSCode marketplace PAT, etc.):
+
+1. **Diagnose exactly** before reporting. Run the actual command and capture
+   the error code. E404 on npm publish = read-only token scope (not expired).
+   E401 = invalid/expired token. These have different fixes; don't conflate
+   them. Paste the raw error output in the GitHub Issue comment.
+
+2. **Document the exact unblocking action.** State Path A (quick) vs Path B
+   (preferred, no recurring cost) if both exist. Link the relevant runbook
+   doc.
+
+3. **Do not re-attempt** the credential action on each loop iteration. One
+   diagnostic attempt is sufficient proof; further attempts burn CI minutes
+   and inflate workflow run counts.
+
+4. **Productive use of blocked time:** treat each loop iteration as a forced
+   "what was missed?" pass. Track rounds explicitly. Stop when the next
+   round's find would be cosmetic only — this is the **saturation point**
+   and is honestly knowable.
+
+5. **Never claim the publish step as "pending"** if the token's scope is
+   known to be wrong. State the root cause: "NPM_TOKEN has read-only scope
+   on @ohmyperf — E404 on PUT, not E401. Fix: regenerate with Read+Write
+   scope per docs/PUBLISH-NPM-TOKEN.md."
 
 ## Change Types
 
@@ -264,6 +325,37 @@ Pump-version commit checklist:
 4. Run `pnpm -r publish --dry-run --no-git-checks` — must succeed.
 5. Commit message: `chore(release): vX.Y.Z` (signals to `publish-stable.yml`
    that this is a release commit).
+
+### Distribution Runbook (when shipping a new release)
+
+Cross-platform release-day checklist — each link points to a single-paste setup recipe:
+
+1. **npm registry** (`@ohmyperf/*` packages)
+   - **Recommended path (no recurring secrets)**: [`docs/PUBLISH-NPM-OIDC.md`](./PUBLISH-NPM-OIDC.md) — one-time per-package Trusted Publisher config on npmjs.com, then every future release uses GitHub OIDC + provenance attestations.
+   - Token-based path (current, recurring rotation): [`docs/PUBLISH-NPM-TOKEN.md`](./PUBLISH-NPM-TOKEN.md) — `NPM_TOKEN` secret with Read+Write on `@ohmyperf` scope.
+   - Trigger (either path): `gh workflow run publish-stable.yml --field bump=minor`
+   - Verify: `npx -y @ohmyperf/cli@X.Y.Z doctor`
+
+2. **Cloudflare Pages** (`apps/website` static export) — [`docs/DEPLOY-WEBSITE.md`](./DEPLOY-WEBSITE.md)
+   - Required secrets: `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`
+   - Trigger: any push to main touching `apps/website/`, or manual `gh workflow run deploy-website.yml`
+   - Verify: `https://ohmyperf.pages.dev` returns 200
+
+3. **VSCode Marketplace** (`apps/ide-vscode`) — [`docs/PUBLISH-VSCODE.md`](./PUBLISH-VSCODE.md)
+   - Required secret: `VSCE_PAT` (Azure DevOps PAT, Marketplace:Manage scope)
+   - Trigger: `gh workflow run publish-vscode.yml`
+   - Verify: marketplace listing shows new version
+
+4. **MCP registries** (smithery.ai + glama.ai) — [`docs/PUBLISH-MCP-LISTINGS.md`](./PUBLISH-MCP-LISTINGS.md)
+   - No GitHub secrets needed (web-form submission)
+   - Trigger: visit smithery.ai/new + glama.ai/mcp/servers
+   - Verify: listings appear at `smithery.ai/server/@ohmyperf/mcp-server`
+
+Defensive engineering already in place:
+- `publish-stable.yml` runs an `npm whoami` + `npm access list` preflight before pipeline cost.
+  If `NPM_TOKEN` is misconfigured, the workflow fails in <2s with an `::error::` pointing
+  at the diagnostic doc instead of burning 3 minutes on install+build+bump only to hit an
+  opaque E404.
 
 For change types marked **❌ smoke test** instead of E2E:
 - Run a deterministic check that exercises the changed surface (e.g.
@@ -412,6 +504,32 @@ the change becomes part of the trunk.
    classification. Working without an issue ID = invisible work.
 10. **Stale issue.** If implementation progresses but the issue isn't updated
     at the milestones in § GitHub Issue Tracking, the change is in violation.
+11. **Claiming a CI gate is "configured" without a green run.** A workflow
+    that has never passed is not a gate — it is a wish. For any CI check
+    you add: paste a link to the first green workflow run in the story
+    Evidence section. The gate does not exist until this proof is provided.
+    "Actionlint is wired as CI" is not evidence. A passing workflow run URL is.
+12. **Stale documentation that claims features shipped when they are pending.**
+    Docs must accurately reflect the CURRENTLY PUBLISHED state, not the
+    committed-but-unpublished state. If a feature is committed but not yet
+    published:
+    - Mark it with `(v0.X.Y, pending publish)` in docs/README.
+    - Do NOT present it as if users can install it today.
+    - CHANGELOG.md `[Unreleased]` section is the correct location for
+      unpublished work. Never add a `[X.Y.Z]` entry for a version not yet
+      on the npm registry.
+13. **Broken symmetry between parallel workflows.** Any change to a publish/
+    deploy workflow MUST be mirrored to all parallel workflows in the same
+    commit. `publish-stable.yml` and `publish-beta.yml` must have matching
+    Node version, preflight steps, secret names, and fallback logic. Before
+    merging any CI change: diff both workflow files and verify parity.
+14. **Silent output omission in tools.** When a CLI or MCP tool advertises a
+    field in its --help / README / tool description, that field MUST appear
+    in stdout (or be explicitly documented as conditional). A tool that
+    silently omits a documented field breaks every downstream agent relying
+    on that field. Required check after user-flow test: verify every
+    documented field appears in the output OR an explicit-absence message
+    fires.
 
 ## GitHub Issue Tracking
 

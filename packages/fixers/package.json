@@ -1,0 +1,60 @@
+{
+  "name": "@ohmyperf/fixers",
+  "version": "0.1.0",
+  "description": "Structured patch archetypes for OhMyPerf opportunities. Given a measured report + an opportunity ID, emits { search, replace, rationale, expectedImpactMs } patches the propose_patch MCP tool returns.",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "clean": "rimraf dist .turbo *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@ohmyperf/core": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hoainho/ohmyperf.git",
+    "directory": "packages/fixers"
+  },
+  "author": "Hoài Nhớ <nhoxtvt@gmail.com>",
+  "homepage": "https://github.com/hoainho/ohmyperf#readme",
+  "bugs": {
+    "url": "https://github.com/hoainho/ohmyperf/issues"
+  },
+  "keywords": [
+    "performance",
+    "core-web-vitals",
+    "lcp",
+    "fcp",
+    "inp",
+    "fixers",
+    "patches",
+    "ohmyperf"
+  ]
+}

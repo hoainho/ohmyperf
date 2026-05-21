@@ -4,6 +4,7 @@ export {
   classifyCwv,
   cwvStatusIcon,
   cwvStatusLabel,
+  cwvStatusSvg,
   formatCwvValue,
   formatCwvThreshold,
   CWV_THRESHOLDS,

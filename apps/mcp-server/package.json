@@ -74,6 +74,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@ohmyperf/core": "workspace:*",
     "@ohmyperf/driver-playwright": "workspace:*",
+    "@ohmyperf/fixers": "workspace:*",
     "@ohmyperf/plugins-builtin": "workspace:*",
     "@ohmyperf/design-tokens": "workspace:*",
     "@ohmyperf/reporter-deck": "workspace:*",

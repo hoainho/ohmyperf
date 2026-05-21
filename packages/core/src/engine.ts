@@ -15,6 +15,14 @@ import { computeRenderBlockingOpportunity } from "./collectors-impl/render-block
 import { resourceCollectorFactory } from "./collectors-impl/resource-collector.js";
 import { createTraceCollector } from "./collectors-impl/trace-collector.js";
 import { applyEmulation, calibrate, type CalibrationResult } from "./calibration.js";
+import {
+  buildFixPlan,
+  classifyOrigin,
+  classifyServability,
+  computeTrustScore,
+  parseOriginInfo,
+} from "./llm-signals/index.js";
+import { resolveOrgDomains } from "./llm-signals/origin-class.js";
 import { createConsoleLogger, createSilentLogger } from "./logger.js";
 import {
   createPluginRuntime,
@@ -216,6 +224,61 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
       await pluginRuntime.onLoad(runCtx);
       await pluginRuntime.onIdle(runCtx);
 
+      if (opts.syntheticInteraction) {
+        const cfg =
+          typeof opts.syntheticInteraction === "string"
+            ? { type: "auto-click" as const, selector: undefined, waitAfterMs: 500 }
+            : { waitAfterMs: 500, ...opts.syntheticInteraction };
+        const selector =
+          cfg.selector ?? 'button,a,[role="button"],input[type="submit"],[tabindex="0"]';
+        try {
+          const boxResult = (await pageCtx.rootSession.send("Runtime.evaluate", {
+            expression: `(function(){
+              const t = document.querySelector(${JSON.stringify(selector)});
+              if (!t) return null;
+              const r = t.getBoundingClientRect();
+              if (r.width === 0 || r.height === 0) return null;
+              return { x: r.left + r.width/2, y: r.top + r.height/2, tag: t.tagName + (t.id ? '#' + t.id : '') };
+            })()`,
+            returnByValue: true,
+            awaitPromise: false,
+          })) as { result?: { value?: { x: number; y: number; tag: string } | null } } | undefined;
+          const box = boxResult?.result?.value;
+          if (box) {
+            await pageCtx.rootSession.send("Input.dispatchMouseEvent", {
+              type: "mousePressed",
+              x: box.x,
+              y: box.y,
+              button: "left",
+              clickCount: 1,
+            });
+            await pageCtx.rootSession.send("Input.dispatchMouseEvent", {
+              type: "mouseReleased",
+              x: box.x,
+              y: box.y,
+              button: "left",
+              clickCount: 1,
+            });
+            logger.debug("engine: syntheticInteraction dispatched", {
+              runIndex: i,
+              selector,
+              target: box.tag,
+            });
+            await new Promise((r) => setTimeout(r, cfg.waitAfterMs ?? 500));
+          } else {
+            logger.warn("engine: syntheticInteraction target not found", {
+              runIndex: i,
+              selector,
+            });
+          }
+        } catch (err) {
+          logger.warn("engine: syntheticInteraction failed", {
+            runIndex: i,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
       const frameResults: Record<string, CollectorResult> = {};
       const frameHandles: Array<{ frameId: string; handles: CollectorHandle[] }> = [];
       for (const f of pageCtx.attachedFrames) {
@@ -325,16 +388,49 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
 
   const reportOpportunities = aggregateOpportunities(runReports);
 
-  let report: Report = {
+  const primaryOrigin = parseOriginInfo(opts.url);
+  const orgDomains = resolveOrgDomains(opts.orgDomains, process.env);
+  const enrichedRuns: RunReport[] = runReports.map((r) => ({
+    ...r,
+    resources: r.resources.map((res) => ({
+      ...res,
+      originClass: classifyOrigin(res.url, primaryOrigin, orgDomains),
+    })),
+  }));
+
+  const servability = classifyServability({
     schemaVersion: "1.0.0",
     meta,
-    runs: runReports,
+    runs: enrichedRuns,
     aggregated,
     frames: { root: ROOT_FRAME_ID, nodes: frameNodes } satisfies FrameTree,
     audits: [...pluginRuntime.audits],
     artifacts: {},
     pluginData: { ...pluginRuntime.pluginData },
     ...(reportOpportunities.length > 0 ? { opportunities: reportOpportunities } : {}),
+  } as Report);
+
+  const metaWithServability: ReportMeta = { ...meta, servability };
+
+  const baseReport: Report = {
+    schemaVersion: "1.0.0",
+    meta: metaWithServability,
+    runs: enrichedRuns,
+    aggregated,
+    frames: { root: ROOT_FRAME_ID, nodes: frameNodes } satisfies FrameTree,
+    audits: [...pluginRuntime.audits],
+    artifacts: {},
+    pluginData: { ...pluginRuntime.pluginData },
+    ...(reportOpportunities.length > 0 ? { opportunities: reportOpportunities } : {}),
+  };
+
+  const trustScore = computeTrustScore(baseReport);
+  const fixPlan = buildFixPlan(baseReport);
+
+  let report: Report = {
+    ...baseReport,
+    trustScore,
+    ...(fixPlan.length > 0 ? { fixPlan } : {}),
   };
 
   report = await pluginRuntime.onReport(reportCtx, report);

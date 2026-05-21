@@ -101,22 +101,6 @@ function renderResourcesOrEmpty(report: Report): string {
   return renderResources(report);
 }
 
-function renderHeader(report: Report): string {
-  const m = report.meta;
-  return `<div class="panel">
-  <h1>OhMyPerf v${escapeHtml(report.schemaVersion)} report</h1>
-  <dl class="meta">
-    <dt>URL</dt><dd class="mono">${escapeHtml(m.url)}</dd>
-    <dt>Started</dt><dd>${escapeHtml(m.startedAt)}</dd>
-    <dt>Duration</dt><dd>${escapeHtml(`${String(m.durationMs)} ms`)}</dd>
-    <dt>Mode</dt><dd>${escapeHtml(m.mode)} · runs=${escapeHtml(String(m.runs))} · ${escapeHtml(m.parity.mode)}</dd>
-    <dt>Browser</dt><dd>${escapeHtml(`${m.browser.name} ${m.browser.version} (${m.browser.source})`)}</dd>
-    <dt>Host</dt><dd>${escapeHtml(`${m.host.os} (${m.host.arch}) · Node ${m.host.nodeVersion}`)}</dd>
-    <dt>Measurement ID</dt><dd class="mono">${escapeHtml(m.measurementId)}</dd>
-  </dl>
-</div>`;
-}
-
 function renderUnstableBanner(report: Report): string {
   const unstable = isUnstable(report);
   if (!unstable) return "";
