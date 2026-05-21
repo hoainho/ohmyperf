@@ -8,6 +8,7 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-7c3aed)](https://modelcontextprotocol.io)
 [![Chromium](https://img.shields.io/badge/real--browser-Chromium-4285f4)](https://www.chromium.org/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE)
+[![SafeSkill 50/100](https://img.shields.io/badge/SafeSkill-50%2F100_Use%20with%20Caution-orange)](https://safeskill.dev/scan/hoainho-ohmyperf)
 
 OhMyPerf measures Core Web Vitals on a **real machine** with a **real Chromium**, then closes the loop: an AI agent can call **`measure → propose_patch → verify_fix`** in one conversation turn — and prove the fix improved your LCP/INP/CLS with a **Mann-Whitney U test at α=0.05**, not "looks better to me."
 
