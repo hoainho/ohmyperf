@@ -20,6 +20,21 @@ test.describe('Phase β smoke', () => {
     await expect(page.getByText(/install.*extension|local runner/i)).toBeVisible({ timeout: 2000 });
   });
 
+  test('measure route does not probe local runner before submit', async ({ page }) => {
+    const healthRequests: string[] = [];
+    page.on('request', (req) => {
+      const url = req.url();
+      if (/^http:\/\/(localhost|127\.0\.0\.1):5174\/api\/health/.test(url)) {
+        healthRequests.push(url);
+      }
+    });
+
+    await page.goto('/measure/?url=https%3A%2F%2Fexample.com');
+    await page.waitForLoadState('networkidle');
+
+    expect(healthRequests).toEqual([]);
+  });
+
   test('CSP meta tag present', async ({ page }) => {
     await page.goto('/');
     const csp = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content');

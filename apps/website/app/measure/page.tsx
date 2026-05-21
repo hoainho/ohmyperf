@@ -9,6 +9,7 @@ import { ProgressStream } from '@/components/measure/progress-stream';
 import { ErrorState } from '@/components/measure/error-state';
 import { SiteHeader } from '@/components/layout/site-header';
 import { useStore } from '@/lib/store';
+import { detectBackend } from '@/lib/backend-detector';
 import { submitMeasure, streamJob, RunnerClientError, type StreamHandle } from '@/lib/runner-client';
 import {
   startMeasureAndStream as extStartMeasureAndStream,
@@ -24,7 +25,7 @@ function MeasureContent() {
   const router = useRouter();
   const url = searchParams.get('url') ?? '';
 
-  const { backend, currentJob, setJobSubmitting, setJobStreaming, appendJobEvent, setJobDone, setJobError, setJobCancelled, setJobIdle, prependReport } = useStore();
+  const { backend, currentJob, setBackend, setJobSubmitting, setJobStreaming, appendJobEvent, setJobDone, setJobError, setJobCancelled, setJobIdle, prependReport } = useStore();
   const runnerHandleRef = useRef<StreamHandle | null>(null);
   const extensionHandleRef = useRef<StreamPortHandle | null>(null);
   const extensionJobIdRef = useRef<string | null>(null);
@@ -175,7 +176,17 @@ function MeasureContent() {
   }, [setJobError, setJobStreaming, appendJobEvent, setJobCancelled, persistReport]);
 
   const handleMeasure = useCallback(async (measureUrl: string, options?: Partial<MeasureRequest>) => {
-    if (backend.kind === 'none') {
+    let selectedBackend = backend;
+    if (selectedBackend.kind === 'none') {
+      try {
+        selectedBackend = await detectBackend();
+      } catch {
+        selectedBackend = { kind: 'none' };
+      }
+      setBackend(selectedBackend);
+    }
+
+    if (selectedBackend.kind === 'none') {
       toast.info('No backend detected — see options below or run the CLI locally.');
       return;
     }
@@ -189,15 +200,15 @@ function MeasureContent() {
       cacheMode: options?.cacheMode ?? 'cold-then-warm',
     };
 
-    if (backend.kind === 'runner') {
-      await runViaRunner(backend.baseUrl, measureUrl, request);
+    if (selectedBackend.kind === 'runner') {
+      await runViaRunner(selectedBackend.baseUrl, measureUrl, request);
       return;
     }
-    if (backend.kind === 'extension') {
+    if (selectedBackend.kind === 'extension') {
       await runViaExtension(measureUrl, request);
       return;
     }
-  }, [backend, setJobSubmitting, runViaRunner, runViaExtension]);
+  }, [backend, setBackend, setJobSubmitting, runViaRunner, runViaExtension]);
 
   return (
     <>
