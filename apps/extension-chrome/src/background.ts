@@ -271,9 +271,13 @@ const TAB_LOAD_TIMEOUT_MS = 15_000;
 const PORT_PAYLOAD_WARN_BYTES = 10 * 1024 * 1024;
 
 // Manifest allowlist, mirrored as regex for runtime defense-in-depth.
+// KEEP IN SYNC with apps/extension-chrome/static/manifest.json
+// externally_connectable.matches. Mismatch = silent ping rejection
+// at runtime even though Chrome let the message through manifest layer.
 const MANIFEST_MATCH_PATTERNS: ReadonlyArray<RegExp> = [
   /^https:\/\/ohmyperf\.dev$/,
   /^https:\/\/[a-z0-9-]+\.ohmyperf\.dev$/,
+  /^https:\/\/hoainho\.github\.io$/,
   /^http:\/\/localhost:3000$/,
   /^http:\/\/127\.0\.0\.1:3000$/,
 ];
