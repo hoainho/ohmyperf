@@ -311,19 +311,25 @@ function NoBackendGuide({ url }: { url: string }) {
         <div className="p-5">
           <div className="flex items-center gap-2 mb-3">
             <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-[oklch(0.55_0.16_70)]/12 text-[oklch(0.40_0.16_70)] dark:text-[oklch(0.82_0.16_70)] text-xs font-semibold">2</span>
-            <h3 className="font-semibold text-sm">Install the Chrome extension</h3>
+            <h3 className="font-semibold text-sm">Load the Chrome extension</h3>
           </div>
           <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
-            One-click measure on any tab. This page picks the extension up automatically.
+            Direct download (54 KB). Web Store listing pending — meanwhile, load it unpacked.
           </p>
           <a
-            href="https://chrome.google.com/webstore/detail/ohmyperf"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-xs font-medium text-[oklch(0.50_0.18_245)] dark:text-[oklch(0.78_0.18_245)] hover:underline"
+            href={`${process.env['NEXT_PUBLIC_BASE_PATH'] ?? ''}/downloads/ohmyperf-extension-v0.2.0.zip`}
+            download
+            className="inline-flex items-center gap-1.5 mb-2 px-2.5 py-1.5 rounded-md bg-[oklch(0.55_0.16_70)] dark:bg-[oklch(0.65_0.16_70)] text-white text-xs font-semibold hover:opacity-90 transition-opacity"
           >
-            Open Chrome Web Store →
+            ↓ Download v0.2.0.zip
           </a>
+          <ol className="mt-2 text-[11px] text-muted-foreground list-decimal list-inside leading-relaxed space-y-0.5">
+            <li>Unzip the download</li>
+            <li>Open <code className="font-mono">chrome://extensions</code></li>
+            <li>Enable <strong className="text-foreground">Developer mode</strong> (top-right)</li>
+            <li>Click <strong className="text-foreground">Load unpacked</strong> → pick the folder</li>
+            <li>Reload this page — auto-detected</li>
+          </ol>
         </div>
 
         <div className="p-5">

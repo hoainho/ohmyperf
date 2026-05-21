@@ -10,6 +10,7 @@ on:
     branches: [main]
     paths:
       - 'apps/website/**'
+      - 'apps/extension-chrome/**'
       - 'packages/viewer/**'
       - 'packages/design-tokens/**'
       - 'pnpm-lock.yaml'
@@ -40,6 +41,14 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build Chrome extension + zip
+        run: pnpm --filter '@ohmyperf/extension-chrome' package
+
+      - name: Copy extension zip into website public/downloads
+        run: |
+          mkdir -p apps/website/public/downloads
+          cp releases/ohmyperf-extension-v*.zip apps/website/public/downloads/
 
       - name: Build website (static export with basePath=/ohmyperf)
         env:

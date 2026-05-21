@@ -76,8 +76,11 @@ export function BackendCard({ className }: Props) {
         </span>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
-            <a href="https://chrome.google.com/webstore/detail/ohmyperf" rel="noopener noreferrer">
-              Install Chrome extension
+            <a
+              href={`${process.env['NEXT_PUBLIC_BASE_PATH'] ?? ''}/downloads/ohmyperf-extension-v0.2.0.zip`}
+              download
+            >
+              Download Chrome extension (54 KB)
             </a>
           </Button>
           <Button asChild variant="outline" size="sm">

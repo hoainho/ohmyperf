@@ -3,6 +3,12 @@ import { definePlugin, type AuditResult, type Plugin } from "@ohmyperf/core";
 
 const requireFromHere = createRequire(import.meta.url);
 
+const sourceLoadState = {
+  bundle: null as string | null,
+  loadFailed: false,
+  warnedOnce: false,
+};
+
 export interface AxePluginOptions {
   readonly id?: string;
   readonly tags?: ReadonlyArray<string>;
@@ -44,16 +50,27 @@ export function axePlugin(opts: AxePluginOptions = {}): Plugin {
     hooks: {
       onIdle: async (ctx) => {
         ctx.recordCapabilityUse("audit");
-        let bundle: string;
-        try {
-          const axePath = requireFromHere.resolve("axe-core/axe.min.js");
-          const fs = await import("node:fs/promises");
-          bundle = await fs.readFile(axePath, "utf8");
-        } catch (err) {
-          ctx.logger.warn("axe-plugin: cannot load axe-core source", {
-            error: err instanceof Error ? err.message : String(err),
-          });
+        if (sourceLoadState.loadFailed) {
           return;
+        }
+        let bundle: string | null = sourceLoadState.bundle;
+        if (!bundle) {
+          try {
+            const axePath = requireFromHere.resolve("axe-core/axe.min.js");
+            const fs = await import("node:fs/promises");
+            bundle = await fs.readFile(axePath, "utf8");
+            sourceLoadState.bundle = bundle;
+          } catch (err) {
+            sourceLoadState.loadFailed = true;
+            if (!sourceLoadState.warnedOnce) {
+              sourceLoadState.warnedOnce = true;
+              ctx.logger.info(
+                "axe-plugin: accessibility audit skipped (axe-core not resolvable). Install @ohmyperf/plugins-builtin with axe-core peer to enable.",
+                { error: err instanceof Error ? err.message : String(err) },
+              );
+            }
+            return;
+          }
         }
 
         const installResult = await ctx.evaluateInPage<{ ok: boolean; error?: string }>(

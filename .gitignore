@@ -1,5 +1,7 @@
 node_modules/
 dist/
+extension-dist/
+releases/
 build/
 coverage/
 .turbo/

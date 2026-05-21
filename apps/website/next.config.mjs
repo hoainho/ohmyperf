@@ -11,8 +11,11 @@ const bundleAnalyzer = withBundleAnalyzer({
 
 // GitHub Pages serves from /ohmyperf/ subpath. Setting OHMYPERF_BASE_PATH
 // in the deploy workflow keeps Cloudflare Pages (root) and other targets
-// working without changes.
+// working without changes. Mirror into NEXT_PUBLIC_BASE_PATH so plain <a>
+// href values can prefix it at runtime (Next.js only auto-prefixes
+// next/link, next/image — not bare anchors to /public/ assets).
 const basePath = process.env.OHMYPERF_BASE_PATH ?? '';
+process.env.NEXT_PUBLIC_BASE_PATH = basePath;
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
