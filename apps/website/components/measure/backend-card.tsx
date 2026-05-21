@@ -1,11 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { type Backend, detectBackend } from '@/lib/backend-detector';
 import { useStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
@@ -14,36 +12,7 @@ interface Props {
 }
 
 export function BackendCard({ className }: Props) {
-  const [backend, setLocalBackend] = useState<Backend | null>(null);
-  const [detecting, setDetecting] = useState(true);
-  const setStoreBackend = useStore((s) => s.setBackend);
-
-  useEffect(() => {
-    const ac = new AbortController();
-    detectBackend(ac.signal)
-      .then((b) => {
-        setLocalBackend(b);
-        setStoreBackend(b);
-        setDetecting(false);
-      })
-      .catch(() => {
-        const none: Backend = { kind: 'none' };
-        setLocalBackend(none);
-        setStoreBackend(none);
-        setDetecting(false);
-      });
-    return () => { ac.abort(); };
-  }, [setStoreBackend]);
-
-  if (detecting) {
-    return (
-      <Card className={cn('border-dashed', className)}>
-        <CardContent className="py-3 text-sm text-muted-foreground">
-          Detecting backend…
-        </CardContent>
-      </Card>
-    );
-  }
+  const backend = useStore((s) => s.backend);
 
   if (backend?.kind === 'extension') {
     return (
@@ -72,7 +41,7 @@ export function BackendCard({ className }: Props) {
     <Alert className={cn(className)}>
       <AlertDescription className="flex flex-col gap-3">
         <span className="text-sm">
-          <span className="font-medium">No runner detected.</span> To measure live, install the Chrome extension or run the CLI locally — the page above will pick it up automatically.
+          <span className="font-medium">No runner detected.</span> To measure live, install the Chrome extension or run the CLI locally, then click Measure to check again.
         </span>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
