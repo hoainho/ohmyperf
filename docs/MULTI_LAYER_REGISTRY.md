@@ -18,7 +18,7 @@ and Forbidden Practice #20.
 | C | `apps/website/lib/env.ts` → `NEXT_PUBLIC_EXTENSION_ID` hardcoded default | SPA fallback when discovery empty |
 | D | `apps/website/lib/backend-detector.ts` + `apps/extension-chrome/src/background.ts` postMessage handshake | Runtime ID self-announce |
 | E | `apps/website/lib/backend-detector.ts` module-level `installAnnounceListener()` invocation | Announce listener MUST register at module-load (eager), not on first detect call (lazy) — otherwise SW announce fires during page load and is missed |
-| F | `apps/website/app/measure/page.tsx` `useEffect(() => detectBackend(), [])` | Measure page MUST auto-detect backend on mount; otherwise initial render shows NoBackendGuide even when extension is loaded |
+| F | `apps/website/app/measure/page.tsx` `useEffect(() => detectExtensionOnly(), [])` | Measure page MUST auto-detect extension-only on mount (NOT runner — that would violate PR #12 contract). Otherwise initial render shows NoBackendGuide even when extension is loaded |
 
 **Invariants** (checked by `test:cross-cutting-allowlists` + `test:e2e:extension`):
 
@@ -26,7 +26,7 @@ and Forbidden Practice #20.
 - For every host in A, there is a deploy target in `apps/website/next.config.mjs` or `.github/workflows/deploy-pages.yml`
 - C is non-empty OR runtime ID discovery path exists (regex on `chrome.runtime.id` postMessage in background.ts)
 - Layer E: `backend-detector.ts` MUST contain a top-level `if (typeof window !== 'undefined') { installAnnounceListener(); }` call OUTSIDE any function body
-- Layer F: `app/measure/page.tsx` MUST contain `useEffect` that calls `detectBackend` when `backend.kind === 'none'`
+- Layer F: `app/measure/page.tsx` MUST contain `useEffect` that calls `detectExtensionOnly` (NOT `detectBackend`) when `backend.kind === 'none'` — preserves PR #12 contract that runner is NOT probed before user clicks Measure
 
 **Trigger file globs** (any diff touching these requires Multi-Layer Pre-Flight):
 

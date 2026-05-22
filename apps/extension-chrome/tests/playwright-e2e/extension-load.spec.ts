@@ -1,5 +1,5 @@
 import { test, expect, chromium, type BrowserContext, type Page } from "@playwright/test";
-import { existsSync, readFileSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, mkdtempSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -19,6 +19,23 @@ function readExpectedExtensionId(): string {
   const match = body.match(/NEXT_PUBLIC_EXTENSION_ID=(\S+)/);
   if (!match) throw new Error(`NEXT_PUBLIC_EXTENSION_ID not in ${WEBSITE_ENV}`);
   return match[1]!;
+}
+
+function cleanupStaleProfiles(): void {
+  try {
+    const stale = readdirSync(tmpdir())
+      .filter((n) => n.startsWith("ohmyperf-e2e-profile-"))
+      .map((n) => join(tmpdir(), n));
+    for (const p of stale) {
+      try {
+        rmSync(p, { recursive: true, force: true });
+      } catch {
+        /* tolerate locked profile from another runner */
+      }
+    }
+  } catch {
+    /* tmpdir not readable; rely on per-test cleanup only */
+  }
 }
 
 function assertExtensionDistBuilt(): void {
@@ -41,14 +58,18 @@ let userDataDir: string;
 
 test.beforeAll(async () => {
   assertExtensionDistBuilt();
+  cleanupStaleProfiles();
   userDataDir = mkdtempSync(join(tmpdir(), "ohmyperf-e2e-profile-"));
   const useNewHeadless = process.env["OHMYPERF_E2E_HEADLESS"] !== "false";
+  const isLinuxRoot = process.platform === "linux" && (process.getuid?.() ?? -1) === 0;
+  const isCI = process.env["CI"] === "true" || process.env["CI"] === "1";
+  const needsNoSandbox = isLinuxRoot || isCI;
   context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
     args: [
       `--disable-extensions-except=${EXTENSION_PATH}`,
       `--load-extension=${EXTENSION_PATH}`,
-      "--no-sandbox",
+      ...(needsNoSandbox ? ["--no-sandbox"] : []),
       "--no-first-run",
       "--no-default-browser-check",
       ...(useNewHeadless ? ["--headless=new"] : []),
@@ -152,17 +173,18 @@ test("L4 service worker bundle has no unguarded process.* runtime access", async
   const offenders: string[] = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
-    if (/<define:process\./.test(line)) continue;
-    if (/define_process_(env|versions|version|platform)_default/.test(line)) continue;
-    if (/init_define_process_(env|versions|version|platform)/.test(line)) continue;
-    const matches = line.match(/(?<!typeof\s)\bprocess\.(env|version|versions|platform)\b/g);
+    const cleaned = line
+      .replace(/<define:process\.[a-z]+>/g, "")
+      .replace(/define_process_(env|versions|version|platform)_default\b\w*/g, "")
+      .replace(/init_define_process_(env|versions|version|platform)\b\w*/g, "");
+    const matches = cleaned.match(/(?<!typeof\s)\bprocess\.(env|version|versions|platform)\b/g);
     if (matches) {
       offenders.push(`L${i + 1}: ${line.trim().slice(0, 120)}`);
     }
   }
   expect(
     offenders,
-    `background.bundle.js must have 0 unguarded process.* refs (Forbidden #19). esbuild define artifacts (<define:process.env>) excluded. Found ${offenders.length} real offenders:\n${offenders.slice(0, 5).join("\n")}`,
+    `background.bundle.js must have 0 unguarded process.* refs (Forbidden #19). esbuild define artifacts (<define:process.env>) stripped before regex match. Found ${offenders.length} real offenders:\n${offenders.slice(0, 5).join("\n")}`,
   ).toEqual([]);
 });
 

@@ -42,6 +42,12 @@ const announceWaiters: Array<(id: string) => void> = [];
 
 function installAnnounceListener(): void {
   if (announceListenerInstalled || typeof window === 'undefined') return;
+  const w = window as Window & { __ohmyperfAnnounceInstalled?: boolean };
+  if (w.__ohmyperfAnnounceInstalled) {
+    announceListenerInstalled = true;
+    return;
+  }
+  w.__ohmyperfAnnounceInstalled = true;
   announceListenerInstalled = true;
   window.addEventListener('message', (evt: MessageEvent) => {
     if (evt.origin !== window.location.origin) return;
@@ -115,6 +121,23 @@ export async function detectBackend(signal?: AbortSignal): Promise<Backend> {
       return runnerResult.value;
     }
     return { kind: 'none' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function detectExtensionOnly(signal?: AbortSignal): Promise<Backend> {
+  if (typeof window === 'undefined') return { kind: 'none' };
+
+  installAnnounceListener();
+
+  const ac = new AbortController();
+  const linkedSignal = signal ? mergeSignals([ac.signal, signal]) : ac.signal;
+  const timer = setTimeout(() => { ac.abort('detection timeout'); }, DETECTION_TIMEOUT_MS);
+
+  try {
+    const ext = await pingExtension(linkedSignal);
+    return ext ?? { kind: 'none' };
   } finally {
     clearTimeout(timer);
   }

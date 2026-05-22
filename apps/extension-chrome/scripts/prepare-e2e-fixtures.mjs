@@ -29,6 +29,28 @@ if (!existsSync(manifestPath)) {
   console.log(`[prepare-e2e-fixtures] reusing existing extension-dist at ${distDir}`);
 }
 
+try {
+  execSync("pnpm exec playwright --version", { stdio: "ignore", cwd: repoRoot });
+  const versionOut = execSync("pnpm exec playwright --version", { cwd: repoRoot }).toString().trim();
+  console.log(`[prepare-e2e-fixtures] playwright present: ${versionOut}`);
+} catch {
+  console.error("[prepare-e2e-fixtures] FATAL: playwright not resolvable. Run: pnpm install");
+  process.exit(1);
+}
+
+try {
+  const browsersPath = process.env["PLAYWRIGHT_BROWSERS_PATH"] ?? join(process.env["HOME"] ?? "", ".cache", "ms-playwright");
+  if (!existsSync(browsersPath) || !execSync(`ls "${browsersPath}" 2>/dev/null | head -1`).toString().trim()) {
+    console.log("[prepare-e2e-fixtures] Chromium not detected, running playwright install chromium");
+    run(`pnpm exec playwright install chromium`);
+  } else {
+    console.log(`[prepare-e2e-fixtures] Chromium detected under ${browsersPath}`);
+  }
+} catch {
+  console.log("[prepare-e2e-fixtures] Chromium check inconclusive, running playwright install chromium");
+  run(`pnpm exec playwright install chromium`);
+}
+
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 if (manifest.manifest_version !== 3) {
   console.error(`[prepare-e2e-fixtures] FATAL: manifest_version=${manifest.manifest_version}, expected 3`);
