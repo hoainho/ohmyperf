@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useRef } from 'react';
+import { Suspense, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { UrlForm } from '@/components/measure/url-form';
@@ -29,6 +29,22 @@ function MeasureContent() {
   const runnerHandleRef = useRef<StreamHandle | null>(null);
   const extensionHandleRef = useRef<StreamPortHandle | null>(null);
   const extensionJobIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (backend.kind !== 'none') return;
+    let cancelled = false;
+    const ac = new AbortController();
+    void detectBackend(ac.signal)
+      .then((detected) => {
+        if (cancelled) return;
+        if (detected.kind !== 'none') setBackend(detected);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [backend.kind, setBackend]);
 
   const handleCancel = useCallback(() => {
     if (runnerHandleRef.current) {

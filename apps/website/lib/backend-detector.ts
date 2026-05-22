@@ -65,6 +65,10 @@ function installAnnounceListener(): void {
   });
 }
 
+if (typeof window !== 'undefined') {
+  installAnnounceListener();
+}
+
 function waitForAnnounce(timeoutMs: number): Promise<string | null> {
   installAnnounceListener();
   if (announcedExtensionId) return Promise.resolve(announcedExtensionId);
