@@ -450,7 +450,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "propose_patch",
         description:
-          "Given a saved report.json (path or URI), return structured { archetype, url, search, replace, rationale, expectedImpactMs, confidence } patches for actionable opportunities. The agent can grep the search string in the repo and apply the replace. Pair with verify_fix to re-measure after applying. Currently supports archetypes: render-blocking-script-add-defer, render-blocking-stylesheet-media-print, lcp-image-fetchpriority-high, lcp-image-link-preload.",
+          "Given a saved report.json (path or URI), return structured { archetype, url, search, replace, rationale, expectedImpactMs, confidence } patches for actionable opportunities. The agent can grep the search string in the repo and apply the replace. Pair with verify_fix to re-measure after applying. Currently supports archetypes: render-blocking-script-add-defer, render-blocking-stylesheet-media-print, lcp-image-fetchpriority-high, lcp-image-link-preload. Note: when an entry has `targets[]` it represents multiple URLs grouped by archetype — `expectedImpactMs` is the sum across all targets, per-URL impact lives in `targets[i].expectedImpactMs`.",
         inputSchema: {
           type: "object",
           properties: {
@@ -529,7 +529,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "get_fix_plan",
         description:
-          "v0.2.0 LLM-first feature. Returns ONLY the precomputed `fixPlan` from a saved report — a ranked, ROI-scored, deduped list of actionable fixes. Each entry has `rank`, `archetype`, `target.url`, `target.originClass`, `expectedImpactMs`, `confidence`, `applicability` (first-party / third-party-cannot-apply / unknown), `effort`, and a one-line `patchPreview`. The plan is sorted by applicability (first-party first) then ROI. Use this for the agent's primary decision: 'what is my #1 highest-leverage fix?' instead of parsing the full opportunities array.",
+          "v0.2.0 LLM-first feature. Returns ONLY the precomputed `fixPlan` from a saved report — a ranked, ROI-scored, deduped list of actionable fixes. Each entry has `rank`, `archetype`, `target.url`, `target.originClass`, `expectedImpactMs`, `confidence`, `applicability` (first-party / third-party-cannot-apply / unknown), `effort`, and a one-line `patchPreview`. Same-archetype URLs are collapsed into a single grouped entry; when `targets[]` is present, `expectedImpactMs` is the SUM across all targets (per-URL impact lives in `targets[i].expectedImpactMs`) and `confidence` is the WORST among siblings. The plan is sorted by applicability (first-party first) then ROI. Use this for the agent's primary decision: 'what is my #1 highest-leverage fix?' instead of parsing the full opportunities array.",
         inputSchema: {
           type: "object",
           properties: {

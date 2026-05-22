@@ -230,6 +230,15 @@ function collapseSameArchetype(drafts: ReadonlyArray<Omit<FixPlanEntry, "rank">>
     if (bucket.siblings.length === 0) return bucket.primary;
     const all = [bucket.primary, ...bucket.siblings];
     const totalImpactMs = all.reduce((acc, x) => acc + x.expectedImpactMs, 0);
+    const confidenceRank: Record<"high" | "medium" | "low", number> = { high: 0, medium: 1, low: 2 };
+    const worstConfidence = all.reduce<"high" | "medium" | "low">(
+      (worst, x) => (confidenceRank[x.confidence] > confidenceRank[worst] ? x.confidence : worst),
+      bucket.primary.confidence,
+    );
+    const anyThirdParty = all.some((x) => x.applicability === "third-party-cannot-apply");
+    const collapsedApplicability: FixPlanEntry["applicability"] = anyThirdParty
+      ? "third-party-cannot-apply"
+      : bucket.primary.applicability;
     const targets = all
       .map((x) => {
         const t: { url: string; originClass?: OriginClass; expectedImpactMs: number } = {
@@ -242,6 +251,8 @@ function collapseSameArchetype(drafts: ReadonlyArray<Omit<FixPlanEntry, "rank">>
       .sort((a, b) => b.expectedImpactMs - a.expectedImpactMs);
     return {
       ...bucket.primary,
+      confidence: worstConfidence,
+      applicability: collapsedApplicability,
       expectedImpactMs: totalImpactMs,
       targets,
     };

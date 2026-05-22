@@ -410,7 +410,11 @@ function resolvePluginSet(name: string, logger: Logger): ReadonlyArray<Plugin> {
     const seen = new Set<string>();
     const result: Plugin[] = [];
     const unknown: string[] = [];
-    for (const part of trimmed.split(",").map((s) => s.trim()).filter(Boolean)) {
+    const parts = trimmed.split(",").map((s) => s.trim()).filter(Boolean);
+    if (parts.includes("none") && parts.length > 1) {
+      logger.warn(`--plugins contains 'none' alongside other tokens ${JSON.stringify(parts.filter((p) => p !== "none"))}; 'none' ignored.`);
+    }
+    for (const part of parts) {
       const resolved = resolveSinglePluginToken(part);
       if (resolved === null) {
         unknown.push(part);
@@ -424,6 +428,10 @@ function resolvePluginSet(name: string, logger: Logger): ReadonlyArray<Plugin> {
     }
     if (unknown.length > 0) {
       logger.warn(`unknown --plugins token(s) ${JSON.stringify(unknown)}; ignored. Known: cwv, axe, third-parties, example, all, cwv+axe, none.`);
+    }
+    if (result.length === 0 && unknown.length === 0 && !parts.includes("none")) {
+      logger.warn(`--plugins resolved to empty set from '${name}'; defaulting to 'all'`);
+      return [cwvPlugin(), axePlugin(), thirdPartiesPlugin(), customMetricExamplePlugin()];
     }
     return result;
   }

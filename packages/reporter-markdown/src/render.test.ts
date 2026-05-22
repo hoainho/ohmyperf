@@ -43,7 +43,7 @@ function makeReport(overrides: Partial<Report> = {}): Report {
     },
     frames: { root: "r", nodes: { r: { frameId: "r", url: "https://x", origin: "https://x", parentFrameId: null, isOOPIF: false, isCrossOrigin: false, attachedAt: 0, metrics: {}, children: [] } } },
     audits: [
-      { id: "a11y.axe-violations", title: "Accessibility", score: 0, passed: false },
+      { id: "a11y.axe-violations", title: "Accessibility", score: 0, passed: false, status: "fail" },
     ],
     artifacts: {},
     pluginData: { foo: { bar: 1 } },
@@ -100,7 +100,7 @@ describe("renderMarkdown()", () => {
   it("escapes pipes inside audit titles to keep table valid", () => {
     const r = makeReport();
     r.audits = [
-      { id: "x|y", title: "danger | here", score: 1, passed: true },
+      { id: "x|y", title: "danger | here", score: 1, passed: true, status: "pass" },
     ];
     const md = renderMarkdown(r);
     expect(md).toContain("\\|");

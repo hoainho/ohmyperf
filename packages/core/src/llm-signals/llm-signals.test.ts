@@ -290,7 +290,7 @@ describe("classifyServability", () => {
           meta: {},
         },
       ],
-      audits: [{ id: "page-title", title: "Page title", score: null, passed: false, details: { value: "Just a moment..." } }],
+      audits: [{ id: "page-title", title: "Page title", score: null, passed: false, status: "fail", details: { value: "Just a moment..." } }],
     });
     const s = classifyServability(r);
     expect(s.classification).toBe("bot-challenge-suspected");
