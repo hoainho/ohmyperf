@@ -72,7 +72,7 @@ function makeReport(overrides: Partial<Report> = {}): Report {
       },
     },
     audits: [
-      { id: "a11y.axe-violations", title: "Accessibility violations", score: 0, passed: false, details: { count: 1 } },
+      { id: "a11y.axe-violations", title: "Accessibility violations", score: 0, passed: false, status: "fail", details: { count: 1 } },
     ],
     artifacts: {},
     pluginData: {
