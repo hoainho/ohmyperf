@@ -230,6 +230,23 @@ validate:quick   (always — every lane)
 test:integration   (normal + high-risk)
   pnpm --filter @ohmyperf/tests-oopif-corpus test
 
+test:cross-cutting-allowlists   (REQUIRED for multi-layer Change Type;
+                                  REQUIRED for normal lane if diff touches
+                                  any file glob in docs/MULTI_LAYER_REGISTRY.md)
+  bash scripts/check-cross-cutting-allowlists.sh
+
+  Asserts cross-layer invariants for every system in
+  docs/MULTI_LAYER_REGISTRY.md. Currently checks:
+  - chrome-ext-spa-allowlist: manifest matches == background.ts regex set
+  - node-globals-in-browser-bundle: 0 unguarded process/Buffer/__dirname
+    refs in extension SW bundle
+  - mv3-sw-port-lifecycle: connect-first pattern + sync onConnectExternal
+
+  Single command, deterministic, no flaky network. Operationalises
+  Forbidden #17 / #18 / #19 as ONE proactive check instead of three
+  reactive rules. Exit code 0 = all invariants hold; non-zero = file
+  the issue immediately.
+
 test:e2e   (high-risk or when UI behavior changes)
   pnpm --filter tests-visual-regression test
 
@@ -339,11 +356,20 @@ test:release   (before deploy)
 
 **Lane → required layers:**
 
-| Lane | validate:quick | test:integration | test:e2e | test:real-world | test:landing-self-measure | test:landing-real-browser |
-|------|:-:|:-:|:-:|:-:|:-:|:-:|
-| tiny | ✓ | — | — | — | — | — |
-| normal | ✓ | ✓ | — | ✓ (if URL-consuming) | ✓ (if touches apps/website) | ✓ (if touches apps/website) |
-| high-risk | ✓ | ✓ | ✓ | ✓ | ✓ (if touches apps/website) | ✓ (if touches apps/website) |
+| Lane | validate:quick | test:integration | test:cross-cutting-allowlists | test:e2e | test:real-world | test:landing-self-measure | test:landing-real-browser |
+|------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| tiny | ✓ | — | — | — | — | — | — |
+| normal | ✓ | ✓ | ✓ if registry glob hit | — | ✓ if URL-consuming | ✓ if apps/website | ✓ if apps/website |
+| **multi-layer** | ✓ | ✓ | ✓ (mandatory) | ✓ if UI in any layer | ✓ if URL-consuming | ✓ if apps/website | ✓ if apps/website |
+| high-risk | ✓ | ✓ | ✓ if registry glob hit | ✓ | ✓ | ✓ if apps/website | ✓ if apps/website |
+
+The **multi-layer** lane sits between normal and high-risk. Use when:
+- diff touches any file glob in `docs/MULTI_LAYER_REGISTRY.md`, OR
+- Multi-Layer Pre-Flight enumerates ≥3 layers, OR
+- diff crosses ≥2 of {CLI, MCP, extension, website}
+
+Multi-layer changes need cross-cutting validation but not full 5-agent
+high-risk review.
 
 Both landing layers are required together for any `apps/website/`
 change. CLI measure proves the page loads. Real-browser click test
@@ -388,6 +414,7 @@ determines whether user-flow testing and review gate apply.
 |-------------|:-:|:-:|---|
 | **user-feature** (new behavior, new surface) | ✅ | ✅ | new endpoint, new UI page |
 | **bug-fix** (user-visible defect) | ✅ | ✅ | "OTP not arriving", broken response |
+| **multi-layer** (touches a registered cross-cutting system) | ✅ | ✅ (3-angle + cross-cutting allowlist check) | Chrome ext allowlist sync, cross-runtime helper, schema↔migration↔serializer triple |
 | **infrastructure** (migrations, config, deploy) | ❌ smoke test sufficient | ⚠️ self-verify | DB migration, env var change |
 | **refactor** (same I/O) | ❌ existing tests pass | ⚠️ self-verify | extract helper, rename internal symbol |
 | **docs** (markdown / comments only) | ❌ | ❌ | README, ADR write-up |
@@ -395,6 +422,8 @@ determines whether user-flow testing and review gate apply.
 | **release** (version bump) | ❌ dry-run publish | ✅ | `chore(release): v0.2.0` |
 
 **Combined gate:** Lane × Change Type. Both must pass to proceed.
+
+**multi-layer classification trigger:** If the diff touches any file glob listed in `docs/MULTI_LAYER_REGISTRY.md`, the Change Type is **multi-layer** REGARDLESS of agent's initial classification. This is the agent's hardest classification check to game — see Forbidden #23.
 
 ### Release-type-specific rule (PUMP VERSION)
 
@@ -465,13 +494,23 @@ After validation ladder passes, run at least one test that exercises the
 changed behavior through the **user's actual entry point**. Choose the tool
 that matches the changed surface:
 
-| Changed surface | Tool | Command |
+| Changed surface | Tool (MANDATORY) | Command / Method |
 |---|---|---|
-| Bot / chat handler | Command simulator | `pnpm --filter @ohmyperf/tests-oopif-corpus test` |
-| Web UI | Playwright / Cypress | `pnpm --filter tests-visual-regression test` |
-| REST API | API integration test | `pnpm --filter @ohmyperf/tests-oopif-corpus test` |
-| Backend-only (no user surface) | Existing integration tests | `pnpm --filter @ohmyperf/tests-oopif-corpus test` |
-| LLM / external service call | Live smoke script | `# N/A` |
+| **Web UI under `apps/website/`** | Playwright MCP real-browser click test | navigate → console_messages → click primary CTA → console_messages → snapshot (per `test:landing-real-browser`) |
+| **Component-level web** (storybook-style, no routing) | Playwright/Cypress component tests | `pnpm --filter tests-visual-regression test` |
+| **CLI tool** (npm-published) | Fresh install + invoke | `npx -y @ohmyperf/<pkg>@latest <command>` against real production URL |
+| **MCP tool** | MCP tool call through actual MCP client | tool call from OpenCode / Claude Desktop with paste of tool response |
+| **Chrome extension** | Load unpacked + click toolbar action in real Chrome | manual screenshot + console capture from `chrome://extensions` → Inspect views: service worker |
+| **REST API** | API integration test | `pnpm --filter @ohmyperf/tests-oopif-corpus test` |
+| **Backend-only** (no user surface) | Existing integration tests | `pnpm --filter @ohmyperf/tests-oopif-corpus test` |
+| **LLM / external service call** | `test:real-world` (NOT `# N/A`) | live URL probe with paste of response — see `test:real-world` in Validation Ladder |
+
+**Important — no `# N/A` escape hatch.** Every Change Type touching a user
+surface MUST have at least one row from this table executed and pasted as
+an Evidence Receipt. The previous `# N/A` row for "LLM / external service"
+was a hole — agents could classify their work as that category to skip
+verification. That row now maps to `test:real-world`. Forbidden #22
+(Evidence Receipt requirement) closes the loop.
 
 **Lane × user-flow requirement:**
 
@@ -479,54 +518,328 @@ that matches the changed surface:
 |------|:-:|
 | tiny | No (escalate to normal if user-visible behavior changes) |
 | normal | Yes — at least 1 test covering the primary changed behavior |
+| multi-layer | Yes — at least 1 test per layer that has a user-visible surface |
 | high-risk | Yes — cover primary + at least 1 error/edge path |
 
-**E2E not applicable**: If change type is infra/refactor/docs/deps, write
-"E2E: not applicable — [reason]" in the story Evidence section. The review
-gate validates this justification.
+**E2E not applicable**: If change type is `infra` / `refactor` / `docs` /
+`deps`, write "E2E: not applicable — [reason]" in the story Evidence section.
+The review gate validates this justification. Reviewer FAILs the verdict if
+the reason is vague ("internal only", "no user impact") without citing the
+specific files/symbols proving no observable I/O changed.
 
 **Happy-path-only is insufficient for high-risk**: at minimum cover one
 error/edge path (auth fail, rate limit, malformed input, etc.).
 
+## Implementation
+
+The harness has a `Spec Lifecycle`, a `Validation Ladder`, and a `Review Gate`,
+but no protocol for HOW to write code safely. This section fills that gap.
+
+### Multi-Layer Pre-Flight (MANDATORY before any commit)
+
+Before editing any file, the agent MUST run pre-flight if ANY trigger matches:
+
+1. The task description mentions a system in `docs/MULTI_LAYER_REGISTRY.md`
+2. First grep for the user symptom returns hits in ≥2 directories
+3. Bug class matches: "X not detected", "silent failure", "works locally fails
+   in prod", "regex/allowlist", "env var", "schema/migration mismatch"
+4. Change touches `manifest.json`, any `*env*.ts`, any `define:` block, or any
+   file containing `allowlist` / `whitelist` / `matches`
+
+The Pre-Flight output is a **Layer Enumeration Block** in the commit message:
+
+```text
+## Multi-Layer Pre-Flight
+
+System touched: <name from docs/MULTI_LAYER_REGISTRY.md, or "ad-hoc">
+Trigger: <user symptom or task description>
+
+Layer enumeration:
+| # | Layer | File(s) | Action | Evidence |
+|---|---|---|---|---|
+| A | <name> | <path:line> | touched / verified unchanged / N/A | <test or grep result> |
+| B | <name> | <path:line> | touched / verified unchanged / N/A | <test or grep result> |
+
+Cross-layer invariant tested:
+  $ bash scripts/check-cross-cutting-allowlists.sh
+  → exit 0, "3 systems checked, 0 failed"
+
+Layers I deliberately did NOT touch and why:
+  - <layer>: <reason>
+```
+
+If the system is `ad-hoc` (not yet registered), the agent MUST append an entry
+to `docs/MULTI_LAYER_REGISTRY.md` IN THE SAME COMMIT — per Growth Rule, every
+new multi-layer system is permanently registered the moment it's discovered.
+
+### Pre-implementation tool selection matrix
+
+| Question agent must answer first | Tool | Why |
+|---|---|---|
+| "Is this a known multi-layer system?" | `read docs/MULTI_LAYER_REGISTRY.md` | Cheapest first check |
+| "What other files reference this symbol/string?" | `grep` (workspace-wide) + `lsp_find_references` | Catches Layer B/C copies before you forget |
+| "Does this run in browser AND Node?" | `grep -l "platform.*browser"` + `grep` package consumers | Catches Forbidden #19 surface |
+| "Did I solve this bug class before?" | `omo-session-distiller_recall` | Returns past atoms with full Resolution |
+| "Are 2+ hypotheses ranked within 2× confidence?" | spawn 2× `explore` agents in parallel, 1 per hypothesis | Per `diagnostic-driven-debugging` Phase 3 |
+| "Is this an architectural decision?" | 1× `oracle` (AFTER explores return) | Synthesis, not exploration |
+
+### Anti-pattern: bisecting layer-by-layer
+
+If the agent finds itself making commit #2 or #3 to fix the SAME user-reported
+bug, STOP. This is the bisecting-by-commit anti-pattern (Forbidden #20). Either:
+
+- The pre-flight was skipped → run it now, in commit #N+1 enumerate every
+  remaining layer
+- The system is not yet in the registry → add it now, then enumerate
+
+The 4-commit "extension not detected" chain (session 2026-05-21, commits
+`51feecf → f097b42 → 2fc26c8 → be1eca2`) is the canonical violation.
+
+## Evidence Receipt
+
+Every Validation Ladder layer the agent claims to have run MUST emit an
+Evidence Receipt — a fenced code block with a strict schema. A textual claim
+("typecheck passes") without a Receipt is treated as if the layer was never
+run, regardless of how truthful the agent believes the claim to be.
+
+### Required schema
+
+````text
+```evidence
+layer: validate:quick | test:integration | test:cross-cutting-allowlists | test:e2e | test:real-world | test:landing-self-measure | test:landing-real-browser | test:release
+command: <exact shell command including args>
+cwd: <relative to repo root>
+started: <ISO-8601 UTC>
+duration_s: <number>
+exit_code: <integer>
+artifact_path: <relative path or "none">
+stdout_tail: |
+  <last 10 lines of stdout, verbatim — DO NOT summarize>
+stderr_tail: |
+  <last 5 lines of stderr, verbatim>
+relevant_assertion: <one-sentence what this Receipt proves about the change>
+```
+````
+
+### When required
+
+| Change Type | Tiny lane | Normal lane | Multi-layer | High-risk |
+|---|---|---|---|---|
+| validate:quick | ✓ Receipt | ✓ Receipt | ✓ Receipt | ✓ Receipt |
+| test:integration | — | ✓ Receipt | ✓ Receipt | ✓ Receipt |
+| test:cross-cutting-allowlists | — | if registry hit | ✓ (mandatory) | if registry hit |
+| test:e2e | — | if UI change | ✓ if UI | ✓ Receipt |
+| test:real-world | — | if URL-consuming | if URL-consuming | ✓ Receipt |
+| test:landing-self-measure | — | if apps/website | if apps/website | if apps/website |
+| test:landing-real-browser | — | if apps/website | if apps/website | if apps/website |
+
+Tiny lane may omit Receipts only for `validate:quick`. Any layer beyond
+`validate:quick` requires a Receipt regardless of lane.
+
+### Anti-cheat: structural checks
+
+The Receipt is parseable; the harness can validate it. CI should reject when:
+
+- Required field missing or wrong type
+- `artifact_path` references a non-existent or empty file
+- `stdout_tail` lacks the runner's expected output signature (e.g. `vitest`
+  output must contain "Test Files"; `tsc` must contain "Found 0 errors" OR a
+  `path:line` error). Mismatch flags potential fabrication
+- Receipt `started` is older than the most recent commit on the branch
+  (operationalises Forbidden #6 backdating)
+- For required layers per lane × change-type, a Receipt with `exit_code: 0`
+  is missing
+
+Pasting "typecheck passes ✓" without the Receipt = layer was never run.
+Forbidden #22 codifies this.
+
+## Sub-agent Fan-out Policy
+
+The agent has 5 sub-agent types (explore, librarian, oracle, metis, momus).
+Single-context reasoning misses parallel angles. This section codifies WHEN
+to spawn ≥2 sub-agents in parallel — and when not to.
+
+### Mandatory fan-out scenarios
+
+The agent MUST spawn ≥2 parallel sub-agents (fresh contexts, one per angle)
+when ANY of:
+
+1. **Change Type = `multi-layer`** OR Pre-Flight enumerated ≥3 layers
+   → 1 explore per layer cluster
+
+2. **PR review of `user-feature` / `bug-fix` on a user surface** (UI, CLI
+   output, extension popup, MCP tool stdout)
+   → 3 explores in parallel:
+     - Correctness explore: "diff every allowlist/env/manifest, run typecheck"
+     - Security explore: "auth surfaces, token leaks, schema breakage"
+     - UX-real-browser explore: "Playwright MCP — click every link, every
+       CTA, verify post-click state"
+
+3. **Bug investigation produced ≥2 hypotheses within 2× confidence**
+   → 1 explore per hypothesis with falsification test
+   (per `diagnostic-driven-debugging` Phase 3)
+
+4. **Cross-package change touching ≥2 of {CLI, MCP, extension, website}**
+   → 1 explore per consuming package to map blast radius
+
+### Forbidden fan-out scenarios
+
+The agent MUST NOT spawn parallel sub-agents when:
+
+- Change Type is `docs` or `refactor` with single-file diff
+- Pre-flight produced exactly 1 root-cause hypothesis with no competing alternatives
+- The change is a documented mechanical follow-up (e.g. version bump per
+  pump-version checklist)
+- Trivial task (one-line typo, single import add)
+
+Parallel fan-out is **expensive in tokens**. Don't pay the cost for changes
+where 1 agent's context is sufficient.
+
+### Aggregation rule
+
+After parallel fan-out, the controller agent MUST:
+
+1. Wait for `<system-reminder>` of completion (never poll `background_output`)
+2. Synthesize findings into a single coherent verdict
+3. If two explores contradict, spawn 1× `oracle` to resolve — do NOT pick
+   a side without that synthesis step
+
 ## Review Gate
 
 After user-flow tests pass, a **fresh review agent** verifies the implementation.
-The reviewer **must not be** the implementing agent.
+The reviewer **must not be** the implementing agent (Forbidden #2).
 
-**What the reviewer checks:**
-1. Read `git diff <default-branch>` + the proposal, design, and spec.
-2. For each acceptance criterion, find evidence (test output, screenshot,
-   command result) that it is satisfied.
-3. Produce a verdict: **PASS** (all criteria met with evidence) or **FAIL**
-   (list unmet criteria + missing evidence).
+### Three-Angle Review Protocol (MANDATORY for user-feature/bug-fix)
 
-**Lane × Change Type → review requirement:**
+A Review Verdict of PASS on any change with Change Type = `user-feature` or
+`bug-fix` that touches a user surface (web UI, CLI output, extension popup,
+MCP tool stdout) is **INVALID unless the verdict cites evidence from all
+three angles**:
 
-| Lane | user-feature / bug-fix | infra / refactor / deps | docs |
-|------|---|---|---|
-| tiny | n/a (escalate if user-visible) | self-verify | none |
-| normal | Single Oracle review | self-verify | none |
-| high-risk | Full review-work skill (5 parallel sub-agents) | single Oracle | n/a |
+**Angle A — Correctness**
+- typecheck + integration test exit codes (Receipts pasted)
+- acceptance-criterion mapping table is complete
+- `git diff <base>` reviewed in full (size: N files / M lines)
 
-**Review output format:**
+**Angle B — Security/contract**
+- auth/permission surfaces unchanged OR diff explicitly justified
+- every allowlist / matches / origins / CSP entry touched is in sync
+  (link Multi-Layer Pre-Flight block if applicable)
+- no Node-only global leaks (`grep -nE "(^|[^.])(process|Buffer|__dirname|setImmediate)\." <diff>` → 0 unguarded hits)
+- no secrets / tokens / keys in diff
+
+**Angle C — Real-user path**
+- tool/surface invoked through user's actual entry point (Playwright MCP
+  click for UI; live production URL for URL-consuming tools; fresh `npx`
+  for CLI)
+- console / stdout pasted (≥10 lines, ≤80 lines)
+- primary CTA / first invocation produces a usable next state (not generic
+  error, not empty)
+- all README-documented fields appear in output (Forbidden #14)
+
+Missing any angle → verdict is FAIL with reason "single-angle review".
+Session 2026-05-21's landing PR passed Angle A (CLI measure LCP 296ms GOOD)
+and shipped 6 user-visible bugs because Angles B and C were skipped. This
+is the canonical violation pattern. Forbidden #21 codifies the rule.
+
+### Reviewer handoff protocol
+
+When spawning the fresh reviewer agent, the implementing agent MUST pass:
+
+1. **Context packet**: link to issue + spec + design + diff + every Evidence
+   Receipt produced during implementation
+2. **Pre-Flight Layer Enumeration** (if multi-layer)
+3. **Acceptance criteria** explicit list
+4. **Out-of-scope items** the reviewer should NOT block on (with reason)
+
+Reviewer MUST re-run Receipts independently — does not trust implementer's
+output verbatim. Same command, same cwd, fresh exit codes.
+
+### Lane × Change Type → review requirement
+
+| Lane | user-feature / bug-fix | multi-layer | infra / refactor / deps | docs |
+|------|---|---|---|---|
+| tiny | n/a (escalate if user-visible) | n/a (escalate to multi-layer) | self-verify | none |
+| normal | 3-angle, single Oracle reviewer | 3-angle, Oracle + 2× explore parallel + Playwright MCP for Angle C | self-verify | none |
+| **multi-layer** | (use multi-layer column) | 3-angle, Oracle + 2× explore parallel + Playwright MCP for Angle C + `test:cross-cutting-allowlists` Receipt | Angle A+B, Oracle | n/a |
+| high-risk | Full review-work skill (5 parallel) covering A+B+C | Full review-work (5 parallel) + `test:cross-cutting-allowlists` | Angle A+B, Oracle | n/a |
+
+## Review Verdict: PASS | FAIL
 
 ```text
 ## Review Verdict: PASS | FAIL
 
-Reviewer: <agent name>
+Reviewer: <fresh agent — name + sub-agent type>
+Implementer: <name>  (MUST differ from Reviewer per Forbidden #2)
 Date: YYYY-MM-DD
 Commit: <sha>
+Angles required for this Change Type: a, b, c   (auto-derived from matrix above)
 
-| Acceptance Criterion | Evidence | Status |
-|---|---|---|
-| "Users can upload receipt photo" | test_receipt_upload.py passes (output below) | ✓ |
-| "Items appear in inventory" | simulator output shows items listed | ✓ |
+### Angle A — Correctness
 
-Unmet criteria (if FAIL):
-- [criterion] — missing [evidence type]
+```evidence
+layer: validate:quick
+command: pnpm typecheck && pnpm lint && pnpm test
+cwd: .
+started: 2026-05-22T10:30:00Z
+duration_s: 23
+exit_code: 0
+artifact_path: none
+stdout_tail: |
+  Test Files  6 passed (6)
+       Tests  94 passed (94)
+  Start at  10:30:18
+  Duration  981ms
+relevant_assertion: All workspace tests pass; no type errors; no lint warnings.
 ```
 
-**Rule:** `openspec archive "<name>"` is forbidden until Review Verdict = PASS.
+(add additional Receipts as required by lane × change-type matrix)
+
+### Angle B — Security / contract
+
+- [x] auth/permission surfaces unchanged
+- [x] allowlist sync verified via test:cross-cutting-allowlists (Receipt above)
+- [x] no unguarded Node-only globals (grep output below):
+  ```
+  $ grep -nE "(^|[^.])(process|Buffer|__dirname|setImmediate)\." packages/core/src/
+  packages/core/src/engine.ts:393:    typeof process !== "undefined" && process.env ? ...
+  packages/core/src/engine.ts:686:        typeof process !== "undefined" && typeof process.version ...
+  packages/core/src/calibration.ts:196:    typeof process !== "undefined" && process.env
+  → all 3 hits are guarded with typeof check; no unguarded usage
+  ```
+- [x] no secrets in diff
+
+### Angle C — Real-user path
+
+```evidence
+layer: test:landing-real-browser
+command: (Playwright MCP) navigate https://hoainho.github.io/ohmyperf/measure/ → snapshot → click Measure CTA → snapshot
+cwd: .
+started: 2026-05-22T10:32:00Z
+duration_s: 8
+exit_code: 0
+artifact_path: artifacts/review/issue-<N>/playwright-snapshot.yml
+stdout_tail: |
+  pre-click console: 0 errors
+  post-click console: 4 errors (all in allowlist per issue #11)
+  post-click view: NoBackendGuide rendered with 3 numbered cards + Download button
+relevant_assertion: Click produces usable next state; no console errors outside allowlist.
+```
+
+### Acceptance-criterion evidence
+
+| Criterion | Angle | Evidence | Status |
+|---|---|---|---|
+| "User can install extension via zip download" | C | Playwright snapshot shows "↓ Download v0.2.0.zip" link with href /ohmyperf/downloads/... | ✓ |
+| "Extension ID auto-discovered on install" | A,C | extension-bridge.ts streamPort uses runtime-discovered ID (line 365 grep); Playwright reload shows "Extension ready" badge | ✓ |
+| "Test smoke suite passes" | A | 6/6 smoke tests pass (Receipt above) | ✓ |
+
+Unmet criteria (if FAIL):
+- <criterion> — <which angle is missing> — <what evidence would close it>
+```
+
+**Rule:** `openspec archive "<name>"` is forbidden until Review Verdict = PASS
+with all required angles checked.
 
 ## PR + Bot Review Loop
 
@@ -786,6 +1099,57 @@ the change becomes part of the trunk.
     source) with `python3 -c "import re; ..." ` filtered to exclude
     esbuild's `<define:process.X>` comment markers — those are
     replacement evidence, not runtime references.
+20. **Touching one layer of a multi-layer system without enumerating all
+    layers in the same commit.** Before editing any file that participates
+    in a cross-cutting concern (allowlists, env mirrors, message contracts,
+    build-time vs runtime config, schema↔migration↔serializer triples), the
+    agent MUST produce a Multi-Layer Pre-Flight block (see § Implementation)
+    listing every layer and its status (`touched` / `verified unchanged`
+    / `N/A`). Bisecting one layer at a time across multiple commits to fix
+    the same user-reported bug is the canonical violation pattern. Session
+    2026-05-21's "extension not detected" took 4 commits (`51feecf →
+    f097b42 → 2fc26c8 → be1eca2`) because the agent did not enumerate up
+    front; with this rule it would have been 1 commit. The registry of
+    known multi-layer systems lives in `docs/MULTI_LAYER_REGISTRY.md` and
+    is appended via the Growth Rule whenever a new one is discovered.
+    Enforcement: `scripts/check-cross-cutting-allowlists.sh` runs as the
+    `test:cross-cutting-allowlists` Validation Ladder layer.
+21. **Single-angle Review Verdict on user-facing changes.** A Review Verdict
+    of PASS on any change with Change Type = `user-feature` / `bug-fix` /
+    `multi-layer` that touches a user surface (web UI, CLI output, extension
+    popup, MCP tool stdout) is INVALID unless the verdict cites evidence
+    from all three angles: **(A) Correctness** (typecheck + integration
+    test Receipts + acceptance-criterion mapping), **(B) Security/contract**
+    (auth surfaces, allowlist diffs, env exposure, schema breakage, no
+    unguarded Node globals), and **(C) Real-user path** (real browser click
+    for UI; real production URL for URL-consuming tools; real install +
+    invoke for CLI/MCP). Missing any angle → verdict is FAIL with reason
+    "single-angle review". Session 2026-05-21's landing PR passed Angle A
+    (CLI measure LCP 296ms GOOD) and shipped 6 user-visible bugs because
+    Angles B and C were skipped. See § Review Gate for the procedure and
+    § Sub-agent Fan-out Policy for the mandatory 3-explore parallel
+    invocation on PR review.
+22. **PASS claim without an Evidence Receipt.** Every Validation Ladder
+    layer the agent claims to have run MUST emit an Evidence Receipt — a
+    fenced code block with a strict schema (command, exit code, duration,
+    last-N-lines of stdout/stderr, artifact path if any). A textual claim
+    ("typecheck passes") without a Receipt is treated as if the layer was
+    never run, regardless of how truthful the agent believes the claim to
+    be. Tiny lane may omit Receipts only for `validate:quick`; any layer
+    beyond `validate:quick` requires a Receipt regardless of lane. The
+    Receipt is the only audit trail the human reviewer can trust; without
+    it, the harness assumes the worst. See § Evidence Receipt for the
+    schema and anti-cheat checks (stdout signature, freshness vs HEAD,
+    artifact sha).
+23. **Misclassifying multi-layer change as normal/refactor/infra to skip
+    cross-cutting checks.** Change Type classification is normally
+    agent-self-reported. BUT: if the diff touches ANY file glob listed in
+    `docs/MULTI_LAYER_REGISTRY.md`, the Change Type is **multi-layer**
+    regardless of the agent's initial classification. An agent claiming
+    `refactor` or `infra` on such a diff to bypass `test:cross-cutting-
+    allowlists` is in violation. Enforcement: the validate:quick gate
+    runs `scripts/check-cross-cutting-allowlists.sh` whenever git diff
+    affects any registered glob, regardless of declared Change Type.
 
 ## GitHub Issue Tracking
 

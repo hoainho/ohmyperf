@@ -41,6 +41,12 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm exec playwright install chromium
       - run: pnpm test
+      - name: Build extension bundle (needed for cross-cutting checks)
+        run: pnpm --filter @ohmyperf/extension-chrome build
+        if: matrix.os != 'windows-2022'
+      - name: Cross-cutting allowlist check (Forbidden #20/#23)
+        run: bash scripts/check-cross-cutting-allowlists.sh
+        if: matrix.os != 'windows-2022'
       - run: pnpm license:audit
       - run: pnpm check:design-tokens
       - run: pnpm check:brand-licenses
