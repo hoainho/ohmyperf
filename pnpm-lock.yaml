@@ -150,9 +150,15 @@ importers:
       '@ohmyperf/viewer':
         specifier: workspace:*
         version: link:../../packages/viewer
+      '@playwright/test':
+        specifier: 'catalog:'
+        version: 1.60.0
       esbuild:
         specifier: ^0.24.0
         version: 0.24.2
+      playwright:
+        specifier: 'catalog:'
+        version: 1.60.0
       vitest:
         specifier: 'catalog:'
         version: 2.1.9(@types/node@22.19.18)(lightningcss@1.32.0)

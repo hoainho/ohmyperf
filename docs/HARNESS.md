@@ -350,18 +350,56 @@ test:landing-real-browser   (REQUIRED for any change to apps/website,
   a human checker before declaring landing deploy complete. CLI-only
   proof is necessary but NOT sufficient.
 
+test:e2e:extension   (REQUIRED for any change touching `chrome-ext-spa-allowlist`
+                       registry globs OR `extension-e2e-test-infra` registry globs)
+  pnpm --filter @ohmyperf/extension-chrome e2e:extension   # exit 0
+
+  Why this layer is non-negotiable for extension changes:
+
+  Other validators (typecheck, lint, vitest with stubs, smoke tests against
+  apps/website without extension) cannot detect:
+  - Service worker registration failure with deterministic ID
+  - externally_connectable allowlist mismatch with the test origin
+  - SW announce timing race (Layer E in chrome-ext-spa-allowlist)
+  - Missing useEffect-on-mount detect call (Layer F in chrome-ext-spa-allowlist)
+  - chrome.scripting.executeScript success but postMessage missed (Forbidden #17)
+  - Forbidden #19 process leak surviving build but exposed only when SW boots
+
+  Spec contract (extension-load.spec.ts):
+  - L1: SW URL contains the deterministic extension ID from setup-dev keypair
+  - L2: manifest externally_connectable.matches contains a localhost entry
+  - L3: /measure auto-detects extension on mount → "Extension Ready" badge
+        renders WITHOUT user clicking Measure
+  - L4: background.bundle.js has 0 unguarded process.* (esbuild define-comment
+        artifacts excluded)
+  - L5: extension-bridge.ts exports atomic startMeasureAndStream
+
+  Layer fails if any of L1-L5 fail. Headless mode toggle:
+    OHMYPERF_E2E_HEADLESS=false   # use real headed mode (requires Xvfb in CI)
+    (default: --headless=new for ARM64 containers without display server)
+
+  Canonical post-mortem: session 2026-05-22, this branch — wrote the spec
+  to dogfood Multi-Layer Pre-Flight, the spec immediately exposed the race
+  (Layer E) AND missing useEffect (Layer F). Without this layer the bug
+  ships every time agents test the SPA without loading the extension.
+
+  Operational note: This is the FIRST harness layer that requires real
+  Chromium with extension. Agents without Playwright + Chromium MUST defer
+  to a human checker before claiming PASS on any chrome-ext-spa-allowlist
+  diff. There is no CLI shortcut.
+
 test:release   (before deploy)
   pnpm -r publish --dry-run --no-git-checks   # must exit 0
 ```
 
 **Lane → required layers:**
 
-| Lane | validate:quick | test:integration | test:cross-cutting-allowlists | test:e2e | test:real-world | test:landing-self-measure | test:landing-real-browser |
-|------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| tiny | ✓ | — | — | — | — | — | — |
-| normal | ✓ | ✓ | ✓ if registry glob hit | — | ✓ if URL-consuming | ✓ if apps/website | ✓ if apps/website |
-| **multi-layer** | ✓ | ✓ | ✓ (mandatory) | ✓ if UI in any layer | ✓ if URL-consuming | ✓ if apps/website | ✓ if apps/website |
-| high-risk | ✓ | ✓ | ✓ if registry glob hit | ✓ | ✓ | ✓ if apps/website | ✓ if apps/website |
+| Lane | validate:quick | test:integration | test:cross-cutting-allowlists | test:e2e | test:e2e:extension | test:real-world | test:landing-self-measure | test:landing-real-browser |
+|------|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| tiny | ✓ | — | — | — | — | — | — | — |
+| normal | ✓ | ✓ | ✓ if registry glob hit | — | ✓ if extension glob hit | ✓ if URL-consuming | ✓ if apps/website | ✓ if apps/website |
+| **multi-layer** | ✓ | ✓ | ✓ (mandatory) | ✓ if UI in any layer | ✓ if `chrome-ext-spa-allowlist` or `extension-e2e-test-infra` glob hit | ✓ if URL-consuming | ✓ if apps/website | ✓ if apps/website |
+| high-risk | ✓ | ✓ | ✓ if registry glob hit | ✓ | ✓ if extension glob hit | ✓ | ✓ if apps/website | ✓ if apps/website |
 
 The **multi-layer** lane sits between normal and high-risk. Use when:
 - diff touches any file glob in `docs/MULTI_LAYER_REGISTRY.md`, OR
@@ -606,7 +644,7 @@ run, regardless of how truthful the agent believes the claim to be.
 
 ````text
 ```evidence
-layer: validate:quick | test:integration | test:cross-cutting-allowlists | test:e2e | test:real-world | test:landing-self-measure | test:landing-real-browser | test:release
+layer: validate:quick | test:integration | test:cross-cutting-allowlists | test:e2e | test:e2e:extension | test:real-world | test:landing-self-measure | test:landing-real-browser | test:release
 command: <exact shell command including args>
 cwd: <relative to repo root>
 started: <ISO-8601 UTC>
@@ -628,6 +666,7 @@ relevant_assertion: <one-sentence what this Receipt proves about the change>
 | validate:quick | ✓ Receipt | ✓ Receipt | ✓ Receipt | ✓ Receipt |
 | test:integration | — | ✓ Receipt | ✓ Receipt | ✓ Receipt |
 | test:cross-cutting-allowlists | — | if registry hit | ✓ (mandatory) | if registry hit |
+| test:e2e:extension | — | if extension glob | ✓ if extension glob | if extension glob |
 | test:e2e | — | if UI change | ✓ if UI | ✓ Receipt |
 | test:real-world | — | if URL-consuming | if URL-consuming | ✓ Receipt |
 | test:landing-self-measure | — | if apps/website | if apps/website | if apps/website |

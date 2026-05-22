@@ -17,6 +17,9 @@
     "build": "tsc -b && node scripts/bundle-extension.mjs",
     "package": "pnpm build && node scripts/zip-extension.mjs",
     "setup-dev": "node scripts/setup-dev-extension.mjs",
+    "prepare-e2e-fixtures": "node scripts/prepare-e2e-fixtures.mjs",
+    "e2e:extension": "pnpm prepare-e2e-fixtures && playwright test --config=playwright.config.ts",
+    "e2e:extension:install": "playwright install chromium",
     "typecheck": "tsc -b",
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests",
@@ -27,7 +30,9 @@
     "@ohmyperf/driver-extension": "workspace:*",
     "@ohmyperf/shared-types": "workspace:*",
     "@ohmyperf/viewer": "workspace:*",
+    "@playwright/test": "catalog:",
     "esbuild": "^0.24.0",
+    "playwright": "catalog:",
     "vitest": "catalog:"
   },
   "private": true

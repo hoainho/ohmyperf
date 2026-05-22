@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useRef } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { UrlForm } from '@/components/measure/url-form';
@@ -9,7 +9,7 @@ import { ProgressStream } from '@/components/measure/progress-stream';
 import { ErrorState } from '@/components/measure/error-state';
 import { SiteHeader } from '@/components/layout/site-header';
 import { useStore } from '@/lib/store';
-import { detectBackend } from '@/lib/backend-detector';
+import { detectBackend, detectExtensionOnly, type Backend } from '@/lib/backend-detector';
 import { submitMeasure, streamJob, RunnerClientError, type StreamHandle } from '@/lib/runner-client';
 import {
   startMeasureAndStream as extStartMeasureAndStream,
@@ -29,6 +29,43 @@ function MeasureContent() {
   const runnerHandleRef = useRef<StreamHandle | null>(null);
   const extensionHandleRef = useRef<StreamPortHandle | null>(null);
   const extensionJobIdRef = useRef<string | null>(null);
+  const detectionPromiseRef = useRef<Promise<Backend> | null>(null);
+  const [detecting, setDetecting] = useState(false);
+  const [detectionRan, setDetectionRan] = useState(false);
+
+  useEffect(() => {
+    if (backend.kind !== 'none') return;
+    if (detectionPromiseRef.current) return;
+    let cancelled = false;
+    const ac = new AbortController();
+    setDetecting(true);
+    const promise = detectExtensionOnly(ac.signal);
+    detectionPromiseRef.current = promise;
+    void promise
+      .then((detected) => {
+        if (cancelled) return;
+        if (detected.kind !== 'none') setBackend(detected);
+        setDetectionRan(true);
+        setDetecting(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[measure] auto-detect failed', err);
+        }
+        setDetectionRan(true);
+        setDetecting(false);
+      })
+      .finally(() => {
+        if (detectionPromiseRef.current === promise) {
+          detectionPromiseRef.current = null;
+        }
+      });
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [backend.kind, setBackend]);
 
   const handleCancel = useCallback(() => {
     if (runnerHandleRef.current) {
@@ -179,7 +216,8 @@ function MeasureContent() {
     let selectedBackend = backend;
     if (selectedBackend.kind === 'none') {
       try {
-        selectedBackend = await detectBackend();
+        const inflight = detectionPromiseRef.current;
+        selectedBackend = inflight ? await inflight : await detectBackend();
       } catch {
         selectedBackend = { kind: 'none' };
       }
@@ -223,7 +261,7 @@ function MeasureContent() {
             onSubmit={(u) => handleMeasure(u)}
             disabled={currentJob.phase === 'submitting' || currentJob.phase === 'streaming'}
           />
-          <BackendCard />
+          <BackendCard detecting={detecting} detectionRan={detectionRan} />
         </div>
 
         <div className="mt-8">
@@ -265,7 +303,7 @@ function MeasureContent() {
               </button>
             </div>
           )}
-          {currentJob.phase === 'idle' && backend.kind === 'none' && (
+          {currentJob.phase === 'idle' && backend.kind === 'none' && !detecting && (
             <NoBackendGuide url={url} />
           )}
           {currentJob.phase === 'idle' && backend.kind !== 'none' && (

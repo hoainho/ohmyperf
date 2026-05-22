@@ -1,0 +1,4 @@
+.dev-keys/
+extension-dist/
+test-results/
+playwright-report/

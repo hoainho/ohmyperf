@@ -9,10 +9,23 @@ import { cn } from '@/lib/utils';
 
 interface Props {
   className?: string;
+  detecting?: boolean;
+  detectionRan?: boolean;
 }
 
-export function BackendCard({ className }: Props) {
+export function BackendCard({ className, detecting = false, detectionRan = false }: Props) {
   const backend = useStore((s) => s.backend);
+
+  if (detecting && backend?.kind === 'none') {
+    return (
+      <Card className={cn('border-muted-foreground/20', className)}>
+        <CardContent className="py-3 flex items-center gap-2 text-sm">
+          <Badge variant="outline">Detecting…</Badge>
+          <span className="text-muted-foreground">Checking for the Chrome extension or local runner</span>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (backend?.kind === 'extension') {
     return (
@@ -20,6 +33,7 @@ export function BackendCard({ className }: Props) {
         <CardContent className="py-3 flex items-center gap-2 text-sm">
           <Badge variant="default" className="bg-green-600 hover:bg-green-600">Extension ready</Badge>
           <span className="text-muted-foreground">v{backend.version}</span>
+          <span className="text-muted-foreground">— enter a URL above to measure</span>
         </CardContent>
       </Card>
     );
@@ -32,6 +46,7 @@ export function BackendCard({ className }: Props) {
           <Badge variant="default" className="bg-blue-600 hover:bg-blue-600">Local runner ready</Badge>
           <span className="text-muted-foreground">v{backend.version}</span>
           {backend.engine && <span className="text-muted-foreground">{backend.engine}</span>}
+          <span className="text-muted-foreground">— enter a URL above to measure</span>
         </CardContent>
       </Card>
     );
@@ -41,7 +56,10 @@ export function BackendCard({ className }: Props) {
     <Alert className={cn(className)}>
       <AlertDescription className="flex flex-col gap-3">
         <span className="text-sm">
-          <span className="font-medium">No runner detected.</span> To measure live, install the Chrome extension or run the CLI locally, then click Measure to check again.
+          <span className="font-medium">No runner detected.</span>{' '}
+          {detectionRan
+            ? 'Auto-detect ran just now and found neither the Chrome extension nor a local runner. Install one, then reload this page.'
+            : 'To measure live, install the Chrome extension or run the CLI locally, then click Measure to check again.'}
         </span>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
