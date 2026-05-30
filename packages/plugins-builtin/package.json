@@ -1,6 +1,6 @@
 {
   "name": "@ohmyperf/plugins-builtin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Built-in plugins: cwv, axe, lh-audits (vendored), seo, best-practices.",
   "license": "Apache-2.0",
   "engines": {

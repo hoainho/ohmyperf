@@ -1,6 +1,6 @@
 {
   "name": "@ohmyperf/eslint-plugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "ESLint rules that flag client-side performance anti-patterns linked to Core Web Vitals (LCP, INP, CLS, TBT). Shift-left companion to @ohmyperf/cli.",
   "license": "Apache-2.0",
   "engines": {

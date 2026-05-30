@@ -1,6 +1,6 @@
 {
   "name": "@ohmyperf/mcp-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MCP (Model Context Protocol) server exposing the ohmyperf engine as 'measure' and 'diff' tools for AI agents (Claude / OpenCode / Cursor / Cline / Continue).",
   "license": "Apache-2.0",
   "engines": {

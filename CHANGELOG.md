@@ -2,7 +2,70 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+
+## [0.1.1] - 2026-05-30
+
+### Added
+- feat(extension): real Chromium E2E test harness + handshake race fix [skip ci]
+- feat(extension): auto-discover extension ID via postMessage handshake
+- feat(website): redesign landing page + add HARNESS landing-self-measure layer
+- feat(deploy): zero-credential GitHub Pages mirror of website
+- feat(launch): repo-public polish — README hero, share UX, launch drafts [skip ci]
+- feat(core,llm-signals): fixes W1-W5 from real-world Phase 2 demo [skip ci]
+- feat(core,mcp): LLM-first report signals — trustScore, fixPlan, servability, originClass (Phase 1) [skip ci]
+- feat(distribution): credential-ready deploy configs + listing prep (Wave 3 #14, #15, #16) [skip ci]
+- feat(cli): top-of-output PASS/FAIL verdict banner (Wave 3 #21) [skip ci]
+- feat(viewer): SVG status dots replace ASCII icons + fix W2-#10 stale test (Wave 3 #22) [skip ci]
+- feat(viewer,reporter-deck): print-color-adjust: exact preserves CWV traffic-light colors on PDF (Wave 3 #24) [skip ci]
+- feat(reporter-markdown): top-of-PR CWV verdict block + status emojis (Wave 3 #25) [skip ci]
+- feat(mcp): verify_fix MCP tool — close the agent fix loop (Wave 2 #19) [skip ci]
+- feat(fixers,mcp): propose_patch MCP tool + @ohmyperf/fixers package (Wave 2 #18) [skip ci]
+- feat(eslint-plugin): @ohmyperf/eslint-plugin with 7 CWV-linked rules (Wave 2 #20) [skip ci]
+- feat(driver-playwright): real per-frame CDPSession for OOPIFs (Wave 2 #11) [skip ci]
+- feat(core): SourceLocation type + sourcemap detection MVP (Wave 2 #17 stage 1) [skip ci]
+- feat(viewer): implement CWV per-run sparkline (Wave 2 #10) [skip ci]
+- feat(core): wire measure() programmatic API to runEngine (Wave 2 #7) [skip ci]
+- feat(core,driver): syntheticInteraction option + nested iframe coverage (Wave 2 #12 + #13) [skip ci]
+
+### Fixed
+- fix(review): address 3-Angle review findings on PR #21 [skip ci]
+- fix(engine): batch 4 report-quality bugs from session weakness analysis [skip ci]
+- fix(review): address 3-Angle review findings on PR #13 [skip ci]
+- fix(smoke-test): landing hero text changed after fb46810 rewrite [skip ci]
+- fix(extension): 'process is not defined' — 4 Node-only API leaks [skip ci]
+- fix(spa): SW idle race + extension ID resolution [skip ci]
+- fix: defer backend detection until submit
+- fix(website): NEXT_PUBLIC_EXTENSION_ID missing from production build [skip ci]
+- fix(extension-chrome): runtime origin allowlist missed hoainho.github.io
+- fix: 2 user-reported issues — Chrome ext download + axe-core spam [skip ci]
+- fix(website): real-browser audit caught 6 production bugs [skip ci]
+- fix: address Gemini PR #8 review feedback (4 findings) [skip ci]
+- fix(mcp,core,test): Phase 6 — address all 14 QA findings from 3-agent review [skip ci]
+- fix(core,mcp): honest small-sample stats in diff + verify_fix runs default 3→5 [skip ci]
+- fix(fixers): meaningful skipped entries + mimeType classification (real-world bug from npmjs.com) [skip ci]
+- fix(ci,mcp): retire macos-13 runner + expose savedPath in measure() summary [skip ci]
+- fix(core): extract measure() Node-only path to measure-node.ts (extension build fix)
+- fix: 8 BLOCKER+BUG fixes from Wave 1 of v0.2.0 audit
+
+### Documentation
+- docs: migrate harness to workspace symlinks
+- docs(harness): optimize Implement + Review + Test stages [skip ci]
+- docs(harness): Forbidden #19 — Node-only globals leaking into browser bundle [skip ci]
+- docs(harness): Forbidden #18 — MV3 SW connect-first pattern [skip ci]
+- docs(harness): Forbidden #17 — Chrome extension 4-layer allowlist + ID architecture [skip ci]
+- docs(harness): add test:landing-real-browser layer + Forbidden #16 [skip ci]
+- docs(readme): retarget remaining ohmyperf.dev links to live Pages site
+- docs(harness): 7 amendments from v0.2.0 session retrospective [skip ci]
+- docs(eslint-plugin,readme): document @typescript-eslint/parser requirement for TS/TSX projects [skip ci]
+- docs(changelog,ci): purge phantom v0.1.1 entry + drop chore [skip ci] filter [skip ci]
+- docs(readme): surface v0.2.0 features — agent fix loop, eslint-plugin, OOPIF, INP [skip ci]
+- docs(harness): add Distribution Runbook section linking the 4 deploy docs [skip ci]
+- docs: NPM_TOKEN failure is E404 (read-only token), not E401 — correct anh's fix [skip ci]
+
+### Other
+- chore(self-measure): landing CWV + click-test proof after ext-zip fix [skip ci]
+- chore(self-measure): post-fix landing CWV proof per Forbidden #15 [skip ci]
+- chore(self-measure): landing page CWV proof per HARNESS Forbidden #15 [skip ci]The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
