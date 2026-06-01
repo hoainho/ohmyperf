@@ -1,0 +1,97 @@
+name: Bug report
+description: Something measured wrong, crashed, or behaved unexpectedly
+title: "[Bug]: "
+labels: ["type/bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug! A short, reproducible report gets fixed faster than a long one.
+        Before filing, please confirm you're on the latest CLI: `npx -y @ohmyperf/cli@latest --version`.
+
+  - type: input
+    id: version
+    attributes:
+      label: OhMyPerf version
+      description: Output of `ohmyperf --version` (or the version in your `package.json`).
+      placeholder: "e.g. 1.0.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface?
+      multiple: true
+      options:
+        - CLI (@ohmyperf/cli)
+        - MCP server (@ohmyperf/mcp-server)
+        - SDK / @ohmyperf/core
+        - Chrome extension
+        - VSCode extension
+        - Viewer (web SPA)
+        - ESLint plugin
+        - Share-server
+        - Reporter (json/html/markdown/csv/junit)
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      description: Output of `node --version`. Must be ≥ 22.
+      placeholder: "e.g. v22.10.0"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS + arch
+      placeholder: "e.g. macOS 14.5 arm64, Ubuntu 24.04 x64, Windows 11 x64"
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Exact command(s) you ran, with the URL if applicable. Use a public URL if possible.
+      placeholder: |
+        1. `npx -y @ohmyperf/cli@latest run https://example.com --runs 3`
+        2. Observed: ...
+        3. Expected: ...
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual output
+      description: Paste the full terminal output, or the relevant section of `report.json`. Redact any secrets.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What did you think would happen, and why?
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I searched [existing issues](https://github.com/hoainho/ohmyperf/issues?q=is%3Aissue) and didn't find a duplicate
+          required: true
+        - label: I'm on Node ≥ 22
+          required: true
+        - label: I'm willing to share a minimal reproducible URL or test case if asked
+          required: false

@@ -1,0 +1,11 @@
+# OhMyPerf is Apache-2.0 open source. Funding goes back into CI minutes,
+# domain costs, and statistical-rigor R&D (the Mann-Whitney U work that
+# distinguishes us from one-number tools).
+
+github: [hoainho]
+# open_collective: ohmyperf       # TODO_OC: enable after Open Collective approval
+# ko_fi: hoainho                   # TODO_KOFI: enable after account verification
+# patreon:                         # not used
+# tidelift: "npm/@ohmyperf/cli"    # TODO_TIDELIFT: apply once weekly DLs > 1000
+custom:
+  - "https://github.com/sponsors/hoainho"
