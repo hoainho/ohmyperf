@@ -10,6 +10,7 @@
   "installCommand": "npx -y @ohmyperf/mcp-server",
   "transport": "stdio",
   "category": "performance",
+  "dockerfile": "apps/mcp-server/Dockerfile",
   "tags": [
     "performance",
     "web-performance",

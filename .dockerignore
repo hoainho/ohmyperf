@@ -1,0 +1,94 @@
+# .dockerignore for ohmyperf monorepo Docker builds.
+# Consumed by builds that use the repo root as the build context
+# (e.g. `docker build -f apps/mcp-server/Dockerfile .`).
+
+# Source control
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Dependencies — re-installed inside the image (frozen lockfile).
+node_modules/
+**/node_modules/
+.pnpm-store/
+
+# Build artifacts — re-built inside the image.
+dist/
+**/dist/
+.turbo/
+**/.turbo/
+*.tsbuildinfo
+**/*.tsbuildinfo
+.next/
+**/.next/
+out/
+**/out/
+
+# Test artifacts
+coverage/
+**/coverage/
+.nyc_output/
+**/.nyc_output/
+test-results/
+playwright-report/
+**/playwright-report/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ohmyperf-specific runtime output
+ohmyperf-out/
+**/ohmyperf-out/
+releases/
+
+# Internal tooling (not needed at image build time)
+.opencode/
+.sisyphus/
+.experiments/
+
+# Logs
+*.log
+*.log.*
+logs/
+
+# Caches
+.cache/
+**/*.cache/
+.eslintcache
+**/.eslintcache
+.turbo-cache/
+
+# Test sources (the build doesn't need them)
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+**/__tests__/
+**/tests/
+tests/
+
+# Docs / specs / harness — not needed at build time
+docs/launch/
+openspec/
+PHASE_2_3_REPORT_*.md
+REAL_WORLD_DEMO_*.md
+*.local.md
+
+# glama / smithery claim-time metadata (informational only)
+glama.json
+smithery.yaml
+
+# Example / fixture files that aren't referenced by the MCP server
+**/examples/
+**/fixtures/
+**/__fixtures__/
+**/__mocks__/
+
+# Local-only editor scratch
+.harness.local.md
+.HARNESS.local.md
