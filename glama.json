@@ -1,0 +1,28 @@
+{
+  "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "name": "@ohmyperf/mcp-server",
+  "displayName": "OhMyPerf",
+  "description": "Real-machine, real-browser Core Web Vitals measurement (LCP / INP / CLS / FCP / TTFB / TBT) with Mann-Whitney U statistical diffs, OOPIF-aware cross-origin inspection, and a closed agent fix loop (measure → propose_patch → verify_fix). Exposes ohmyperf as MCP tools + prompts for Claude (OpenCode / Cursor / Cline / Continue / GitHub Copilot).",
+  "maintainers": [
+    "hoainho"
+  ],
+  "homepage": "https://github.com/hoainho/ohmyperf",
+  "installCommand": "npx -y @ohmyperf/mcp-server",
+  "transport": "stdio",
+  "category": "performance",
+  "tags": [
+    "performance",
+    "web-performance",
+    "core-web-vitals",
+    "playwright",
+    "lighthouse-alternative",
+    "oopif",
+    "mcp",
+    "model-context-protocol",
+    "ai-agent",
+    "claude",
+    "opencode",
+    "cursor",
+    "cline"
+  ]
+}
