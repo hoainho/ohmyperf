@@ -11,6 +11,11 @@
   "transport": "stdio",
   "category": "performance",
   "dockerfile": "apps/mcp-server/Dockerfile",
+  "relatedServers": [
+    "microsoft/playwright-mcp",
+    "ChromeDevTools/chrome-devtools-mcp",
+    "modelcontextprotocol/inspector"
+  ],
   "tags": [
     "performance",
     "web-performance",
