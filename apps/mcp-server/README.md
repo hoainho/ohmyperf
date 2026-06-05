@@ -2,7 +2,7 @@
 
 [MCP](https://modelcontextprotocol.io/) server for [ohmyperf](https://github.com/hoainho/ohmyperf) — exposes real-machine, real-browser web performance measurement to AI coding agents (Claude in OpenCode, Cursor, GitHub Copilot, etc.) as **12 tools** and **7 prompts** (v0.1.0; **17 tools** when v0.2.0 ships).
 
-[![Glama MCP](https://glama.ai/mcp/servers/hoainho/ohmyperf/badge)](https://glama.ai/mcp/servers/hoainho/ohmyperf)
+[![ohmyperf MCP server](https://glama.ai/mcp/servers/hoainho/ohmyperf/badges/score.svg)](https://glama.ai/mcp/servers/hoainho/ohmyperf)
 [![npm](https://img.shields.io/npm/v/@ohmyperf/mcp-server?label=%40ohmyperf%2Fmcp--server&color=cb3837)](https://www.npmjs.com/package/@ohmyperf/mcp-server)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE)
 [![Node ≥ 22](https://img.shields.io/badge/node-%E2%89%A522-339933)](https://nodejs.org)
