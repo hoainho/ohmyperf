@@ -1,16 +1,37 @@
 # `@ohmyperf/mcp-server`
 
-[MCP](https://modelcontextprotocol.io/) server for [ohmyperf](https://github.com/hoainho/ohmyperf) — exposes real-machine, real-browser web performance measurement to AI coding agents (Claude in OpenCode, Cursor, GitHub Copilot, etc.) as **12 tools** and **7 prompts**.
+[MCP](https://modelcontextprotocol.io/) server for [ohmyperf](https://github.com/hoainho/ohmyperf) — exposes real-machine, real-browser web performance measurement to AI coding agents (Claude in OpenCode, Cursor, GitHub Copilot, etc.) as **12 tools** and **7 prompts** (v0.1.0; **17 tools** when v0.2.0 ships).
+
+[![Glama MCP](https://glama.ai/mcp/servers/hoainho/ohmyperf/badge)](https://glama.ai/mcp/servers/hoainho/ohmyperf)
+[![npm](https://img.shields.io/npm/v/@ohmyperf/mcp-server?label=%40ohmyperf%2Fmcp--server&color=cb3837)](https://www.npmjs.com/package/@ohmyperf/mcp-server)
+[![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE)
+[![Node ≥ 22](https://img.shields.io/badge/node-%E2%89%A522-339933)](https://nodejs.org)
 
 `chrome-devtools-mcp` lets an agent inspect a live browser. `ohmyperf-mcp` lets the agent **measure**, **persist**, **diff**, and **enforce budgets** — capabilities `chrome-devtools-mcp` structurally does not have.
 
 ## Install
+
+### From npm (recommended)
 
 ```bash
 npm install -g @ohmyperf/mcp-server
 # or use directly via npx
 npx -y @ohmyperf/mcp-server
 ```
+
+### From Glama (MCP directory)
+
+Listed at <https://glama.ai/mcp/servers/hoainho/ohmyperf> — Glama clients can install with one click; the equivalent stdio command is:
+
+```jsonc
+{
+  "mcpServers": {
+    "ohmyperf": { "command": "npx", "args": ["-y", "@ohmyperf/mcp-server"] }
+  }
+}
+```
+
+The `glama.json` at the repo root pins the install command + maintainer metadata so the Glama listing stays in sync with this README.
 
 Requires Node ≥ 22. Playwright Chromium is downloaded on first measurement (~150 MB).
 
@@ -114,3 +135,4 @@ Apache-2.0 — see [LICENSE](./LICENSE) and [NOTICE](./NOTICE).
 - GitHub: <https://github.com/hoainho/ohmyperf>
 - CLI: [`@ohmyperf/cli`](https://www.npmjs.com/package/@ohmyperf/cli)
 - Docs: <https://github.com/hoainho/ohmyperf#readme>
+- Glama MCP directory: <https://glama.ai/mcp/servers/hoainho/ohmyperf>

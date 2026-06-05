@@ -5,6 +5,7 @@
 🌐 **Try the viewer live**: [hoainho.github.io/ohmyperf/viewer/](https://hoainho.github.io/ohmyperf/viewer/) — drag any `report.json` onto the page and inspect every metric, every long-task, every render-blocking opportunity in your browser. No install, no signup.
 
 [![npm](https://img.shields.io/npm/v/@ohmyperf/cli?label=%40ohmyperf%2Fcli&color=cb3837)](https://www.npmjs.com/package/@ohmyperf/cli)
+[![Glama MCP](https://glama.ai/mcp/servers/hoainho/ohmyperf/badge)](https://glama.ai/mcp/servers/hoainho/ohmyperf)
 [![MCP](https://img.shields.io/badge/MCP-compatible-7c3aed)](https://modelcontextprotocol.io)
 [![Chromium](https://img.shields.io/badge/real--browser-Chromium-4285f4)](https://www.chromium.org/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](./LICENSE)
@@ -110,7 +111,7 @@ Then your LLM has 16 tools available: `measure`, `propose_patch`, `verify_fix`, 
         │
         ├──► CLI                 npx -y @ohmyperf/cli run <url>
         ├──► npm SDK             import { runEngine } from "@ohmyperf/core"
-        ├──► MCP server          16 tools for LLM agents
+        ├──► MCP server          12 tools + 7 prompts (v0.1.0) — 17 tools in v0.2.0 [Unreleased]
         ├──► Chrome extension    click toolbar icon → measure current tab
         ├──► VSCode extension    Cmd+Shift+P → OhMyPerf: Measure URL
         ├──► Website             hoainho.github.io/ohmyperf — drop report.json on /viewer
@@ -296,9 +297,24 @@ OhMyPerf ships an MCP (Model Context Protocol) server so AI agents like **Claude
 }
 ```
 
+### Install from Glama (MCP directory)
+
+The OhMyPerf MCP server is listed in the [Glama MCP directory](https://glama.ai/mcp/servers/hoainho/ohmyperf) — one-click install paths for every Glama-supported client, no `npx` command required.
+
+```bash
+# Glama CLI (one-off)
+npx -y @glama/mcp-server@latest install hoainho/ohmyperf
+
+# Or just point your client at the stdio command:
+command:  npx
+args:     [-y, @ohmyperf/mcp-server]
+```
+
+The `glama.json` at the repo root pins the install command + maintainer metadata so the Glama listing stays in sync with this README. Claim your own copy at <https://glama.ai/mcp/servers/hoainho/ohmyperf/score> to edit the description, configure Docker build instructions, and receive review notifications.
+
 ### Tools exposed
 
-> **What's available where**: `@ohmyperf/mcp-server@0.1.0` currently on npm exposes the 12 tools NOT marked `(v0.2.0)`. The 2 v0.2.0-tagged tools (`propose_patch`, `verify_fix`) are committed on `main` and will land when v0.2.0 publishes — track at [issue #7](https://github.com/hoainho/ohmyperf/issues/7).
+> **What's available where**: `@ohmyperf/mcp-server@0.1.0` currently on npm exposes the 12 tools NOT marked `(v0.2.0)`. The 5 v0.2.0-tagged tools (`propose_patch`, `verify_fix`, `get_fix_plan`, `get_trust_score`, `get_servability`) are committed on `main` and will land when v0.2.0 publishes — track at [issue #7](https://github.com/hoainho/ohmyperf/issues/7). All 17 tools + 7 prompts are also available today by pointing an MCP client at `npx -y @ohmyperf/mcp-server@main` once v0.2.0 lands.
 
 | Tool | Input | Output |
 |---|---|---|
@@ -311,9 +327,12 @@ OhMyPerf ships an MCP (Model Context Protocol) server so AI agents like **Claude
 | `find_regression_cause` | `{ baseline, candidate }` | Ranked hypotheses (new render-blocking, grown assets, new long tasks, new third-parties) with evidence |
 | `enforce_budget` | `{ url, budget, mode?, runs? }` | CI-style pass/fail per metric with exit-code-style verdict |
 | `track_url` | `{ url, runs?, mode?, ... }` | Measure + append to time-series + return improving/stable/regressing trend |
+| `list_runs` / `list_styles` / `diff_resources` | various | Resource browsing + brand catalog + URI-based diff |
 | **`propose_patch`** *(v0.2.0)* | `{ reportPath \| uri, opportunityId?, url?, maxPatches? }` | Structured `{ archetype, url, search, replace, rationale, expectedImpactMs, confidence }[]` patches an agent can apply |
 | **`verify_fix`** *(v0.2.0)* | `{ baselineReportPath \| baselineUri, candidateUrl, runs?, mode? }` | Re-measures candidate + Mann-Whitney U diff vs baseline; verdict `✅ no regression` / `❌ REGRESSION DETECTED` |
-| `list_runs` / `list_styles` / `diff_resources` | various | Resource browsing + brand catalog + URI-based diff |
+| **`get_fix_plan`** *(v0.2.0)* | `{ reportPath \| uri, limit?, applicabilityFilter? }` | Precomputed ranked, ROI-scored `fixPlan` slice only — saves the agent parsing the full 50KB+ report |
+| **`get_trust_score`** *(v0.2.0)* | `{ reportPath \| uri }` | `trustScore.overall` + per-metric verdicts + `recommendedAction` so agents skip noisy measurements before acting |
+| **`get_servability`** *(v0.2.0)* | `{ reportPath \| uri }` | `meta.servability` classification — `real-page` / `bot-challenge-suspected` / `error-page` / `timeout-partial` / `unknown` — so agents don't gate CI on a Cloudflare interstitial |
 
 Saved reports surface as resources at `ohmyperf://reports/<timestamp>-<id>.json` so the agent can read them back later without re-measuring.
 

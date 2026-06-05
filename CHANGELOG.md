@@ -74,6 +74,7 @@ The next release will ship as **v0.2.0** (not v0.1.1 — Wave 1 fixes were rolle
 
 Highlights staged for v0.2.0 (see [issue #7](https://github.com/hoainho/ohmyperf/issues/7) for full inventory):
 
+- **Glama MCP directory approval** (claim-enabled): the `@ohmyperf/mcp-server` listing at <https://glama.ai/mcp/servers/hoainho/ohmyperf> is now active. A new `glama.json` at the repo root pins the install command, schema, maintainer (`hoainho`), category (`performance`), and tag set so Glama's auto-fetcher keeps the listing in sync. Claim flow (edit description, configure Docker build, receive review notifications) is unlocked via the **"Login with GitHub to claim"** button on the listing. Main README and `apps/mcp-server/README.md` now include the Glama badge + an "Install from Glama" subsection.
 - **Agent fix loop**: new MCP tools `propose_patch` + `verify_fix` (issue #6). The only perf tool where an AI agent can both fix a CWV regression and statistically prove the fix improved metrics, in one conversation turn.
 - **LLM-first report signals** (Phase 1-6 of the v0.2.0 session):
   - `Report.trustScore` — overall + per-metric verdict (high|medium|low|unreliable) with `sampleConfidence` + `effectConfidence` decomposition and `recommendedAction` for noisy measurements.
