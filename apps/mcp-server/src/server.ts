@@ -115,7 +115,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "measure",
         description:
-          "Measure a URL with the OhMyPerf engine on a real Chromium browser. Returns the full Report JSON with CWV (LCP/FCP/TTFB/CLS/TBT), audits, frame tree, and per-resource timing. The report is also saved to the MCP server's reports dir and exposed as a resource. Set collectTrace=true to enable trace-based diagnostics (long-tasks, render-blocking, INP attribution).",
+          "Entry point for every performance investigation. Measure a URL on a real Chromium browser and persist the Report JSON to the MCP server's reports dir (~/.ohmyperf-mcp/reports by default); the report is also exposed as an MCP resource. Returns CWV medians (LCP, FCP, TTFB, CLS, TBT), audits, frame tree, and per-resource timing. **Call this first** — every downstream tool (`diff`, `diff_resources`, `analyze_report`, `propose_patch`, `verify_fix`, `get_fix_plan`, `get_trust_score`, `get_servability`, `enforce_budget`, `track_url`) consumes the saved report by filesystem path or `ohmyperf://reports/<file>.json` URI. Use `mode='ci-stable'` (pre-flight CPU calibration + Fast 4G throttling) for any AB comparison or budget enforcement; use `mode='real'` only for quick dev iteration. `collectTrace=true` adds ~5-20MB/run and enables long-task attribution + render-blocking diagnostics in `analyze_report`. Throws on non-http(s) URL or `runs` outside [1, 30].",
         inputSchema: {
           type: "object",
           required: ["url"],
@@ -162,7 +162,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "diff",
         description:
-          "Compare two report.json files using Mann-Whitney U significance test. Returns per-metric regression/improvement/neutral status + p-values + median deltas. Useful for AB-comparing 'main' vs a feature branch.",
+          "Compare two saved reports (filesystem paths) using a Mann-Whitney U significance test. Returns per-CWV-metric verdict (regression | improvement | neutral) with p-values and median deltas, plus a `hasRegressions` boolean. **Use this for AB comparisons of two saved reports** — for example, main vs a feature branch, or last week vs this week. If both reports are already on hand as MCP resources (from a prior `list_runs` or `ListResources` call), prefer `diff_resources` to skip path resolution. Pair with `find_regression_cause` to attribute regressions to specific resources/scripts, or with `verify_fix` to gate a candidate deploy against a baseline. Throws if either path is unreadable or not a valid report.json. `failOnRegression=true` (default) is purely advisory in this tool — it surfaces the verdict prominently but does NOT throw.",
         inputSchema: {
           type: "object",
           required: ["baseline", "candidate"],
@@ -180,7 +180,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "analyze_report",
         description:
-          "Drill into a specific insight from a saved report WITHOUT returning the full 50KB+ JSON. Provide insightName to scope the response (e.g. 'lcp-breakdown', 'long-tasks', 'third-parties'). Token-efficient — only the requested slice is returned.",
+          "Drill into ONE specific slice of a saved report — returns a compact summary + the relevant JSON subset, NOT the full 50KB+ report. **Use this whenever a single insight is needed** (LCP attribution, top opportunities, render-blocking resources, long-tasks, third-party impact, failed audits, largest resources, frame tree) — far cheaper than reading the full report via `ReadResource`. The 8 `insightName` values: `lcp-breakdown` (median/p75/cov + element attribution), `render-blocking` (top N by response time), `long-tasks` (≥50ms tasks sorted by duration), `third-parties` (vendor breakdown — requires `measure` to have been called with `plugins:['cwv','axe','third-parties']`), `opportunities` (top N by wastedMs), `audits` (failed first), `resources` (top N by transfer size), `frames` (frame tree). For a human-readable summary of the whole report use `generate_markdown_summary`; for a printable deck use `generate_deck`. Throws on unknown insightName.",
         inputSchema: {
           type: "object",
           required: ["insightName"],
@@ -212,7 +212,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "generate_markdown_summary",
         description:
-          "Render a saved report as a human-readable Markdown summary (same format used by `ohmyperf run --reporter markdown`). Returns a compact ~2KB string suitable for PR comments or chat output.",
+          "Render a saved report as a single Markdown document (~2KB) using the same format as `ohmyperf run --reporter markdown`. **Use this for PR comments, chat replies, or any plain-text surface** — for visual artifacts use `generate_html_report` (interactive single-page viewer) or `generate_deck` (multi-slide print-to-PDF deck). Returns the Markdown as the only content block (no separate JSON sidecar). If you only need ONE specific insight (LCP attribution, opportunities, long-tasks, etc.), prefer `analyze_report` to avoid loading the full report. Customizable via `title` (default: 'OhMyPerf report').",
         inputSchema: {
           type: "object",
           properties: {
@@ -234,7 +234,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "generate_deck",
         description:
-          "Render a saved report as a multi-slide HTML presentation (Calibre palette, Swiss-grid layout, light-locked, print-to-PDF first-class). WRITES THE DECK TO DISK AND RETURNS THE FILE PATH — does NOT return the body inline (decks are ~30-500KB, would overflow MCP response budgets). The file lives at <reportsDir>/decks/<measurementId>.html. Open in a browser, navigate with arrow keys, ⌘P to PDF for stakeholder distribution.",
+          "Render a saved report as a multi-slide HTML presentation, write it to disk, and return the file path (NOT the body inline — decks are 30-500KB and would overflow MCP response budgets). **Use this for stakeholder distribution**: open in any browser, navigate with arrow keys, ⌘P → Save as PDF. Default location: `<reportsDir>/decks/<measurementId>.html`. **For interactive single-page viewing with CWV traffic-lights and a third-parties donut, use `generate_html_report` instead**; for plain Markdown use `generate_markdown_summary`. Light-locked by design (print-to-PDF is the primary distribution channel). Available `style` values: `calibre` (default), `linear-app`, `stripe`, `vercel` — call `list_styles` to see all brand metadata (displayName, supported themes).",
         inputSchema: {
           type: "object",
           properties: {
@@ -267,7 +267,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "generate_html_report",
         description:
-          "Render a saved report as a single-file HTML viewer (Calibre or open-design brand style, hero + CWV traffic-light + third-parties donut + audits tables). WRITES TO DISK AND RETURNS THE PATH — same file-writing pattern as 'generate_deck' to avoid response-token overflow. Lives at <reportsDir>/html/<measurementId>.html. Open in any browser; dark mode follows prefers-color-scheme.",
+          "Render a saved report as a single-file interactive HTML viewer, write it to disk, and return the file path (NOT the body inline — same response-budget pattern as `generate_deck`). **Use this for interactive web viewing**: hero + CWV traffic-light + third-parties donut + audits tables. Default location: `<reportsDir>/html/<measurementId>.html`. Dark mode follows `prefers-color-scheme` by default; override via `theme` (`light` | `dark` | `system`). **For multi-slide stakeholder decks, use `generate_deck` instead**; for plain Markdown use `generate_markdown_summary`. Available `style` values: `calibre` (default), `linear-app`, `stripe`, `vercel` — call `list_styles` for brand metadata. Unsupported (brand, theme) pairs fall back to the brand's preferred theme with a warning in the output.",
         inputSchema: {
           type: "object",
           properties: {
@@ -300,7 +300,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "list_styles",
         description:
-          "List available visual brand styles (BrandId + BrandManifest metadata). Use this to discover valid 'style' values for 'generate_deck' and 'generate_html_report' without consulting docs.",
+          "List the 4 available visual brand styles (BrandId + displayName + preferredTheme + light/dark support) for `generate_deck` and `generate_html_report`. **Call this when you need to pick a `style` value** — the enums in those tools' inputSchemas reflect the same set. Returns a tabular text summary plus the full `BRAND_MANIFEST` JSON sidecar. No parameters. Current brands: `calibre` (default), `linear-app`, `stripe`, `vercel`.",
         inputSchema: {
           type: "object",
           properties: {},
@@ -309,7 +309,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "list_runs",
         description:
-          "List all saved reports in the MCP server's reports dir, with measurementId, URL, mode, started timestamp, and size. Equivalent to ListResources but available as a tool for clients that don't browse resources.",
+          "List saved reports from the MCP server's reports dir, most recent first, with measurementId, URL, mode, runs, startedAt, file, and sizeBytes per entry. **Use this when you need the full report metadata** (mode, runs, startedAt) — equivalent to `ListResources` but returns richer rows for clients that don't browse MCP resources. To then read or diff specific reports, pass the `uri` (e.g. `ohmyperf://reports/<file>.json`) to `ReadResource`, `analyze_report`, `diff_resources`, `propose_patch`, `get_fix_plan`, `get_trust_score`, or `get_servability`. Corrupt/unreadable reports are surfaced as `(unreadable)` rows with mode `(unknown)` rather than failing the whole call. `limit` defaults to 25 (max 200).",
         inputSchema: {
           type: "object",
           properties: {
@@ -326,7 +326,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "diff_resources",
         description:
-          "Same as 'diff' but accepts resource URIs ('ohmyperf://reports/<file>.json') instead of filesystem paths. Lets you compare reports the agent already saw via ListResources.",
+          "Identical to `diff` (Mann-Whitney U, per-metric verdicts with p-values and median deltas) but accepts MCP resource URIs (`ohmyperf://reports/<file>.json`) instead of filesystem paths. **Prefer this over `diff` when both reports are already on hand from a prior `list_runs` or `ListResources` call** — skips path resolution. Path-traversal in URI names is rejected (e.g. `../etc/passwd` → throws). Pair with `find_regression_cause` for causal attribution, or with `verify_fix` to gate a candidate deploy.",
         inputSchema: {
           type: "object",
           required: ["baselineUri", "candidateUri"],
@@ -344,7 +344,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "track_url",
         description:
-          "Longitudinal monitoring — measure a URL AND append the result to a time-series log at ~/.ohmyperf-mcp/timeseries/<sha256-url>.ndjson. Returns the new point + a trend verdict (improving/stable/regressing) per CWV metric over the full history. Use this instead of 'measure' when you want the agent to reason about performance changes over time. ohmyperf-only — chrome-devtools-mcp has no persistence layer.",
+          "Longitudinal monitoring: measure a URL AND append the new point to a per-URL time-series log at `~/.ohmyperf-mcp/timeseries/<sha256-url>.ndjson` (a sibling of the reports dir). **Use this INSTEAD of `measure` whenever the agent needs to reason about performance over time** — returns a trend verdict (improving | stable | regressing) per CWV metric over the full history, plus the new measurement point. Defaults to `mode='ci-stable'` (comparability across runs matters most for trend detection) and `plugins=['cwv']` (only the CWV plugin by default — add `third-parties` if you want vendor trend data). **Unique to ohmyperf** — chrome-devtools-mcp and similar servers have no persistence layer. History is capped at `historyLimit` (default 100, max 500) points. If a trend shows regression with high confidence, escalate to `find_regression_cause` between an old + new report.",
         inputSchema: {
           type: "object",
           required: ["url"],
@@ -392,7 +392,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "find_regression_cause",
         description:
-          "Beyond raw diff — given two reports where a metric regressed, this tool produces RANKED HYPOTHESES with evidence: new render-blocking resources, grown/slowed assets, new long tasks attributed to scripts, and new third-party vendors. Each hypothesis lists likely causes prioritized by the regressed metric (LCP/INP/CLS heuristics). ohmyperf-only — devtools-mcp has no diff engine.",
+          "Causal investigation beyond a raw metric diff. Given two reports where a metric regressed, returns **RANKED HYPOTHESES with evidence**: new render-blocking resources, grown/slowed assets, new long tasks attributed to scripts, and new third-party vendors. **Use this AFTER `diff` or `diff_resources` surfaces a regression** — the L1 question is 'did a metric regress?'; the L2 question is 'why?', and this tool answers L2. Each hypothesis is prioritized by the regressed metric (LCP/INP/CLS heuristics). Accepts either filesystem paths or MCP resource URIs for both `baseline` and `candidate`. **Unique to ohmyperf** — devtools-mcp and similar servers only return raw diffs. For a one-line actionable narrative, consider the `investigate_regression` prompt instead, which chains this with `analyze_report`.",
         inputSchema: {
           type: "object",
           properties: {
@@ -405,7 +405,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "enforce_budget",
         description:
-          "Contract-as-code — measure a URL and evaluate it against a perf budget JSON. Returns structured pass/fail per metric with exit-code-style verdict (status='PASS'|'FAIL', exitCode=0|12). Defaults: lcp ≤ 2500ms, inp ≤ 200ms, cls ≤ 0.1, tbt ≤ 200ms, fcp ≤ 1800ms, ttfb ≤ 800ms. Pair this with CI to gate PRs. ohmyperf-only — devtools-mcp has no budget primitive.",
+          "Contract-as-code for CI: measure a URL, then evaluate the report against a perf budget object. Returns structured pass/fail per metric with an exit-code-style verdict: `status='PASS'|'FAIL'`, `exitCode=0` (or `12` on fail). **Use this to gate PRs** in CI — the exitCode mirrors Unix convention so scripts can `set -e` on it. Default budget: `lcp ≤ 2500ms, inp ≤ 200ms, cls ≤ 0.1, tbt ≤ 200ms, fcp ≤ 1800ms, ttfb ≤ 800ms`; override per-metric with the `budget` object (missing keys use defaults). Always uses `mode='ci-stable'` (default) for reproducibility. Optionally `track=true` to also append the measurement to the time-series log. **Unique to ohmyperf** — devtools-mcp and similar servers have no budget primitive. For a per-report post-hoc check on a saved file, use the `check_budget` prompt instead.",
         inputSchema: {
           type: "object",
           required: ["url"],
@@ -450,7 +450,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "propose_patch",
         description:
-          "Given a saved report.json (path or URI), return structured { archetype, url, search, replace, rationale, expectedImpactMs, confidence } patches for actionable opportunities. The agent can grep the search string in the repo and apply the replace. Pair with verify_fix to re-measure after applying. Currently supports archetypes: render-blocking-script-add-defer, render-blocking-stylesheet-media-print, lcp-image-fetchpriority-high, lcp-image-link-preload. Note: when an entry has `targets[]` it represents multiple URLs grouped by archetype — `expectedImpactMs` is the sum across all targets, per-URL impact lives in `targets[i].expectedImpactMs`.",
+          "Generate concrete, grep-and-replace patches for actionable opportunities in a saved report. Each patch has `{archetype, url, search, replace, rationale, expectedImpactMs, confidence}` — the agent can `grep` the `search` string in the repo and apply the `replace`. **Use this after `measure` (or `analyze_report` with insightName='opportunities') to close the loop from data to code change.** Pair with `verify_fix` to re-measure after applying. **Always check `get_trust_score` first** — patches on a report with `overall: unreliable` are likely based on noisy data. Currently supported archetypes: `render-blocking-script-add-defer`, `render-blocking-stylesheet-media-print`, `lcp-image-fetchpriority-high`, `lcp-image-link-preload`. When an entry has `targets[]` (multiple URLs collapsed by archetype), `expectedImpactMs` is the SUM across all targets; per-URL impact lives in `targets[i].expectedImpactMs`. For a higher-level ranked list (not patches), use `get_fix_plan`.",
         inputSchema: {
           type: "object",
           properties: {
@@ -484,7 +484,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "verify_fix",
         description:
-          "Closes the agent fix loop: given a baseline report.json (the 'before' measurement) and a candidate URL (the 'after' — typically a preview/staging deploy of the patched code), re-measures the candidate with matching settings, diffs the two via Mann-Whitney U significance test, and returns a structured pass/fail/neutral verdict per CWV metric. Use this AFTER applying a propose_patch suggestion to verify the fix actually improved metrics.",
+          "Closes the agent fix loop: re-measure a candidate URL (typically a preview/staging deploy of patched code) and diff it against a baseline report using Mann-Whitney U. Returns a structured pass/fail/neutral verdict per CWV metric plus a top-line `hasRegressions` boolean and a human-readable verdict line. **Use this AFTER applying a `propose_patch` suggestion** to confirm the fix actually moved metrics — never trust a single before/after pair without the significance test. Always uses `mode='ci-stable'` (default) so the candidate is comparable to a ci-stable baseline. **`runs` defaults to 5** — the minimum needed for Mann-Whitney U to reach statistical significance at α=0.05; with `runs<5` all metrics will (correctly) report 'neutral' because tiny samples can't distinguish real effects from noise. Throws on missing/invalid `candidateUrl` (must be http(s)). For a deeper root-cause analysis of any regression surfaced, follow up with `find_regression_cause`.",
         inputSchema: {
           type: "object",
           required: ["candidateUrl"],
@@ -529,7 +529,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "get_fix_plan",
         description:
-          "v0.2.0 LLM-first feature. Returns ONLY the precomputed `fixPlan` from a saved report — a ranked, ROI-scored, deduped list of actionable fixes. Each entry has `rank`, `archetype`, `target.url`, `target.originClass`, `expectedImpactMs`, `confidence`, `applicability` (first-party / third-party-cannot-apply / unknown), `effort`, and a one-line `patchPreview`. Same-archetype URLs are collapsed into a single grouped entry; when `targets[]` is present, `expectedImpactMs` is the SUM across all targets (per-URL impact lives in `targets[i].expectedImpactMs`) and `confidence` is the WORST among siblings. The plan is sorted by applicability (first-party first) then ROI. Use this for the agent's primary decision: 'what is my #1 highest-leverage fix?' instead of parsing the full opportunities array.",
+          "**The agent's primary decision tool**: 'what is my #1 highest-leverage fix?' Returns ONLY the precomputed `fixPlan` from a saved report — a ranked, ROI-scored, deduped list of actionable fixes with `rank`, `archetype`, `target.url`, `target.originClass`, `expectedImpactMs`, `confidence`, `applicability` (first-party / third-party-cannot-apply / unknown), `effort`, and a one-line `patchPreview`. **Prefer this over `propose_patch` when you want a ranked list rather than grep-and-replace patches** — `propose_patch` is for execution; `get_fix_plan` is for prioritization. The plan is sorted by `applicability` (first-party first — things the dev team can actually change) then by ROI. Same-archetype URLs are collapsed into a single grouped entry: when `targets[]` is present, `expectedImpactMs` is the SUM across all targets (per-URL in `targets[i].expectedImpactMs`) and `confidence` is the WORST among siblings. `applicabilityFilter='first-party'` excludes third-party CDN URLs (mark your own CDNs as first-party via `OHMYPERF_ORG_DOMAINS`). Returns empty plan with a hint if the report predates v0.2.0 — rerun `measure` to refresh.",
         inputSchema: {
           type: "object",
           properties: {
@@ -554,7 +554,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "get_trust_score",
         description:
-          "v0.2.0 LLM-first feature. Returns ONLY the precomputed `trustScore` from a saved report — `overall: high|medium|low|unreliable`, per-metric verdicts, and a `recommendedAction` when the measurement is too noisy or undersampled for downstream tools. Use this BEFORE calling `propose_patch` or `verify_fix` on a report you're not sure about: if `overall === 'unreliable'`, rerun the measurement with more runs or ci-stable mode before acting.",
+          "Returns the precomputed `trustScore` from a saved report — `overall: high | medium | low | unreliable`, per-metric verdicts (sample confidence + effect confidence), a `reasons` array, and a `recommendedAction` when the measurement is too noisy/undersampled for downstream tools. **Call this BEFORE `propose_patch` or `verify_fix` on any report you're not sure about** — if `overall === 'unreliable'`, the report's CWV metrics aren't statistically stable enough to drive decisions; rerun `measure` with more runs or `mode='ci-stable'` first. **Distinct from `get_servability`**: trust is about *statistical* validity (sample size, effect size, variance), servability is about *what was measured* (real page vs bot-challenge vs error page). For a comprehensive pre-flight check, call BOTH. Returns a hint if the report predates v0.2.0 — rerun `measure` to refresh.",
         inputSchema: {
           type: "object",
           properties: {
@@ -566,7 +566,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "get_servability",
         description:
-          "v0.2.0 LLM-first feature. Returns ONLY the precomputed `meta.servability` from a saved report — answers 'did I measure the real page, or a bot-challenge / error page / timeout?'. Classifications: real-page, bot-challenge-suspected, error-page, timeout-partial, unknown. Use this BEFORE drawing conclusions from a report: a 'bot-challenge-suspected' report's CWV metrics are not representative of real users and should not gate CI.",
+          "Returns the precomputed `meta.servability` from a saved report — answers 'did I measure the real page, or a bot-challenge / error page / timeout?'. Classifications: `real-page` (safe to gate CI), `bot-challenge-suspected` (Cloudflare/PerimeterX/hCaptcha page — CWV metrics are NOT representative of real users, must NOT gate CI), `error-page` (404/5xx served), `timeout-partial` (some runs timed out), `unknown`. **Call this BEFORE drawing conclusions from a report** — a `bot-challenge-suspected` report's CWV numbers measure the challenge page, not your product. **Distinct from `get_trust_score`**: servability is about *what was measured*, trust is about *statistical* validity. For a comprehensive pre-flight check, call BOTH. Returns a hint if the report predates v0.2.0 — rerun `measure` with a different `mode` or `runs` if the classification is suspect.",
         inputSchema: {
           type: "object",
           properties: {
@@ -1042,46 +1042,46 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "diagnose_report",
         description:
-          "Walk through a saved report end-to-end: CWV verdict, top opportunities, long-tasks, render-blocking resources, third-party impact. Produces an actionable investigation plan.",
+          "Walk through a saved report end-to-end: CWV verdict, top opportunities, long-tasks, render-blocking resources, third-party impact. **Use this when you want a comprehensive diagnosis from a single report** — chains `analyze_report` across 5 insights (lcp-breakdown, opportunities, render-blocking, long-tasks, third-parties) in priority order, then produces an actionable root-cause hypothesis with 3 verification steps. Output is a narrative investigation plan, not raw data. For comparing TWO reports, use `compare_runs` instead.",
         arguments: [
-          { name: "reportPath", description: "Path or URI to report.json", required: true },
+          { name: "reportPath", description: "Filesystem path or `ohmyperf://reports/<file>.json` URI to a saved report.json", required: true },
         ],
       },
       {
         name: "compare_runs",
         description:
-          "Compare a baseline and candidate report. Identify regressions, attribute them to specific metrics, suggest likely causes.",
+          "Compare a baseline and candidate report, identify regressions, attribute them to specific metrics, suggest likely causes. **Use this when you have two reports and want a regression narrative** — chains `diff_resources` (or `diff`) with `analyze_report` on the matching insight for each regressed metric (e.g. lcp-breakdown for an LCP regression). Output is the most likely cause + the minimal change that would reverse the regression. For deeper causal ranking, use `investigate_regression` (which adds `find_regression_cause`). For a single-report diagnosis, use `diagnose_report`.",
         arguments: [
-          { name: "baseline", description: "Baseline path or URI", required: true },
-          { name: "candidate", description: "Candidate path or URI", required: true },
+          { name: "baseline", description: "Baseline report path or `ohmyperf://reports/<file>.json` URI", required: true },
+          { name: "candidate", description: "Candidate report path or `ohmyperf://reports/<file>.json` URI", required: true },
         ],
       },
       {
         name: "suggest_fixes",
         description:
-          "Given a saved report, propose concrete code-level fixes prioritized by metric impact (LCP > INP > CLS) and effort.",
+          "Given a saved report, propose concrete code-level fixes prioritized by metric impact (LCP > INP > CLS > TBT > TTFB) and effort (S/M/L). **Use this when you want a prioritized fix list, not just a diff** — chains `analyze_report` for opportunities and render-blocking, then estimates file/area, expected impact, effort, and a validation step (rerun `measure` with the same URL). For grep-and-replace patches ready to apply, use `propose_patch` (execution); for an even more concise ranked list use `get_fix_plan` (prioritization).",
         arguments: [
-          { name: "reportPath", description: "Path or URI to report.json", required: true },
+          { name: "reportPath", description: "Filesystem path or `ohmyperf://reports/<file>.json` URI to a saved report.json", required: true },
         ],
       },
       {
         name: "audit_third_parties",
         description:
-          "Surface third-party scripts dragging down the page. Requires a report measured with the 'third-parties' plugin enabled.",
+          "Surface third-party scripts dragging down the page. **Use this when the report was measured with `plugins:['cwv','axe','third-parties']`** (without that plugin, the audit will instruct the user to rerun). Chains `analyze_report` with insightName='third-parties' to list top vendors by main-thread time AND by transfer size, and cross-references render-blocking to flag any vendor that blocks LCP. Output is a vendor-by-vendor impact breakdown, not a code patch list.",
         arguments: [
-          { name: "reportPath", description: "Path or URI to report.json", required: true },
+          { name: "reportPath", description: "Filesystem path or `ohmyperf://reports/<file>.json` URI to a saved report.json. Must have been measured with the 'third-parties' plugin enabled.", required: true },
         ],
       },
       {
         name: "check_budget",
         description:
-          "Evaluate the saved report against the project's perf budget (lcp ≤ 2500ms, inp ≤ 200ms, cls ≤ 0.1, tbt ≤ 200ms by default). Pass/fail each metric with delta.",
+          "Evaluate a saved report against the project's perf budget (default: lcp ≤ 2500ms, inp ≤ 200ms, cls ≤ 0.1, tbt ≤ 200ms, fcp ≤ 1800ms, ttfb ≤ 800ms). **Use this for post-hoc budget checks on existing reports** — for live CI enforcement (measure + evaluate in one shot), use the `enforce_budget` tool instead. Output is pass/fail per metric with the actual delta from the budget.",
         arguments: [
-          { name: "reportPath", description: "Path or URI to report.json", required: true },
+          { name: "reportPath", description: "Filesystem path or `ohmyperf://reports/<file>.json` URI to a saved report.json", required: true },
           {
             name: "budget",
             description:
-              "Optional JSON budget object, e.g. '{\"lcp\":2500,\"inp\":200,\"cls\":0.1,\"tbt\":200}'",
+              "Optional JSON budget object, e.g. '{\"lcp\":2500,\"inp\":200,\"cls\":0.1,\"tbt\":200,\"fcp\":1800,\"ttfb\":800}'. Missing keys fall back to the defaults above.",
             required: false,
           },
         ],
@@ -1089,18 +1089,18 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "investigate_regression",
         description:
-          "Causal investigation flow — call find_regression_cause to get ranked hypotheses, then drill into the top-1 hypothesis with analyze_report. Returns an actionable root-cause narrative, not raw data.",
+          "Causal investigation flow that produces an actionable root-cause narrative, not raw data. **Use this when `compare_runs` or `diff_resources` surfaced a regression and you want to know WHY** — chains `find_regression_cause` (ranked hypotheses with evidence) with `analyze_report` on the top-1 hypothesis (e.g. drill into the new render-blocking script or third-party vendor). Differs from `compare_runs`: compare_runs is metric-level (what regressed), investigate_regression is hypothesis-level (what caused it). For a confidence check on the underlying data first, call `get_trust_score`.",
         arguments: [
-          { name: "baseline", description: "Baseline report path or URI", required: true },
-          { name: "candidate", description: "Candidate report path or URI", required: true },
+          { name: "baseline", description: "Baseline report path or `ohmyperf://reports/<file>.json` URI", required: true },
+          { name: "candidate", description: "Candidate report path or `ohmyperf://reports/<file>.json` URI", required: true },
         ],
       },
       {
         name: "monitor_trend",
         description:
-          "Longitudinal monitoring flow — call track_url to append a new measurement, inspect the per-metric trend verdict, escalate to find_regression_cause if a metric is regressing with high confidence.",
+          "Longitudinal monitoring flow. **Use this for periodic perf tracking** — chains `track_url` (append new measurement + per-metric trend verdict) and escalates to `find_regression_cause` if any metric is regressing with high confidence. Differs from a one-shot `measure`: measure has no memory, monitor_trend builds a time series at `~/.ohmyperf-mcp/timeseries/<sha256-url>.ndjson` and reasons over history. For a one-time comparison of two saved reports, use `compare_runs` instead.",
         arguments: [
-          { name: "url", description: "URL to monitor", required: true },
+          { name: "url", description: "HTTP(S) URL to monitor. Will be measured and appended to the per-URL time-series log.", required: true },
         ],
       },
     ],
