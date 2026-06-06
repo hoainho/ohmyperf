@@ -79,4 +79,6 @@ RUN mkdir -p /home/pwuser/app/.ohmyperf-mcp/reports \
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD sh -c 'printf "%s" "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"docker-healthcheck\",\"version\":\"0\"}}}" | node /home/pwuser/app/bin/ohmyperf-mcp.mjs 2>/dev/null | grep -q "\"result\""'
 
-ENTRYPOINT ["node", "/home/pwuser/app/bin/ohmyperf-mcp.mjs"]
+# CMD (not ENTRYPOINT) so Glama's "CMD arguments" admin field can be
+# populated with at least one arg — see https://glama.ai/blog/2026-03-15-how-to-make-a-release
+CMD ["node", "/home/pwuser/app/bin/ohmyperf-mcp.mjs"]
