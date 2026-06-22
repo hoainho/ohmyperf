@@ -1,5 +1,8 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineCommand } from "citty";
 import { createConsoleLogger } from "@ohmyperf/core";
 import { EXIT_CODES } from "../exit-codes.js";
@@ -51,17 +54,21 @@ export const installBrowserCommand = defineCommand({
 });
 
 function resolvePlaywrightCli(): string | null {
-  const cwdRequire = createRequire(`${process.cwd()}/_resolve_anchor.js`);
-  try {
-    return cwdRequire.resolve("playwright/cli.js");
-  } catch {
+  // playwright's package.json "exports" map does not expose "./cli.js", so
+  // require.resolve("playwright/cli.js") throws ERR_PACKAGE_PATH_NOT_EXPORTED.
+  // Resolve the package.json (which IS exported) and derive cli.js from its dir.
+  const anchors = [`${process.cwd()}/_resolve_anchor.js`, fileURLToPath(import.meta.url)];
+  for (const anchor of anchors) {
     try {
-      const selfRequire = createRequire(import.meta.url);
-      return selfRequire.resolve("playwright/cli.js");
+      const req = createRequire(anchor);
+      const pkgJsonPath = req.resolve("playwright/package.json");
+      const cliPath = join(dirname(pkgJsonPath), "cli.js");
+      if (existsSync(cliPath)) return cliPath;
     } catch {
-      return null;
+      // try next anchor
     }
   }
+  return null;
 }
 
 function runProcess(cmd: string, argv: ReadonlyArray<string>): Promise<number> {

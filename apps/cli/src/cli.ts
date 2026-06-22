@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import { defineCommand, runMain } from "citty";
 import { runCommand } from "./commands/run.js";
+import { diagnoseCommand } from "./commands/diagnose.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { initCommand } from "./commands/init.js";
 import { listPluginsCommand } from "./commands/list-plugins.js";
@@ -21,6 +22,7 @@ export const main = defineCommand({
   },
   subCommands: {
     run: runCommand,
+    diagnose: diagnoseCommand,
     diff: diffCommand,
     share: shareCommand,
     doctor: doctorCommand,

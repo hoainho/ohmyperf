@@ -83,10 +83,15 @@ async function pathExists(path: string): Promise<boolean> {
 }
 
 async function resolveTemplate(name: string): Promise<string> {
+  // From dist/commands/init.js the package root is three levels up (apps/cli),
+  // and the monorepo root is five levels up. Templates are authored at the repo
+  // root (templates/ci) and copied into the package on build (apps/cli/templates/ci)
+  // so the published CLI ships them too.
   const here = fileURLToPath(import.meta.url);
   const candidates = [
-    resolve(here, "../../../../templates/ci", name),
-    resolve(here, "../../../templates/ci", name),
+    resolve(here, "../../../templates/ci", name), // package-local (published): apps/cli/templates/ci
+    resolve(here, "../../../../../templates/ci", name), // monorepo root: <repo>/templates/ci
+    resolve(here, "../../../../templates/ci", name), // legacy fallbacks
     resolve(here, "../../templates/ci", name),
   ];
   for (const path of candidates) {

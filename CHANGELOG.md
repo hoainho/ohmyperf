@@ -3,6 +3,27 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.2.0] - Unreleased
+
+Planned CLI-upgrade release. Full scope, severity, and `file:line` targets are tracked in
+[`docs/CLI_UPGRADE_PLAN_v0.2.0.md`](docs/CLI_UPGRADE_PLAN_v0.2.0.md) — grounded in a 20-agent
+analysis + 4-agent cross-review and live testing against https://moodtrip.hoainho.info.
+
+### Planned (P0 — correctness/trust)
+- fix(core): decouple outlier rejection from the n≥5 trust gate; default runs 5→7 so a single dropped outlier no longer forces trust=`unreliable`.
+- fix(core): metric-aware noise floor for near-zero CLS (absolute stdev, not relative CoV); unify the trust scorer and `isReportUnstable` thresholds.
+- fix(plugins/mcp): third-parties data key — producer writes `audits[]` but consumers read `pluginData["thirdParties"]` (always null); align producer/consumer.
+- fix(cli): surface `trustScore`/`servability` in the run summary AND `--json`; gate CI verdicts on trust+servability (`--force` to override).
+- fix(cli): implement the parsed-but-never-evaluated `--budget` gate (exit code on breach).
+- fix(cli): `list-plugins` omits `third-parties`; `SUPPORTED_FORMATS` omits shipped reporters — drive both from one source-of-truth registry.
+
+### Planned (P1/P2)
+- feat(cli): `--emulation`/`--network-profile`/`--viewport`/`--cpu-throttle` (engine already supports it); `ohmyperf trend`/`budget`; baseline-history for `diff`.
+- fix(cli): unified, tested resolver module (init templates + browser binary); `doctor` platform-mismatch guard.
+- test: golden-file tests for reporter-csv/junit/har/lh-compat, trace-utils, share-client/redact.
+- chore: version bump 0.1.1 → 0.2.0 across the published package set.
+
+
 ## [0.1.1] - 2026-05-30
 
 ### Added

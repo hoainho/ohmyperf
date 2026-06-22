@@ -7,6 +7,8 @@ import {
   PluginHookTimeout,
   PluginLoadError,
   runEngine,
+  type FullLoadConfig,
+  type FullLoadUntil,
   type Logger,
   type Mode,
   type Plugin,
@@ -135,6 +137,52 @@ export const runCommand = defineCommand({
       description: "Repeatable budget metric=threshold (e.g. lcp=2500); reserved for v0 acceptance",
       required: false,
     },
+    until: {
+      type: "string",
+      description:
+        "Full-Load Time endpoint: load-event | network-idle-2 | fully-loaded (default) | visually-complete",
+      default: "fully-loaded",
+    },
+    "settle-window": {
+      type: "string",
+      description: "FLT settle window in ms — quiet must persist this long (default 1000)",
+      required: false,
+    },
+    "max-wait": {
+      type: "string",
+      description: "Max time to wait for FLT to settle before capping, in ms (default 30000)",
+      required: false,
+    },
+    "net-idle-threshold": {
+      type: "string",
+      description: "Max in-flight requests still treated as network-quiet for FLT (default 0)",
+      required: false,
+    },
+    "mutation-noise": {
+      type: "string",
+      description: "DOM-mutation weight below which a batch is ignored as steady-state noise (default 3)",
+      required: false,
+    },
+    "strict-network": {
+      type: "boolean",
+      description: "Count WebSocket/SSE/long-lived connections as blocking for FLT (default false)",
+      default: false,
+    },
+    filmstrip: {
+      type: "boolean",
+      description: "Capture screenshots to compute Visually-Complete + a filmstrip (enables the visual FLT signal)",
+      default: false,
+    },
+    diagnose: {
+      type: "boolean",
+      description: "Capture DOM topology and compute component hotspots (why is it slow)",
+      default: false,
+    },
+    rx: {
+      type: "boolean",
+      description: "Compute prescriptive remediations (lazy-load/virtualize/etc.); implies --diagnose",
+      default: false,
+    },
   },
   async run({ args }): Promise<void> {
     const logger = createConsoleLogger({
@@ -236,6 +284,26 @@ export const runCommand = defineCommand({
       process.exit(EXIT_CODES.invalidUsage);
     }
 
+    const VALID_UNTIL = ["load-event", "network-idle-2", "fully-loaded", "visually-complete"];
+    const until = String(args.until ?? "fully-loaded");
+    if (!VALID_UNTIL.includes(until)) {
+      logger.error(`invalid --until '${until}' (valid: ${VALID_UNTIL.join(", ")})`);
+      process.exit(EXIT_CODES.invalidUsage);
+    }
+    const fullLoadCfg: {
+      -readonly [K in keyof FullLoadConfig]?: FullLoadConfig[K];
+    } = { until: until as FullLoadUntil };
+    const settleWindow = Number(args["settle-window"]);
+    if (Number.isFinite(settleWindow) && settleWindow > 0) fullLoadCfg.settleWindowMs = settleWindow;
+    const maxWait = Number(args["max-wait"]);
+    if (Number.isFinite(maxWait) && maxWait > 0) fullLoadCfg.maxWaitMs = maxWait;
+    const netIdle = Number(args["net-idle-threshold"]);
+    if (Number.isFinite(netIdle) && netIdle >= 0) fullLoadCfg.netIdleThreshold = netIdle;
+    const mutationNoise = Number(args["mutation-noise"]);
+    if (Number.isFinite(mutationNoise) && mutationNoise >= 0) fullLoadCfg.mutationNoiseFloor = mutationNoise;
+    if (args["strict-network"]) fullLoadCfg.strictNetwork = true;
+    if (args.filmstrip) fullLoadCfg.visual = true;
+
     const plugins = resolvePluginSet(String(args.plugins), logger);
 
     const browserPath = optString(args["browser-path"]);
@@ -267,6 +335,9 @@ export const runCommand = defineCommand({
           plugins,
           ...(args.recalibrate ? { calibration: { recalibrate: true } } : {}),
           ...(args["collect-trace"] ? { collectTrace: true } : {}),
+          fullLoad: fullLoadCfg,
+          ...(args.diagnose || args.rx ? { diagnose: true } : {}),
+          ...(args.rx ? { rx: true } : {}),
           ...(typeof args["synthetic-interaction"] === "string" && args["synthetic-interaction"].length > 0
             ? {
                 syntheticInteraction:
@@ -347,6 +418,16 @@ export const runCommand = defineCommand({
           measurementId: report.meta.measurementId,
           aggregatedKeys: Object.keys(report.aggregated),
           auditCount: report.audits.length,
+          fullLoad: report.fullLoad
+            ? {
+                fltMs: report.fullLoad.fltMs,
+                capped: report.fullLoad.capped,
+                gatingPhase: report.fullLoad.gatingPhase,
+                visuallyCompleteAt: report.fullLoad.subTimeline.visuallyCompleteAt ?? null,
+              }
+            : null,
+          hotspots: report.hotspots ?? null,
+          recommendations: report.recommendations ?? null,
           outputPath: written.json?.path ?? null,
           htmlPath: written.html?.path ?? null,
           markdownPath: written.markdown?.path ?? null,
@@ -479,6 +560,16 @@ function printHumanSummary(report: Report, logger: Logger): void {
   logger.info(`browser: ${report.meta.browser.name} ${report.meta.browser.version} (${report.meta.browser.source})`);
   logger.info(`mode:    ${report.meta.mode}; runs=${String(report.meta.runs)}; duration=${String(report.meta.durationMs)}ms`);
 
+  if (report.fullLoad) {
+    const fl = report.fullLoad;
+    const capped = fl.capped ? " (capped — never settled)" : "";
+    const vc = fl.subTimeline.visuallyCompleteAt;
+    const visual = typeof vc === "number" ? `  visually-complete=${vc.toFixed(0)}ms` : "";
+    logger.info(
+      `full-load: ${fl.fltMs.toFixed(0)}ms${capped}  gated-by=${fl.gatingPhase}${visual}  (until=${fl.settleConfig.until})`,
+    );
+  }
+
   const lines: string[] = [];
   for (const [name, agg] of Object.entries(report.aggregated)) {
     const median = agg.median.toFixed(name === "cls" ? 3 : 1);
@@ -496,6 +587,22 @@ function printHumanSummary(report: Report, logger: Logger): void {
     for (const audit of report.audits) {
       const status = audit.passed ? "PASS" : "FAIL";
       logger.info(`  [${status}] ${audit.id} — ${audit.title}`);
+    }
+  }
+  if (report.hotspots && report.hotspots.length > 0) {
+    logger.info(`hotspots (top ${String(Math.min(5, report.hotspots.length))}):`);
+    for (const h of report.hotspots.slice(0, 5)) {
+      logger.info(`  [${h.cause}] ${h.selector} — ${h.costMs.toFixed(0)}ms (${h.label})`);
+    }
+  }
+  if (report.recommendations && report.recommendations.length > 0) {
+    if (report.remediationNote) logger.warn(`⚠ ${report.remediationNote}`);
+    logger.info(`recommendations (top ${String(Math.min(3, report.recommendations.length))}):`);
+    for (const r of report.recommendations.slice(0, 3)) {
+      const tgt = r.target.selector ?? r.target.resource ?? "page";
+      const impact = r.gating ? `~${r.estFltDeltaMs.toFixed(0)}ms FLT` : "off-gate (~0 FLT)";
+      logger.info(`  [${r.rule}] ${r.title} → ${tgt}  (${impact}, ${r.confidence})`);
+      logger.info(`     fix: ${r.strategy}`);
     }
   }
 }
