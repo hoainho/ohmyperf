@@ -1,6 +1,6 @@
 {
   "name": "@ohmyperf/reporter-csv",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "CSV reporter for ohmyperf — long-format (one row per metric per run), spreadsheet-ready.",
   "license": "Apache-2.0",
   "engines": {

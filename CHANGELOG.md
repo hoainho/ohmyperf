@@ -3,9 +3,34 @@
 All notable changes to this project will be documented in this file.
 
 
-## [0.2.0] - Unreleased
+## [0.3.0] - 2026-06-23
 
-Planned CLI-upgrade release. Full scope, severity, and `file:line` targets are tracked in
+MCP server parity + hardening release. Surfaces the v0.2.0 engine signals (Full-Load Time,
+component hotspots, prescriptive remediations) through the MCP server and fixes two confirmed
+bugs. Fully additive — `schemaVersion` stays `1.0.0`, the 17 tools keep their names/shapes, and
+default `measure`/`analyze_report` outputs are unchanged. Scope, design, and acceptance criteria
+in [`docs/MCP_V0.3.0_PLAN.md`](docs/MCP_V0.3.0_PLAN.md); per-story notes in
+[`docs/MCP_V0.3.0_PROGRESS.md`](docs/MCP_V0.3.0_PROGRESS.md).
+
+### Added (MCP)
+- feat(mcp): `analyze_report` gains 3 insights (8 → 11): `full-load-breakdown` (settle-based Full-Load Time, gating phase + distribution, sub-timeline incl. `visuallyCompleteAt`), `hotspots` (ranked component/region cost table), `remediation` (prescriptive Rx fixes with est. FLT impact + gating). All degrade gracefully on reports that lack the data.
+- feat(mcp): `measure` now forwards `diagnose` / `rx` / `fullLoad` to the engine, so the v0.2.0 diagnostic signals are reachable via MCP (default `measure` unchanged).
+- feat(mcp): `measure` / `generate_markdown_summary` summary surfaces Full-Load Time, gating phase, and the top hotspots/recommendations (presence-guarded).
+- feat(mcp): new `measure_and_diagnose` prompt (7 → 8) — measure(diagnose+rx) → trust/servability → full-load-breakdown → hotspots → remediation, in one flow. No new tool (count stays 17).
+
+### Fixed (MCP)
+- fix(mcp): `analyze_report` insight `third-parties` read the never-populated `pluginData["thirdParties"]` (always null); now reads the `third-parties` audit (`report.audits[…].details`), the same source the engine uses. Also unblocks the `audit_third_parties` prompt.
+- fix(mcp): `enforce_budget` ignored measurement quality; now trust/servability-gated — `exitCode` widened `0|12|13` (13 = gated/unmeasurable), with `gated`/`gateReason` and a `force` override. A bot-challenge / error / `unreliable` measurement no longer gates CI on meaningless numbers.
+- fix(mcp): `propose_patch` prepends a re-measure warning when `trustScore=unreliable`; `verify_fix` returns `inconclusive` (not pass/fail) when the candidate's trust is unreliable.
+
+### Changed
+- chore(mcp): server now advertises version `0.3.0` (was `0.0.0-pre`).
+- chore: version bump 0.2.0 → 0.3.0 across the published package set.
+
+
+## [0.2.0] - 2026-06-23
+
+CLI-upgrade release. Full scope, severity, and `file:line` targets are tracked in
 [`docs/CLI_UPGRADE_PLAN_v0.2.0.md`](docs/CLI_UPGRADE_PLAN_v0.2.0.md) — grounded in a 20-agent
 analysis + 4-agent cross-review and live testing against https://moodtrip.hoainho.info.
 

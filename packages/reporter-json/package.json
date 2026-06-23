@@ -1,6 +1,6 @@
 {
   "name": "@ohmyperf/reporter-json",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Canonical Report JSON reporter (the source of truth).",
   "license": "Apache-2.0",
   "engines": {
