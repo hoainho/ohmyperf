@@ -27,3 +27,6 @@ trace.json.gz
 .dev-keys/
 .build-cache/
 .env.*.local
+
+# OMC session state / agent artifacts (never committed)
+.omc/

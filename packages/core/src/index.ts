@@ -149,6 +149,34 @@ export {
   parseOriginInfo,
 } from "./llm-signals/index.js";
 
+export type {
+  GatingPhase,
+  FullLoadUntil,
+  FullLoadConfig,
+  FullLoadSubTimeline,
+  FullLoadResult,
+  FullLoadReport,
+} from "./types.js";
+export type {
+  DomContainer,
+  DomTopology,
+  HotspotCause,
+  Hotspot,
+  RxRule,
+  RxConfidence,
+  Recommendation,
+} from "./types.js";
+export { FULL_LOAD_DEFAULTS, computeFullLoad } from "./full-load.js";
+export { computeHotspots } from "./hotspots.js";
+export { evaluateRx, type RxResult } from "./rx.js";
+export type {
+  NetRequest,
+  DomBatch,
+  CpuInterval,
+  VisChange,
+  FullLoadStreams,
+} from "./full-load.js";
+
 import type {
   MeasureOptions,
   Plugin,

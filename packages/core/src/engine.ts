@@ -13,7 +13,17 @@ import { loadingCollectorFactory } from "./collectors-impl/loading-collector.js"
 import { longTaskCollectorFactory } from "./collectors-impl/longtask-collector.js";
 import { computeRenderBlockingOpportunity } from "./collectors-impl/render-blocking.js";
 import { resourceCollectorFactory } from "./collectors-impl/resource-collector.js";
+import { fullLoadCollectorFactory } from "./collectors-impl/full-load-collector.js";
+import { domTopologyCollectorFactory } from "./collectors-impl/dom-topology-collector.js";
+import {
+  createFilmstripCollectorFactory,
+  type FilmstripSink,
+} from "./collectors-impl/filmstrip-collector.js";
 import { createTraceCollector } from "./collectors-impl/trace-collector.js";
+import { computeFullLoad, FULL_LOAD_DEFAULTS } from "./full-load.js";
+import { computeHotspots } from "./hotspots.js";
+import { evaluateRx } from "./rx.js";
+import type { FullLoadConfig, FullLoadReport, FullLoadResult } from "./types.js";
 import { applyEmulation, calibrate, type CalibrationResult } from "./calibration.js";
 import {
   buildFixPlan,
@@ -84,6 +94,7 @@ export const DEFAULT_COLLECTOR_FACTORIES: ReadonlyArray<CollectorFactory> = [
   loadingCollectorFactory,
   longTaskCollectorFactory,
   resourceCollectorFactory,
+  fullLoadCollectorFactory,
 ];
 
 const DEFAULT_RUNS = 5;
@@ -95,9 +106,23 @@ const LOAD_IDLE_TIMEOUT_MS = 30_000;
 export async function runEngine(input: EngineRunOptions): Promise<Report> {
   const { opts, driver, adapter, collectors } = input;
   const logger = input.logger ?? createSilentLogger();
-  const factories = collectors ?? DEFAULT_COLLECTOR_FACTORIES;
 
   const runs = opts.runs ?? DEFAULT_RUNS;
+  const fullLoadConfig: FullLoadConfig = { ...FULL_LOAD_DEFAULTS, ...(opts.fullLoad ?? {}) };
+
+  const diagnoseEnabled = opts.diagnose === true || opts.rx === true;
+  const visualEnabled = fullLoadConfig.visual === true;
+  // Shared, per-run-reset sink so the settle loop can wait for visual quiet (runs are sequential).
+  const visSink: FilmstripSink = { last: 0 };
+  const baseFactories = collectors ?? DEFAULT_COLLECTOR_FACTORIES;
+  const factories = [
+    ...baseFactories,
+    ...(diagnoseEnabled ? [domTopologyCollectorFactory] : []),
+    ...(visualEnabled
+      ? [createFilmstripCollectorFactory({ epsilon: fullLoadConfig.visualDiffEpsilon, sink: visSink })]
+      : []),
+  ];
+
   const headless = opts.headless ?? DEFAULT_HEADLESS;
   const mode = opts.mode ?? DEFAULT_MODE;
   const startedAt = new Date().toISOString();
@@ -131,6 +156,7 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
 
   for (let i = 0; i < runs; i++) {
     logger.debug("engine: starting run", { runIndex: i, url: opts.url });
+    visSink.last = 0; // reset visual-settle tracker for this run
     const pageCtx = await adapter.launchPageWithCdp();
     browserVersion = pageCtx.browserVersion || browserVersion;
     browserSource = pageCtx.browserSource;
@@ -294,6 +320,21 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
         frameHandles.push({ frameId: f.frameId, handles });
       }
 
+      // Actively observe past network-idle until the page is genuinely settled — no significant DOM
+      // mutation, no long task, and no new resource for a full settle window — so Full-Load Time
+      // covers the WHOLE load (e.g. hydration/deferred JS that runs after the network goes quiet),
+      // not just up to network-idle. Bounded by maxWait. Only the settle-based endpoints need this;
+      // load-event and network-idle-2 are already resolved by waitForLoadIdle.
+      if (fullLoadConfig.until === "fully-loaded" || fullLoadConfig.until === "visually-complete") {
+        await waitForActivitySettle(
+          pageCtx.rootSession,
+          fullLoadConfig,
+          navStartMs,
+          logger,
+          visualEnabled ? visSink : undefined,
+        );
+      }
+
       const rootFinal = await finalizeAll(rootHandles);
       for (const f of frameHandles) {
         frameResults[f.frameId] = await finalizeAll(f.handles);
@@ -319,12 +360,42 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
       const opportunities: Opportunity[] = renderBlockingOpp ? [renderBlockingOpp] : [];
 
       const transformedMetrics = await applyOnMetric(rootFinal.metrics, runCtx, pluginRuntime);
+
+      let fullLoadResult: FullLoadResult | undefined;
+      if (rootFinal.fullLoadSignals) {
+        const observedUntilMs = Date.now() - navStartMs;
+        fullLoadResult = computeFullLoad(
+          {
+            net: rootFinal.fullLoadSignals.net,
+            dom: rootFinal.fullLoadSignals.dom,
+            cpu: rootFinal.fullLoadSignals.cpu,
+            ...(rootFinal.visChanges ? { vis: rootFinal.visChanges } : {}),
+            subTimeline: {
+              ttfb:
+                rootFinal.fullLoadSignals.subTimeline?.ttfb ?? metricVal(transformedMetrics, "ttfb"),
+              fcp:
+                rootFinal.fullLoadSignals.subTimeline?.fcp ?? metricVal(transformedMetrics, "fcp"),
+              lcp: metricVal(transformedMetrics, "lcp"),
+              domContentLoaded:
+                rootFinal.fullLoadSignals.subTimeline?.domContentLoaded ??
+                metricVal(transformedMetrics, "domContentLoaded"),
+              loadEventEnd:
+                rootFinal.fullLoadSignals.subTimeline?.loadEventEnd ??
+                metricVal(transformedMetrics, "load"),
+            },
+            observedUntilMs,
+          },
+          fullLoadConfig,
+        );
+      }
+
       runReports.push(
         buildRunReport(i, {
           ...rootFinal,
           metrics: transformedMetrics,
           longTasks: mergedLongTasks,
           opportunities,
+          ...(fullLoadResult ? { fullLoad: fullLoadResult } : {}),
         }),
       );
 
@@ -366,6 +437,7 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
   }
 
   const aggregated = aggregateRuns(runReports);
+  const fullLoadReport = aggregateFullLoad(runReports, fullLoadConfig, aggregated);
   const durationMs = Date.now() - startedAtMs;
 
   const reportCtx: ReportCtx = { logger };
@@ -424,6 +496,7 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
     artifacts: {},
     pluginData: { ...pluginRuntime.pluginData },
     ...(reportOpportunities.length > 0 ? { opportunities: reportOpportunities } : {}),
+    ...(fullLoadReport ? { fullLoad: fullLoadReport } : {}),
   };
 
   const trustScore = computeTrustScore(baseReport);
@@ -434,6 +507,21 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
     trustScore,
     ...(fixPlan.length > 0 ? { fixPlan } : {}),
   };
+
+  // Diagnose (hotspots) + remediate (Rx) — post-processing over the trust-scored report,
+  // mirroring computeTrustScore/buildFixPlan. Gated on opts.diagnose/opts.rx.
+  if (diagnoseEnabled) {
+    const hotspots = computeHotspots(report);
+    report = { ...report, hotspots };
+    if (opts.rx === true) {
+      const rx = evaluateRx(report);
+      report = {
+        ...report,
+        recommendations: rx.recommendations,
+        ...(rx.note !== undefined ? { remediationNote: rx.note } : {}),
+      };
+    }
+  }
 
   report = await pluginRuntime.onReport(reportCtx, report);
   await pluginRuntime.teardown();
@@ -503,7 +591,10 @@ async function finalizeAll(handles: ReadonlyArray<CollectorHandle>): Promise<Col
 
 function buildRunReport(
   runIndex: number,
-  rootFinal: CollectorResult & { opportunities?: ReadonlyArray<Opportunity> },
+  rootFinal: CollectorResult & {
+    opportunities?: ReadonlyArray<Opportunity>;
+    fullLoad?: FullLoadResult;
+  },
 ): RunReport {
   const runtime: Record<string, number> = {};
   for (const [name, m] of Object.entries(rootFinal.metrics)) {
@@ -511,10 +602,20 @@ function buildRunReport(
       runtime[name.slice("runtime.".length)] = m.value;
     }
   }
+  // Inject FLT as a first-class metric for non-capped runs so the standard
+  // median/p75/p95/CoV/outlier aggregation pipeline covers it. Capped runs are
+  // excluded from the aggregate (they would skew the median toward maxWait).
+  const metrics =
+    rootFinal.fullLoad && !rootFinal.fullLoad.capped
+      ? {
+          ...rootFinal.metrics,
+          fullLoad: { name: "fullLoad", value: rootFinal.fullLoad.fltMs, unit: "ms" as const },
+        }
+      : rootFinal.metrics;
   const base: RunReport = {
     runIndex,
     cold: runIndex === 0,
-    metrics: rootFinal.metrics,
+    metrics,
     resources: rootFinal.resources,
     longTasks: rootFinal.longTasks,
     meta: {},
@@ -524,10 +625,110 @@ function buildRunReport(
   if (rootFinal.opportunities && rootFinal.opportunities.length > 0) {
     out.opportunities = rootFinal.opportunities;
   }
+  if (rootFinal.fullLoad) out.fullLoad = rootFinal.fullLoad;
+  if (rootFinal.domTopology) out.domTopology = rootFinal.domTopology;
   return out;
 }
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
+
+/**
+ * Block until the page has been quiet (no significant DOM mutation, no long task, no new resource)
+ * for `settleWindowMs`, or `maxWaitMs` elapses. Mirrors the noise floor used by computeFullLoad so
+ * the "settled" decision matches the metric. Network is already idle here (waitForLoadIdle ran);
+ * this catches post-network-idle main-thread/DOM work so FLT covers the entire load.
+ */
+async function waitForActivitySettle(
+  session: CDPSessionLike,
+  cfg: FullLoadConfig,
+  navStartMs: number,
+  logger: Logger,
+  visSink?: FilmstripSink,
+): Promise<void> {
+  const POLL_MS = 150;
+  const floor = cfg.mutationNoiseFloor;
+  const expr = `(function(){var fl=window.__ohmyperfFL||{dom:[],cpu:[]};var F=${String(floor)};var d=0,c=0,r=0;` +
+    `for(var i=0;i<fl.dom.length;i++){if(fl.dom[i].w>=F&&fl.dom[i].t>d)d=fl.dom[i].t;}` +
+    `for(var j=0;j<fl.cpu.length;j++){if(fl.cpu[j].end>c)c=fl.cpu[j].end;}` +
+    `try{var rs=performance.getEntriesByType('resource');for(var k=0;k<rs.length;k++){var e=rs[k].responseEnd||0;if(e>r)r=e;}}catch(_){}` +
+    `return JSON.stringify({last:Math.max(d,c,r),now:performance.now()});})()`;
+  while (Date.now() - navStartMs < cfg.maxWaitMs) {
+    let last = 0;
+    let now = 0;
+    try {
+      const res = (await session.send("Runtime.evaluate", {
+        expression: expr,
+        returnByValue: true,
+        awaitPromise: false,
+      })) as { result?: { value?: unknown } };
+      const v = res.result?.value;
+      if (typeof v === "string") {
+        const parsed = JSON.parse(v) as { last?: number; now?: number };
+        last = typeof parsed.last === "number" ? parsed.last : 0;
+        now = typeof parsed.now === "number" ? parsed.now : 0;
+      }
+    } catch (err) {
+      logger.debug("engine: settle poll failed; finalizing", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
+    // Include the visual-change timeline (filmstrip) so we also wait for visual quiet.
+    const lastActivity = Math.max(last, visSink?.last ?? 0);
+    if (now - lastActivity >= cfg.settleWindowMs) return; // quiet for a full window → settled
+    await new Promise<void>((resolve) => setTimeout(resolve, POLL_MS));
+  }
+}
+
+function metricVal(metrics: Readonly<Record<string, Metric>>, name: string): number | null {
+  const v = metrics[name]?.value;
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+/** Aggregate per-run FLT results into a report-level block (US-4). */
+function aggregateFullLoad(
+  runs: ReadonlyArray<RunReport>,
+  config: FullLoadConfig,
+  aggregated: AggregatedMetrics,
+): FullLoadReport | undefined {
+  const results = runs.map((r) => r.fullLoad).filter((x): x is FullLoadResult => x !== undefined);
+  if (results.length === 0) return undefined;
+
+  const cappedCount = results.filter((r) => r.capped).length;
+  const aggCapped = cappedCount * 2 >= results.length;
+  const pool = aggCapped ? results : results.filter((r) => !r.capped);
+  const effectivePool = pool.length > 0 ? pool : results;
+
+  const fltMs =
+    aggregated["fullLoad"]?.median ??
+    quantile([...effectivePool.map((r) => r.fltMs)].sort((a, b) => a - b), 0.5);
+
+  // Representative run = closest to the aggregated FLT (for sub-timeline + gating distribution).
+  const representative = effectivePool.reduce((best, r) =>
+    Math.abs(r.fltMs - fltMs) < Math.abs(best.fltMs - fltMs) ? r : best,
+  );
+
+  // gatingPhase = modal phase across runs; "mixed" when no single phase dominates.
+  const counts = new Map<string, number>();
+  for (const r of results) counts.set(r.gatingPhase, (counts.get(r.gatingPhase) ?? 0) + 1);
+  let maxCount = 0;
+  for (const c of counts.values()) maxCount = Math.max(maxCount, c);
+  const top = [...counts.entries()].filter(([, c]) => c === maxCount).map(([p]) => p);
+  const gatingPhase = top.length === 1 ? (top[0] as FullLoadReport["gatingPhase"]) : "mixed";
+
+  const out: Mutable<FullLoadReport> = {
+    fltMs,
+    capped: aggCapped,
+    gatingPhase,
+    gatingDistribution: representative.gatingDistribution,
+    subTimeline: { ...representative.subTimeline, fltMs },
+    settleConfig: config,
+  };
+  const aggMetric = aggregated["fullLoad"];
+  if (aggMetric) out.aggregated = aggMetric;
+  if (aggCapped) out.trustReason = "never-settled";
+  return out;
+}
 
 function aggregateOpportunities(runs: ReadonlyArray<RunReport>): ReadonlyArray<Opportunity> {
   const byId = new Map<string, Opportunity>();

@@ -158,6 +158,127 @@ export interface Opportunity {
   }>;
 }
 
+/** Which activity signal was the last to go quiet — i.e. what gated Full-Load Time.
+ * `paint` = the largest/first contentful paint was the last thing to complete. */
+export type GatingPhase = "network" | "main-thread" | "dom" | "paint" | "visual" | "none" | "mixed";
+
+/** Measurement endpoint for Full-Load Time. */
+export type FullLoadUntil = "load-event" | "network-idle-2" | "fully-loaded" | "visually-complete";
+
+export interface FullLoadConfig {
+  readonly until: FullLoadUntil;
+  readonly settleWindowMs: number;
+  readonly maxWaitMs: number;
+  readonly netIdleThreshold: number;
+  readonly mutationNoiseFloor: number;
+  readonly longLivedGraceMs: number;
+  readonly visual: boolean;
+  readonly visualIntervalMs: number;
+  readonly visualDiffEpsilon: number;
+  readonly strictNetwork: boolean;
+}
+
+export interface FullLoadSubTimeline {
+  readonly ttfb: number | null;
+  readonly fcp: number | null;
+  readonly lcp: number | null;
+  readonly domContentLoaded: number | null;
+  readonly loadEventEnd: number | null;
+  readonly networkIdleAt: number | null;
+  readonly lastMutationAt: number | null;
+  readonly lastLongTaskEndAt: number | null;
+  readonly visuallyCompleteAt?: number | null;
+  readonly fltMs: number;
+}
+
+/** Result of the pure `computeFullLoad` settle algorithm for a single run. */
+export interface FullLoadResult {
+  readonly fltMs: number;
+  readonly capped: boolean;
+  readonly gatingPhase: GatingPhase;
+  readonly gatingDistribution: Readonly<Record<string, number>>;
+  readonly subTimeline: FullLoadSubTimeline;
+}
+
+/** Report-level Full-Load Time block (single run, or aggregated when N>1). */
+export interface FullLoadReport extends FullLoadResult {
+  readonly settleConfig: FullLoadConfig;
+  /** Aggregated `fltMs` statistics across runs (median/p75/p95/CoV/outliers). Present when N>1. */
+  readonly aggregated?: AggregatedMetric;
+  /** Reason FLT trust was forced unreliable (e.g. "never-settled" when >=half the runs capped). */
+  readonly trustReason?: string;
+}
+
+// ── Remediation engine (Hotspots + Rx) ───────────────────────────────────────
+
+/** A significant DOM container captured by the dom-topology collector. */
+export interface DomContainer {
+  readonly selector: string;
+  /** tag+class signature of the children (used to detect homogeneous lists/grids). */
+  readonly signature: string;
+  readonly childCount: number;
+  /** subtree node count. */
+  readonly nodeCount: number;
+  /** 0..1 — fraction of the container that is below the fold at load. */
+  readonly offscreenFraction: number;
+  /** 0..1 — how homogeneous the children are (1 = all identical signature). */
+  readonly similarChildrenRatio: number;
+}
+
+export interface DomTopology {
+  readonly totalNodes: number;
+  readonly maxDepth: number;
+  readonly viewport: { readonly width: number; readonly height: number };
+  readonly containers: readonly DomContainer[];
+}
+
+export type HotspotCause = "script" | "layout" | "resource" | "dom-size" | "third-party";
+
+/** A ranked component/region cost contribution to Full-Load Time. */
+export interface Hotspot {
+  readonly selector: string;
+  readonly label: string;
+  readonly costMs: number;
+  readonly bytes: number;
+  readonly nodeCount: number;
+  readonly offscreenFraction: number;
+  readonly gatingPhase: GatingPhase;
+  readonly cause: HotspotCause;
+  readonly evidence?: string;
+}
+
+export type RxRule =
+  | "R1-lazy-media"
+  | "R2-virtualize"
+  | "R3-viewport-only"
+  | "R4-unblock-render"
+  | "R5-split-js"
+  | "R6-defer-hydration"
+  | "R7-fix-thrash"
+  | "R8-offload-3p"
+  | "R9-font-swap"
+  | "R10-trim-unused";
+
+export type RxConfidence = "high" | "medium" | "low";
+
+/** A prescriptive, targeted, impact-estimated remediation. */
+export interface Recommendation {
+  readonly id: string;
+  readonly rule: RxRule;
+  readonly title: string;
+  readonly problem: string;
+  readonly strategy: string;
+  readonly alternativeStrategies: readonly string[];
+  readonly target: { readonly selector?: string; readonly resource?: string };
+  /** Estimated FLT reduction (ms). Bounded by gatingHeadroom — ~0 when off the gating path. */
+  readonly estFltDeltaMs: number;
+  /** Whether this recommendation targets the current FLT gating signal. */
+  readonly gating: boolean;
+  readonly confidence: RxConfidence;
+  readonly howTo: { readonly generic: string; readonly frameworks: Readonly<Record<string, string>> };
+  readonly evidence: string;
+}
+
 export type AuditStatus = "pass" | "fail" | "na";
 
 export interface AuditResult {
@@ -303,6 +424,10 @@ export interface RunReport {
     readonly detachedNodes: number;
   };
   readonly meta: { readonly servedBy?: "service-worker" | "network" };
+  /** Per-run Full-Load Time result (settle-based, not LCP). Additive-optional. */
+  readonly fullLoad?: FullLoadResult;
+  /** Per-run DOM topology snapshot (only when opts.diagnose). Additive-optional. */
+  readonly domTopology?: DomTopology;
 }
 
 export interface Report {
@@ -327,6 +452,14 @@ export interface Report {
   readonly trustScore?: TrustScore;
   /** Ranked, deduped, ROI-scored list of actionable fixes. Each entry corresponds to a patch the agent can produce via `propose_patch`. Order is `rank` ascending (rank 1 = highest ROI). */
   readonly fixPlan?: ReadonlyArray<FixPlanEntry>;
+  /** Full-Load Time: when the page is truly settled (network + DOM + main thread + optional pixels), not LCP. Additive-optional. */
+  readonly fullLoad?: FullLoadReport;
+  /** Ranked component/region cost contributions (only when opts.diagnose). Additive-optional. */
+  readonly hotspots?: readonly Hotspot[];
+  /** Prescriptive remediations, ranked by estimated FLT impact (only when opts.rx). Additive-optional. */
+  readonly recommendations?: readonly Recommendation[];
+  /** Set when recommendations are trust-degraded (e.g. unreliable measurement) — a re-measure banner. */
+  readonly remediationNote?: string;
 }
 
 export interface EmulationConfig {
@@ -512,6 +645,12 @@ export interface MeasureOptions {
     readonly recalibrate?: boolean;
   };
   readonly collectTrace?: boolean;
+  /** Full-Load Time settle configuration. Partial overrides merge over FULL_LOAD_DEFAULTS. */
+  readonly fullLoad?: Partial<FullLoadConfig>;
+  /** Capture DOM topology + compute component hotspots. */
+  readonly diagnose?: boolean;
+  /** Compute prescriptive remediations (implies diagnose). */
+  readonly rx?: boolean;
   readonly syntheticInteraction?:
     | false
     | "auto-click"

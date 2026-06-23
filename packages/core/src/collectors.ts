@@ -1,11 +1,28 @@
+import type { CpuInterval, DomBatch, NetRequest, VisChange } from "./full-load.js";
 import type {
   CDPSessionLike,
+  DomTopology,
   DriverCapability,
   Logger,
   LongTask,
   Metric,
   Resource,
 } from "./types.js";
+
+/** Raw Full-Load activity streams produced by the full-load collector (root frame only). */
+export interface FullLoadSignals {
+  readonly net: readonly NetRequest[];
+  readonly dom: readonly DomBatch[];
+  readonly cpu: readonly CpuInterval[];
+  readonly vis?: readonly VisChange[];
+  /** Navigation-timing-sourced checkpoints (more reliable than lifecycle events). */
+  readonly subTimeline?: {
+    readonly ttfb: number | null;
+    readonly fcp: number | null;
+    readonly domContentLoaded: number | null;
+    readonly loadEventEnd: number | null;
+  };
+}
 
 export interface CollectorContext {
   readonly logger: Logger;
@@ -21,6 +38,12 @@ export interface CollectorResult {
   readonly resources: readonly Resource[];
   readonly available: boolean;
   readonly reason?: string;
+  /** Full-Load activity streams (set only by the full-load collector on the root frame). */
+  readonly fullLoadSignals?: FullLoadSignals;
+  /** DOM topology snapshot (set only by the dom-topology collector on the root frame, when diagnose is on). */
+  readonly domTopology?: DomTopology;
+  /** Visual-change timeline (set only by the filmstrip collector on the root frame, when --filmstrip is on). */
+  readonly visChanges?: readonly VisChange[];
 }
 
 export interface CollectorHandle {
@@ -65,12 +88,18 @@ export function mergeCollectorResults(results: readonly CollectorResult[]): Coll
     }
   }
 
+  const fullLoadSignals = results.find((r) => r.fullLoadSignals)?.fullLoadSignals;
+  const domTopology = results.find((r) => r.domTopology)?.domTopology;
+  const visChanges = results.find((r) => r.visChanges)?.visChanges;
   const merged: CollectorResult = {
     metrics,
     longTasks,
     resources,
     available,
     ...(reasons.length > 0 ? { reason: reasons.join("; ") } : {}),
+    ...(fullLoadSignals ? { fullLoadSignals } : {}),
+    ...(domTopology ? { domTopology } : {}),
+    ...(visChanges ? { visChanges } : {}),
   };
   return merged;
 }
