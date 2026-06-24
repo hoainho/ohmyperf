@@ -1,11 +1,13 @@
 import type { CpuInterval, DomBatch, NetRequest, VisChange } from "./full-load.js";
 import type {
   CDPSessionLike,
+  ConsoleMessage,
   DomTopology,
   DriverCapability,
   Logger,
   LongTask,
   Metric,
+  PageError,
   Resource,
 } from "./types.js";
 
@@ -44,6 +46,10 @@ export interface CollectorResult {
   readonly domTopology?: DomTopology;
   /** Visual-change timeline (set only by the filmstrip collector on the root frame, when --filmstrip is on). */
   readonly visChanges?: readonly VisChange[];
+  /** Console messages (set only by the console collector on the root frame). */
+  readonly consoleMessages?: readonly ConsoleMessage[];
+  /** Uncaught JS errors / unhandled rejections (set only by the error collector on the root frame). */
+  readonly pageErrors?: readonly PageError[];
 }
 
 export interface CollectorHandle {
@@ -91,6 +97,8 @@ export function mergeCollectorResults(results: readonly CollectorResult[]): Coll
   const fullLoadSignals = results.find((r) => r.fullLoadSignals)?.fullLoadSignals;
   const domTopology = results.find((r) => r.domTopology)?.domTopology;
   const visChanges = results.find((r) => r.visChanges)?.visChanges;
+  const consoleMessages = results.find((r) => r.consoleMessages)?.consoleMessages;
+  const pageErrors = results.find((r) => r.pageErrors)?.pageErrors;
   const merged: CollectorResult = {
     metrics,
     longTasks,
@@ -100,6 +108,8 @@ export function mergeCollectorResults(results: readonly CollectorResult[]): Coll
     ...(fullLoadSignals ? { fullLoadSignals } : {}),
     ...(domTopology ? { domTopology } : {}),
     ...(visChanges ? { visChanges } : {}),
+    ...(consoleMessages ? { consoleMessages } : {}),
+    ...(pageErrors ? { pageErrors } : {}),
   };
   return merged;
 }

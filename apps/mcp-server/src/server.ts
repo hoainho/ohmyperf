@@ -14,8 +14,10 @@ import {
   diffReports,
   formatDiff,
   runEngine,
+  selectLargestResources,
   type FullLoadConfig,
   type Opportunity,
+  type PerfSummary,
   type Report,
 } from "@ohmyperf/core";
 import { createPlaywrightAdapter } from "@ohmyperf/driver-playwright";
@@ -92,7 +94,11 @@ export type InsightName =
   | "frames"
   | "full-load-breakdown"
   | "hotspots"
-  | "remediation";
+  | "remediation"
+  | "network"
+  | "javascript"
+  | "errors"
+  | "perf-summary";
 
 const INSIGHT_NAMES: readonly InsightName[] = [
   "lcp-breakdown",
@@ -106,6 +112,10 @@ const INSIGHT_NAMES: readonly InsightName[] = [
   "full-load-breakdown",
   "hotspots",
   "remediation",
+  "network",
+  "javascript",
+  "errors",
+  "perf-summary",
 ] as const;
 
 export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
@@ -211,7 +221,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "analyze_report",
         description:
-          "Drill into ONE specific slice of a saved report — returns a compact summary + the relevant JSON subset, NOT the full 50KB+ report. **Use this whenever a single insight is needed** — far cheaper than reading the full report via `ReadResource`. The 11 `insightName` values: `lcp-breakdown` (median/p75/cov + element attribution), `render-blocking` (top N by response time), `long-tasks` (≥50ms tasks sorted by duration), `third-parties` (vendor breakdown — requires `measure` with `plugins:['cwv','axe','third-parties']`), `opportunities` (top N by wastedMs), `audits` (failed first), `resources` (top N by transfer size), `frames` (frame tree), `full-load-breakdown` (settle-based Full-Load Time, gating phase, gating distribution, sub-timeline incl. visuallyCompleteAt — present for every v0.2.0+ report), `hotspots` (ranked component/region cost table — requires `measure` with `diagnose:true`), `remediation` (prescriptive ranked fixes with est. FLT impact + gating — requires `measure` with `rx:true`). Insights that need data the report lacks degrade gracefully (non-throwing slice with a re-measure hint). For a human-readable summary of the whole report use `generate_markdown_summary`; for a printable deck use `generate_deck`. Throws on unknown insightName.",
+          "Drill into ONE specific slice of a saved report — returns a compact summary + the relevant JSON subset, NOT the full 50KB+ report. **Use this whenever a single insight is needed** — far cheaper than reading the full report via `ReadResource`. The 15 `insightName` values: `lcp-breakdown` (median/p75/cov + element attribution), `render-blocking` (top N by response time), `long-tasks` (≥50ms tasks sorted by duration), `third-parties` (vendor breakdown — requires `measure` with `plugins:['cwv','axe','third-parties']`), `opportunities` (top N by wastedMs), `audits` (failed first), `resources` (top N by transfer size), `frames` (frame tree), `full-load-breakdown` (settle-based Full-Load Time, gating phase, gating distribution, sub-timeline incl. visuallyCompleteAt — present for every v0.2.0+ report), `hotspots` (ranked component/region cost table — requires `measure` with `diagnose:true`), `remediation` (prescriptive ranked fixes with est. FLT impact + gating — requires `measure` with `rx:true`), `perf-summary` (the FULL comprehensive rollup: timing + network + javascript + main-thread + errors + stability — present for every v0.3.0+ report), `network` (requests/bytes by type, cache, 1st/3rd-party, render-blocking, failed requests), `javascript` (JS transfer bytes, parse/compile + execution time, main-thread blocking), `errors` (JS errors + console error/warning counts + failed requests, first-party attributed). That is **15** values total. Insights that need data the report lacks degrade gracefully (non-throwing slice with a re-measure hint). For a human-readable summary of the whole report use `generate_markdown_summary`; for a printable deck use `generate_deck`. Throws on unknown insightName.",
         inputSchema: {
           type: "object",
           required: ["insightName"],
@@ -1379,9 +1389,9 @@ export function extractInsight(report: Report, name: InsightName, limit: number)
     }
     case "resources": {
       const all = report.runs[0]?.resources ?? [];
-      const top = [...all]
-        .sort((a, b) => b.transferSizeBytes - a.transferSizeBytes)
-        .slice(0, limit)
+      // Shared selector with `perfSummary.network.largestResources` (same sort+slice) so the
+      // two surfaces never disagree on the resource ranking.
+      const top = selectLargestResources(all, limit)
         .map((r) => ({
           url: r.url,
           mimeType: r.mimeType,
@@ -1475,7 +1485,59 @@ export function extractInsight(report: Report, name: InsightName, limit: number)
         },
       };
     }
+    case "perf-summary": {
+      const ps = report.perfSummary;
+      if (!ps) {
+        return { summary: "No perf summary (report predates v0.3.0) — rerun `measure`.", data: null };
+      }
+      return {
+        summary: [
+          `Full-Load ${ps.timing.fullLoadMs !== null ? `${ps.timing.fullLoadMs.toFixed(0)}ms` : "n/a"} (gating: ${ps.timing.gatingPhase ?? "n/a"})`,
+          `Network: ${String(ps.network.totalRequests)} reqs, ${kb(ps.network.totalTransferBytes)} (1P ${kb(ps.network.firstPartyBytes)} / 3P ${kb(ps.network.thirdPartyBytes)})`,
+          `JavaScript: ${kb(ps.javascript.transferBytes)}, main-thread blocking ${String(ps.javascript.mainThreadBlockingMs)}ms`,
+          `Errors: ${String(ps.errors.jsErrorCount)} JS · ${String(ps.errors.consoleErrorCount)} console-err · ${String(ps.errors.consoleWarningCount)} warn · ${String(ps.errors.failedRequestCount)} failed-req (${String(ps.errors.firstPartyErrorCount)} first-party)`,
+        ].join("\n"),
+        data: ps,
+      };
+    }
+    case "network": {
+      const n = report.perfSummary?.network;
+      if (!n) {
+        return { summary: "No network summary (report predates v0.3.0) — rerun `measure`.", data: null };
+      }
+      return {
+        summary: `${String(n.totalRequests)} request(s), ${kb(n.totalTransferBytes)} · ${String(n.renderBlockingCount)} render-blocking · ${String(n.failedRequestCount)} failed · 1P ${kb(n.firstPartyBytes)} / 3P ${kb(n.thirdPartyBytes)}`,
+        data: n,
+      };
+    }
+    case "javascript": {
+      const j = report.perfSummary?.javascript;
+      if (!j) {
+        return { summary: "No JavaScript summary (report predates v0.3.0) — rerun `measure`.", data: null };
+      }
+      return {
+        summary: `JS ${kb(j.transferBytes)} (${String(j.requestCount)} file(s)) · exec ${j.executionMs !== null ? `${j.executionMs.toFixed(0)}ms` : "n/a"} · parse/compile ${j.parseCompileMs !== null ? `${j.parseCompileMs.toFixed(0)}ms` : "n/a"} · main-thread blocking ${String(j.mainThreadBlockingMs)}ms`,
+        data: j,
+      };
+    }
+    case "errors": {
+      const e = report.perfSummary?.errors;
+      if (!e) {
+        return { summary: "No errors summary (report predates v0.3.0) — rerun `measure`.", data: null };
+      }
+      return {
+        summary: `${String(e.jsErrorCount)} JS error(s) · ${String(e.consoleErrorCount)} console error(s) · ${String(e.consoleWarningCount)} warning(s) · ${String(e.failedRequestCount)} failed request(s) (${String(e.firstPartyErrorCount)} first-party)`,
+        data: e,
+      };
+    }
   }
+}
+
+/** Format bytes as a compact KB/MB string for insight summaries. */
+function kb(bytes: number): string {
+  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${String(bytes)} B`;
 }
 
 export interface PromptMessage {
@@ -1752,6 +1814,15 @@ export function summarize(report: Report, savedPath: string): string {
     const fl = report.fullLoad;
     lines.push(
       `Full-Load: ${fl.fltMs.toFixed(0)}ms (gating: ${fl.gatingPhase}${fl.capped ? ", capped" : ""}) — settle-based, not LCP`,
+    );
+  }
+  if (report.perfSummary) {
+    const ps = report.perfSummary;
+    lines.push(
+      `Network: ${String(ps.network.totalRequests)} reqs, ${kb(ps.network.totalTransferBytes)} (JS ${kb(ps.javascript.transferBytes)}, ${String(ps.network.renderBlockingCount)} render-blocking, ${String(ps.network.failedRequestCount)} failed)`,
+    );
+    lines.push(
+      `Errors: ${String(ps.errors.jsErrorCount)} JS · ${String(ps.errors.consoleErrorCount)} console-err · ${String(ps.errors.consoleWarningCount)} warn (${String(ps.errors.firstPartyErrorCount)} first-party)`,
     );
   }
   if (report.hotspots && report.hotspots.length > 0) {

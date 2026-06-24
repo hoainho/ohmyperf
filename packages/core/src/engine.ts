@@ -14,6 +14,8 @@ import { longTaskCollectorFactory } from "./collectors-impl/longtask-collector.j
 import { computeRenderBlockingOpportunity } from "./collectors-impl/render-blocking.js";
 import { resourceCollectorFactory } from "./collectors-impl/resource-collector.js";
 import { fullLoadCollectorFactory } from "./collectors-impl/full-load-collector.js";
+import { consoleCollectorFactory } from "./collectors-impl/console-collector.js";
+import { errorCollectorFactory } from "./collectors-impl/error-collector.js";
 import { domTopologyCollectorFactory } from "./collectors-impl/dom-topology-collector.js";
 import {
   createFilmstripCollectorFactory,
@@ -23,6 +25,7 @@ import { createTraceCollector } from "./collectors-impl/trace-collector.js";
 import { computeFullLoad, FULL_LOAD_DEFAULTS } from "./full-load.js";
 import { computeHotspots } from "./hotspots.js";
 import { evaluateRx } from "./rx.js";
+import { computePerfSummary } from "./perf-summary.js";
 import type { FullLoadConfig, FullLoadReport, FullLoadResult } from "./types.js";
 import { applyEmulation, calibrate, type CalibrationResult } from "./calibration.js";
 import {
@@ -95,6 +98,8 @@ export const DEFAULT_COLLECTOR_FACTORIES: ReadonlyArray<CollectorFactory> = [
   longTaskCollectorFactory,
   resourceCollectorFactory,
   fullLoadCollectorFactory,
+  consoleCollectorFactory,
+  errorCollectorFactory,
 ];
 
 const DEFAULT_RUNS = 5;
@@ -470,6 +475,24 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
       ...res,
       originClass: classifyOrigin(res.url, primaryOrigin, orgDomains),
     })),
+    // Attribute console/errors to first/third-party by their source URL (new wiring; the
+    // `...r` spread already preserves them, this layer adds originClass).
+    ...(r.consoleMessages
+      ? {
+          consoleMessages: r.consoleMessages.map((m) => ({
+            ...m,
+            ...(m.url ? { originClass: classifyOrigin(m.url, primaryOrigin, orgDomains) } : {}),
+          })),
+        }
+      : {}),
+    ...(r.pageErrors
+      ? {
+          pageErrors: r.pageErrors.map((e) => ({
+            ...e,
+            ...(e.url ? { originClass: classifyOrigin(e.url, primaryOrigin, orgDomains) } : {}),
+          })),
+        }
+      : {}),
   }));
 
   const servability = classifyServability({
@@ -524,6 +547,9 @@ export async function runEngine(input: EngineRunOptions): Promise<Report> {
   }
 
   report = await pluginRuntime.onReport(reportCtx, report);
+  // Comprehensive perf rollup — computed every run (not gated), after plugins so it reflects
+  // plugin-added audits (e.g. third-parties). Pure derivation over the final report.
+  report = { ...report, perfSummary: computePerfSummary(report) };
   await pluginRuntime.teardown();
   return report;
 }
@@ -589,7 +615,7 @@ async function finalizeAll(handles: ReadonlyArray<CollectorHandle>): Promise<Col
   return mergeCollectorResults(results);
 }
 
-function buildRunReport(
+export function buildRunReport(
   runIndex: number,
   rootFinal: CollectorResult & {
     opportunities?: ReadonlyArray<Opportunity>;
@@ -627,6 +653,8 @@ function buildRunReport(
   }
   if (rootFinal.fullLoad) out.fullLoad = rootFinal.fullLoad;
   if (rootFinal.domTopology) out.domTopology = rootFinal.domTopology;
+  if (rootFinal.consoleMessages) out.consoleMessages = rootFinal.consoleMessages;
+  if (rootFinal.pageErrors) out.pageErrors = rootFinal.pageErrors;
   return out;
 }
 

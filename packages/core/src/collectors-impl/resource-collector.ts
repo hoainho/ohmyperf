@@ -165,6 +165,12 @@ export const resourceCollectorFactory: CollectorFactory = {
         const resources: Resource[] = [];
         for (const entry of inFlight.values()) {
           if (entry.failed && entry.failed.canceled) continue;
+          // Genuinely-failed request that never produced a response (blocked, DNS, CORS):
+          // surface it as a failed resource instead of silently dropping it.
+          if (entry.failed && (!entry.response || entry.responseAt === undefined)) {
+            resources.push(buildFailedResource(entry));
+            continue;
+          }
           if (!entry.response || entry.responseAt === undefined) continue;
           resources.push(buildResource(entry));
         }
@@ -213,6 +219,8 @@ function buildResource(entry: InFlight): Resource {
     decodedSizeBytes,
     renderBlocking,
     cacheHit,
+    ...(typeof response.status === "number" ? { status: response.status } : {}),
+    ...(entry.failed ? { failed: true, failureText: entry.failed.errorText } : {}),
   };
 
   if (timing) {
@@ -227,6 +235,22 @@ function buildResource(entry: InFlight): Resource {
     };
   }
   return result;
+}
+
+function buildFailedResource(entry: InFlight): Resource {
+  return {
+    url: entry.url,
+    mimeType: "",
+    requestMs: 0,
+    responseMs: 0,
+    transferSizeBytes: 0,
+    encodedSizeBytes: 0,
+    decodedSizeBytes: 0,
+    renderBlocking: entry.willBeRenderBlocking,
+    cacheHit: false,
+    failed: true,
+    failureText: entry.failed?.errorText ?? "",
+  };
 }
 
 function nonNegativeDelta(end: number, start: number): number | undefined {

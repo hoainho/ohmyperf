@@ -116,4 +116,24 @@ describe("renderMarkdown()", () => {
     const md = renderMarkdown(makeReport());
     expect(md).not.toContain("### Plugin data");
   });
+
+  it("renders the Comprehensive perf section when perfSummary is present", () => {
+    const perfSummary = {
+      timing: { ttfbMs: 120, fcpMs: 800, lcpMs: 1500, dclMs: 600, loadEventMs: 1800, networkIdleMs: 2000, fullLoadMs: 2100, gatingPhase: "main-thread" },
+      network: { totalRequests: 42, totalTransferBytes: 1_200_000, byType: { js: { count: 10, bytes: 800_000 } }, cachedRequests: 5, cachedBytes: 40_000, firstPartyBytes: 900_000, thirdPartyBytes: 300_000, renderBlockingCount: 4, largestResources: [], slowestRequests: [], failedRequestCount: 2, failedRequests: [] },
+      javascript: { transferBytes: 800_000, requestCount: 10, parseCompileMs: 14, executionMs: 126, mainThreadBlockingMs: 320, topBlockingScripts: [] },
+      mainThread: { totalTaskMs: 720, longTaskCount: 8, totalBlockingMs: 250, layoutMs: 9, recalcStyleMs: 11 },
+      errors: { jsErrorCount: 2, jsErrors: [], consoleErrorCount: 5, consoleWarningCount: 3, consoleSamples: [], firstPartyErrorCount: 1, failedRequestCount: 2 },
+      stability: { cls: 0.02, thirdPartyCount: 2, thirdPartyMainThreadMs: 320, trust: "high", servability: "real-page" },
+    };
+    const md = renderMarkdown(makeReport({ perfSummary } as unknown as Partial<Report>));
+    expect(md).toContain("### Comprehensive perf");
+    expect(md).toContain("full-load 2100ms (gated: main-thread)");
+    expect(md).toContain("**Errors**: 2 JS");
+    expect(md).toContain("**JavaScript**");
+  });
+
+  it("omits the Comprehensive perf section when perfSummary is absent (byte-stable default)", () => {
+    expect(renderMarkdown(makeReport())).not.toContain("### Comprehensive perf");
+  });
 });

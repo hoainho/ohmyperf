@@ -118,6 +118,44 @@ export function renderMarkdown(report: Report, opts: MarkdownReporterOptions = {
   }
   lines.push("");
 
+  if (report.perfSummary) {
+    const ps = report.perfSummary;
+    lines.push("### Comprehensive perf");
+    lines.push("");
+    if (ps.timing.fullLoadMs !== null) {
+      lines.push(
+        `- **Load**: full-load ${ps.timing.fullLoadMs.toFixed(0)}ms${ps.timing.gatingPhase ? ` (gated: ${ps.timing.gatingPhase})` : ""}`,
+      );
+    }
+    const byType = ["js", "css", "image", "font"]
+      .filter((k) => ps.network.byType[k])
+      .map((k) => `${k.toUpperCase()} ${formatBytes(ps.network.byType[k]!.bytes)}`)
+      .join(" / ");
+    lines.push(
+      `- **Network**: ${String(ps.network.totalRequests)} requests · ${formatBytes(ps.network.totalTransferBytes)}${byType ? ` · ${byType}` : ""} · ${String(ps.network.renderBlockingCount)} render-blocking · 1P ${formatBytes(ps.network.firstPartyBytes)} / 3P ${formatBytes(ps.network.thirdPartyBytes)}`,
+    );
+    const jsBits = [
+      ps.javascript.executionMs !== null ? `exec ${ps.javascript.executionMs.toFixed(0)}ms` : null,
+      ps.javascript.parseCompileMs !== null ? `parse/compile ${ps.javascript.parseCompileMs.toFixed(0)}ms` : null,
+      `main-thread blocking ${String(ps.javascript.mainThreadBlockingMs)}ms`,
+    ].filter((x): x is string => x !== null);
+    lines.push(
+      `- **JavaScript**: ${formatBytes(ps.javascript.transferBytes)} (${String(ps.javascript.requestCount)} files) · ${jsBits.join(" · ")}`,
+    );
+    lines.push(
+      `- **Main thread**: TBT ${String(ps.mainThread.totalBlockingMs)}ms · ${String(ps.mainThread.longTaskCount)} long task(s)${ps.mainThread.layoutMs !== null ? ` · layout ${ps.mainThread.layoutMs.toFixed(0)}ms` : ""}`,
+    );
+    lines.push(
+      `- **Errors**: ${String(ps.errors.jsErrorCount)} JS · ${String(ps.errors.consoleErrorCount)} console-err · ${String(ps.errors.consoleWarningCount)} warn · ${String(ps.errors.failedRequestCount)} failed-req (${String(ps.errors.firstPartyErrorCount)} first-party)`,
+    );
+    if (ps.stability.thirdPartyCount > 0) {
+      lines.push(
+        `- **Third-party**: ${String(ps.stability.thirdPartyCount)} entit${ps.stability.thirdPartyCount === 1 ? "y" : "ies"} · ${String(ps.stability.thirdPartyMainThreadMs)}ms main-thread`,
+      );
+    }
+    lines.push("");
+  }
+
   if (report.audits.length > 0) {
     lines.push("### Audits");
     lines.push("");
