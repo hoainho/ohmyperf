@@ -1,6 +1,6 @@
 # `@ohmyperf/mcp-server`
 
-[MCP](https://modelcontextprotocol.io/) server for [ohmyperf](https://github.com/hoainho/ohmyperf) — exposes real-machine, real-browser web performance measurement to AI coding agents (Claude in OpenCode, Cursor, GitHub Copilot, etc.) as **12 tools** and **7 prompts** (v0.1.0; **17 tools** when v0.2.0 ships).
+[MCP](https://modelcontextprotocol.io/) server for [ohmyperf](https://github.com/hoainho/ohmyperf) — exposes real-machine, real-browser web performance measurement to AI coding agents (Claude in OpenCode, Cursor, GitHub Copilot, etc.) as **17 tools** and **8 prompts**.
 
 [![ohmyperf MCP server](https://glama.ai/mcp/servers/hoainho/ohmyperf/badges/score.svg)](https://glama.ai/mcp/servers/hoainho/ohmyperf)
 [![npm](https://img.shields.io/npm/v/@ohmyperf/mcp-server?label=%40ohmyperf%2Fmcp--server&color=cb3837)](https://www.npmjs.com/package/@ohmyperf/mcp-server)
@@ -75,26 +75,31 @@ Requires Node ≥ 22. Playwright Chromium is downloaded on first measurement (~1
 
 ## What the agent gets
 
-### 12 MCP tools
+### 17 MCP tools
 
 | Tool | Purpose |
 |---|---|
-| `measure` | Measure a URL with Playwright + CDP. Returns full Report JSON (CWV, audits, frame tree, resources). `collectTrace=true` adds long-task / render-blocking attribution. |
+| `measure` | Measure a URL with Playwright + CDP. Returns full Report JSON (CWV, audits, frame tree, resources, `perfSummary`). `collectTrace=true` adds long-task / render-blocking attribution. Passive console + error CDP collectors run by default. |
 | `track_url` | **Longitudinal monitoring (ohmyperf-only)**. Measure + append to local NDJSON time series; returns trend verdict per metric. |
 | `find_regression_cause` | **Causal attribution (ohmyperf-only)**. Compares two reports, returns ranked hypotheses (new render-blocking, grown assets, new long-tasks, new third-parties). |
 | `diff` | Mann-Whitney U significance test between two `report.json` files. |
 | `diff_resources` | Same as `diff` but accepts `ohmyperf://reports/<file>.json` URIs. |
-| `enforce_budget` | **Contract-as-code (ohmyperf-only)**. Measure + evaluate against budget JSON; returns `PASS`/`FAIL` + exit code. |
-| `analyze_report` | Drill into one insight slice from a saved report (lcp-breakdown, long-tasks, third-parties, etc.) without dumping 50 KB JSON. |
+| `enforce_budget` | **Contract-as-code (ohmyperf-only)**. Measure + evaluate against budget JSON; trust-gated (exit codes 0 / 12 / 13, where 13 = gated by low trust score). |
+| `analyze_report` | Drill into one of 15 insight slices from a saved report (lcp-breakdown / render-blocking / long-tasks / third-parties / opportunities / audits / resources / frames / full-load-breakdown / hotspots / remediation / perf-summary / network / javascript / errors) without dumping 50 KB JSON. |
 | `list_runs` | List saved reports in `~/.ohmyperf-mcp/reports/`. |
 | `list_styles` | List the 4 brand styles (calibre / linear-app / stripe / vercel) with manifest metadata. |
 | `generate_html_report` | Render a saved report as a single-file HTML viewer. Writes to disk + returns path (avoids overflowing MCP response budgets). |
 | `generate_deck` | Render a saved report as a multi-slide HTML presentation. |
 | `generate_markdown_summary` | ~2 KB PR-comment-friendly Markdown of a saved report. |
+| `propose_patch` | **Closed fix loop — step 1**. Returns structured `{ archetype, url, search, replace, rationale, expectedImpactMs, confidence }[]` patches an agent can apply directly. Trust-gated. |
+| `verify_fix` | **Closed fix loop — step 2**. Re-measures a candidate URL + Mann-Whitney U diff vs baseline; verdict `✅ no regression` / `❌ REGRESSION DETECTED`. Trust-gated. |
+| `get_fix_plan` | Precomputed ranked, ROI-scored `fixPlan` slice — saves the agent parsing the full 50 KB+ report. |
+| `get_trust_score` | `trustScore.overall` + per-metric verdicts + `recommendedAction` so agents skip noisy measurements before acting. |
+| `get_servability` | `meta.servability` classification — `real-page` / `bot-challenge-suspected` / `error-page` / `timeout-partial` / `unknown` — so agents don't gate CI on a Cloudflare interstitial. |
 
-### 7 MCP prompts
+### 8 MCP prompts
 
-`diagnose_report`, `compare_runs`, `suggest_fixes`, `audit_third_parties`, `check_budget`, `investigate_regression`, `monitor_trend` — guided multi-tool flows for diagnosis, regression investigation, and longitudinal monitoring.
+`diagnose_report`, `compare_runs`, `suggest_fixes`, `audit_third_parties`, `check_budget`, `investigate_regression`, `monitor_trend`, `measure_and_diagnose` — guided multi-tool flows for diagnosis, regression investigation, longitudinal monitoring, and one-shot measure + triage.
 
 ## Storage
 

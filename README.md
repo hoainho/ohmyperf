@@ -45,11 +45,12 @@ $ npx -y @ohmyperf/cli@latest run https://example.com --runs 2 --format json
 [ohmyperf] INFO wrote /path/to/ohmyperf-out/report.json
 ```
 
-The full [`report.json`](packages/core/src/types.ts) is what LLM agents see — including (v0.2.0, pending publish):
+The full [`report.json`](packages/core/src/types.ts) is what LLM agents see — including:
 
 - `Report.trustScore` — overall + per-metric `{level, sampleConfidence, effectConfidence, recommendedAction}`
 - `Report.fixPlan` — ranked, deduped, ROI-scored patches with `applicability: first-party | third-party-cannot-apply`
 - `Report.meta.servability` — `real-page | bot-challenge-suspected | error-page | timeout-partial | unknown`
+- `Report.perfSummary` — the full perf picture in 6 groups: timing (Full-Load Time, not just LCP), network (bytes by type, cache, 1st/3rd-party split, render-blocking, failed requests), javascript (transfer, parse/compile + execution, main-thread blocking), main-thread (TBT, long tasks, layout), errors (JS errors + console warnings/errors), stability (CLS, third-party, trust, servability)
 - Every `Resource` tagged with `originClass: same-origin | same-site | same-org | cross-site`
 
 CoV 25% on 2 runs (above 20% noise floor) → `trustScore: low` → agent's `recommendedAction: "rerun with --runs 10 or --mode ci-stable before drawing budget conclusions"`. Honest about its own variance, not vibes.
@@ -60,7 +61,7 @@ CoV 25% on 2 runs (above 20% noise floor) → `trustScore: low` → agent's `rec
 |---|---|---|
 | **Runs on** | Synthetic CPU in a Google datacenter | Your actual hardware |
 | **Cross-origin iframes** | Network-only (opaque inside) | Per-frame CDPSession (~99% coverage) |
-| **Agent-callable** | None | MCP server, 16 tools |
+| **Agent-callable** | None | MCP server, 17 tools |
 | **Statistical proof of fix** | Threshold gates (flake-prone) | Mann-Whitney U, α=0.05, per-metric noise floors |
 | **First-party vs CDN** | Manual eyeballing | `originClass` + `same-org` tier for org-owned CDNs |
 | **Bot challenge detection** | Treats Cloudflare interstitials as real pages | `servability: bot-challenge-suspected` |
@@ -97,7 +98,7 @@ Add to your MCP client config (Claude Desktop example):
 }
 ```
 
-Then your LLM has 16 tools available: `measure`, `propose_patch`, `verify_fix`, `get_fix_plan`, `get_trust_score`, `get_servability`, `diff`, `list_reports`, and more. Tested with Claude, OpenCode, Cursor, Cline.
+Then your LLM has 17 tools available: `measure`, `propose_patch`, `verify_fix`, `get_fix_plan`, `get_trust_score`, `get_servability`, `diff`, `list_runs`, and more. Tested with Claude, OpenCode, Cursor, Cline.
 
 ## Architecture
 
@@ -111,7 +112,7 @@ Then your LLM has 16 tools available: `measure`, `propose_patch`, `verify_fix`, 
         │
         ├──► CLI                 npx -y @ohmyperf/cli run <url>
         ├──► npm SDK             import { runEngine } from "@ohmyperf/core"
-        ├──► MCP server          12 tools + 7 prompts (v0.1.0) — 17 tools in v0.2.0 [Unreleased]
+        ├──► MCP server          17 tools + 8 prompts (v0.3.0)
         ├──► Chrome extension    click toolbar icon → measure current tab
         ├──► VSCode extension    Cmd+Shift+P → OhMyPerf: Measure URL
         ├──► Website             hoainho.github.io/ohmyperf — drop report.json on /viewer
@@ -120,7 +121,7 @@ Then your LLM has 16 tools available: `measure`, `propose_patch`, `verify_fix`, 
         └──► Fixers SDK          archetype registry + proposePatches()
 ```
 
-**Status**: v0.1.0 on npm. v0.2.0 ([issue #7](https://github.com/hoainho/ohmyperf/issues/7)) ships the agent fix loop + LLM-first signals + 2 new packages, pending credential refresh.
+**Status**: v0.3.0 current release. Ships the closed agent fix loop (`propose_patch` → `verify_fix`), comprehensive `perfSummary` with console/error capture, trust-gated budget enforcement, and 17 tools + 8 prompts.
 
 ## Why OhMyPerf
 
@@ -146,10 +147,10 @@ Then your LLM has 16 tools available: `measure`, `propose_patch`, `verify_fix`, 
 | 3 | **Chrome extension** | [`apps/extension-chrome/`](apps/extension-chrome/) | Load unpacked → click toolbar icon |
 | 4 | **Website (SPA)** | [`apps/website/`](apps/website/) · spec [`measurement-spa`](openspec/specs/measurement-spa/spec.md) | `pnpm --filter @ohmyperf/website dev` → measure at `/measure`, view at `/viewer`, history at `/report`. Static export to CF Pages. |
 | 5 | **VSCode extension** | [`apps/ide-vscode/`](apps/ide-vscode/) | `Cmd+Shift+P` → `OhMyPerf: Measure URL` |
-| 6 | **MCP server** | [`apps/mcp-server/`](apps/mcp-server/) | 14 tools incl. `measure`, `propose_patch` (v0.2.0), `verify_fix` (v0.2.0) |
+| 6 | **MCP server** | [`apps/mcp-server/`](apps/mcp-server/) | 17 tools + 8 prompts incl. `measure`, `propose_patch`, `verify_fix`, `get_fix_plan`, `get_trust_score`, `get_servability` |
 | 7 | **Share-server** | [`packages/share-server/`](packages/share-server/) | Cloudflare Workers or `node dist/node.js` |
-| 8 | **ESLint plugin** *(v0.2.0)* | [`@ohmyperf/eslint-plugin`](packages/eslint-plugin/) | `npm i -D @ohmyperf/eslint-plugin` + `extends: ['plugin:ohmyperf/recommended']` |
-| 9 | **Fixer SDK** *(v0.2.0)* | [`@ohmyperf/fixers`](packages/fixers/) | `import { proposePatches } from "@ohmyperf/fixers"` |
+| 8 | **ESLint plugin** | [`@ohmyperf/eslint-plugin`](packages/eslint-plugin/) | `npm i -D @ohmyperf/eslint-plugin` + `extends: ['plugin:ohmyperf/recommended']` |
+| 9 | **Fixer SDK** | [`@ohmyperf/fixers`](packages/fixers/) | `import { proposePatches } from "@ohmyperf/fixers"` |
 
 ## CLI quickstart
 
@@ -314,29 +315,29 @@ The `glama.json` at the repo root pins the install command + maintainer metadata
 
 ### Tools exposed
 
-> **What's available where**: `@ohmyperf/mcp-server@0.1.0` currently on npm exposes the 12 tools NOT marked `(v0.2.0)`. The 5 v0.2.0-tagged tools (`propose_patch`, `verify_fix`, `get_fix_plan`, `get_trust_score`, `get_servability`) are committed on `main` and will land when v0.2.0 publishes — track at [issue #7](https://github.com/hoainho/ohmyperf/issues/7). All 17 tools + 7 prompts are also available today by pointing an MCP client at `npx -y @ohmyperf/mcp-server@main` once v0.2.0 lands.
+The current release exposes all 17 tools and 8 prompts.
 
 | Tool | Input | Output |
 |---|---|---|
 | `measure` | `{ url, runs?, mode?, plugins?, browserPath?, collectTrace? }` | Human summary + `Saved to: <path>` + `aggregated` JSON; full report saved + exposed as resource |
 | `diff` | `{ baseline, candidate, failOnRegression? }` | Mann-Whitney significance table + `{ hasRegressions, metrics }` |
-| `analyze_report` | `{ reportPath \| uri, insightName, limit? }` | Slice for one insight (lcp-breakdown / render-blocking / long-tasks / third-parties / opportunities / audits / resources / frames) |
+| `analyze_report` | `{ reportPath \| uri, insightName, limit? }` | Slice for one insight (lcp-breakdown / render-blocking / long-tasks / third-parties / opportunities / audits / resources / frames / full-load-breakdown / hotspots / remediation / perf-summary / network / javascript / errors) |
 | `generate_markdown_summary` | `{ reportPath \| uri, title? }` | PR-comment-ready Markdown summary with 🟢/🟡/🔴 verdict block |
 | `generate_html_report` | `{ reportPath \| uri, outputDir?, theme?, style? }` | Single-file HTML viewer written to disk |
 | `generate_deck` | `{ reportPath \| uri, outputDir?, style?, title? }` | Multi-slide HTML presentation (⌘P → PDF for stakeholder distribution) |
 | `find_regression_cause` | `{ baseline, candidate }` | Ranked hypotheses (new render-blocking, grown assets, new long tasks, new third-parties) with evidence |
-| `enforce_budget` | `{ url, budget, mode?, runs? }` | CI-style pass/fail per metric with exit-code-style verdict |
+| `enforce_budget` | `{ url, budget, mode?, runs? }` | CI-style pass/fail per metric; trust-gated (exit codes 0 / 12 / 13, where 13 = gated by low trust) |
 | `track_url` | `{ url, runs?, mode?, ... }` | Measure + append to time-series + return improving/stable/regressing trend |
 | `list_runs` / `list_styles` / `diff_resources` | various | Resource browsing + brand catalog + URI-based diff |
-| **`propose_patch`** *(v0.2.0)* | `{ reportPath \| uri, opportunityId?, url?, maxPatches? }` | Structured `{ archetype, url, search, replace, rationale, expectedImpactMs, confidence }[]` patches an agent can apply |
-| **`verify_fix`** *(v0.2.0)* | `{ baselineReportPath \| baselineUri, candidateUrl, runs?, mode? }` | Re-measures candidate + Mann-Whitney U diff vs baseline; verdict `✅ no regression` / `❌ REGRESSION DETECTED` |
-| **`get_fix_plan`** *(v0.2.0)* | `{ reportPath \| uri, limit?, applicabilityFilter? }` | Precomputed ranked, ROI-scored `fixPlan` slice only — saves the agent parsing the full 50KB+ report |
-| **`get_trust_score`** *(v0.2.0)* | `{ reportPath \| uri }` | `trustScore.overall` + per-metric verdicts + `recommendedAction` so agents skip noisy measurements before acting |
-| **`get_servability`** *(v0.2.0)* | `{ reportPath \| uri }` | `meta.servability` classification — `real-page` / `bot-challenge-suspected` / `error-page` / `timeout-partial` / `unknown` — so agents don't gate CI on a Cloudflare interstitial |
+| `propose_patch` | `{ reportPath \| uri, opportunityId?, url?, maxPatches? }` | Structured `{ archetype, url, search, replace, rationale, expectedImpactMs, confidence }[]` patches an agent can apply |
+| `verify_fix` | `{ baselineReportPath \| baselineUri, candidateUrl, runs?, mode? }` | Re-measures candidate + Mann-Whitney U diff vs baseline; verdict `✅ no regression` / `❌ REGRESSION DETECTED` |
+| `get_fix_plan` | `{ reportPath \| uri, limit?, applicabilityFilter? }` | Precomputed ranked, ROI-scored `fixPlan` slice only — saves the agent parsing the full 50KB+ report |
+| `get_trust_score` | `{ reportPath \| uri }` | `trustScore.overall` + per-metric verdicts + `recommendedAction` so agents skip noisy measurements before acting |
+| `get_servability` | `{ reportPath \| uri }` | `meta.servability` classification — `real-page` / `bot-challenge-suspected` / `error-page` / `timeout-partial` / `unknown` — so agents don't gate CI on a Cloudflare interstitial |
 
 Saved reports surface as resources at `ohmyperf://reports/<timestamp>-<id>.json` so the agent can read them back later without re-measuring.
 
-### Killer flow: closed agent fix loop (v0.2.0)
+### Killer flow: closed agent fix loop
 
 ```
 1. measure(url)              → report.json + opportunities
