@@ -428,6 +428,7 @@ export const runCommand = defineCommand({
             : null,
           hotspots: report.hotspots ?? null,
           recommendations: report.recommendations ?? null,
+          perfSummary: report.perfSummary ?? null,
           outputPath: written.json?.path ?? null,
           htmlPath: written.html?.path ?? null,
           markdownPath: written.markdown?.path ?? null,
@@ -554,6 +555,52 @@ function mapErrorToExitCode(err: unknown): number {
   return EXIT_CODES.measurementRuntimeError;
 }
 
+function fmtBytes(n: number): string {
+  if (n >= 1_048_576) return `${(n / 1_048_576).toFixed(1)} MB`;
+  if (n >= 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${String(n)} B`;
+}
+
+/** Compact, plain-text lines for the comprehensive perf rollup. Shared by both summary printers. */
+function perfSummaryLines(report: Report): string[] {
+  const s = report.perfSummary;
+  if (!s) return [];
+  const out: string[] = [];
+  const t = s.timing;
+  if (t.fullLoadMs !== null) {
+    out.push(`  Load         full-load ${t.fullLoadMs.toFixed(0)}ms${t.gatingPhase ? ` (gated: ${t.gatingPhase})` : ""}`);
+  }
+  const n = s.network;
+  const typeStr = ["js", "css", "image", "font"]
+    .filter((k) => n.byType[k])
+    .map((k) => `${k.toUpperCase()} ${fmtBytes(n.byType[k]!.bytes)}`)
+    .join(" / ");
+  out.push(
+    `  Network      ${String(n.totalRequests)} reqs · ${fmtBytes(n.totalTransferBytes)}${typeStr ? ` · ${typeStr}` : ""} · ${String(n.renderBlockingCount)} render-blocking · 1P ${fmtBytes(n.firstPartyBytes)} / 3P ${fmtBytes(n.thirdPartyBytes)}`,
+  );
+  const j = s.javascript;
+  const jsBits = [
+    j.executionMs !== null ? `exec ${j.executionMs.toFixed(0)}ms` : null,
+    j.parseCompileMs !== null ? `parse/compile ${j.parseCompileMs.toFixed(0)}ms` : null,
+    `main-thread blocking ${String(j.mainThreadBlockingMs)}ms`,
+  ].filter((x): x is string => x !== null);
+  out.push(`  JavaScript   ${fmtBytes(j.transferBytes)} (${String(j.requestCount)} files) · ${jsBits.join(" · ")}`);
+  const mt = s.mainThread;
+  out.push(
+    `  Main-thread  TBT ${String(mt.totalBlockingMs)}ms · ${String(mt.longTaskCount)} long task(s)${mt.layoutMs !== null ? ` · layout ${mt.layoutMs.toFixed(0)}ms` : ""}`,
+  );
+  const e = s.errors;
+  out.push(
+    `  Errors       ${String(e.jsErrorCount)} JS · ${String(e.consoleErrorCount)} console-err · ${String(e.consoleWarningCount)} warn · ${String(e.failedRequestCount)} failed-req  (${String(e.firstPartyErrorCount)} first-party)`,
+  );
+  if (s.stability.thirdPartyCount > 0) {
+    out.push(
+      `  Third-party  ${String(s.stability.thirdPartyCount)} entit${s.stability.thirdPartyCount === 1 ? "y" : "ies"} · ${String(s.stability.thirdPartyMainThreadMs)}ms main-thread`,
+    );
+  }
+  return out;
+}
+
 function printHumanSummary(report: Report, logger: Logger): void {
   logger.info(`OhMyPerf v${report.schemaVersion} report`);
   logger.info(`url:     ${report.meta.url}`);
@@ -568,6 +615,12 @@ function printHumanSummary(report: Report, logger: Logger): void {
     logger.info(
       `full-load: ${fl.fltMs.toFixed(0)}ms${capped}  gated-by=${fl.gatingPhase}${visual}  (until=${fl.settleConfig.until})`,
     );
+  }
+
+  const perf = perfSummaryLines(report);
+  if (perf.length > 0) {
+    logger.info("comprehensive perf:");
+    for (const line of perf) logger.info(line);
   }
 
   const lines: string[] = [];
@@ -706,6 +759,11 @@ export function printBeautifulSummary(report: Report, style: BrandId, writtenPat
       return `  ${color(icon)} ${pc.dim(a.id)} ${a.title}`;
     });
     process.stdout.write(`${pc.bold("Audits")} ${pc.dim(`(${String(report.audits.length)})`)}\n${audits.join("\n")}\n\n`);
+  }
+
+  const perf = perfSummaryLines(report);
+  if (perf.length > 0) {
+    process.stdout.write(`${pc.bold("Comprehensive perf")}\n${perf.join("\n")}\n\n`);
   }
 
   if (writtenPaths.length > 0) {

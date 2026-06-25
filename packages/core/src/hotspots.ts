@@ -4,8 +4,42 @@
 
 import type { GatingPhase, Hotspot, HotspotCause, Report, RunReport } from "./types.js";
 
-function representativeRun(report: Report): RunReport | undefined {
+/**
+ * The run used for component analysis. Prefers a run with a DOM-topology snapshot (diagnose),
+ * else the first run. On a default (non-diagnose) run this degrades to `runs[0]`.
+ * Exported so `computePerfSummary` shares the exact same run-selection as `computeHotspots`.
+ */
+export function representativeRun(report: Report): RunReport | undefined {
   return report.runs.find((r) => r.domTopology) ?? report.runs[0];
+}
+
+/**
+ * Script hotspots from attributed long tasks, grouped by JS URL (duration summed).
+ * Shared primitive: `computeHotspots` and `computePerfSummary` BOTH call this, so the JS-blocking
+ * ranking has a single source of truth (no parallel computation that could diverge). Works on a
+ * default run — `longTasks` are always collected, unlike the diagnose-gated DOM-size hotspots.
+ */
+export function scriptBlockingFromLongTasks(longTasks: readonly RunReport["longTasks"][number][]): Hotspot[] {
+  const byUrl = new Map<string, number>();
+  for (const lt of longTasks) {
+    const url = lt.attributionRich?.url ?? lt.attribution;
+    byUrl.set(url, (byUrl.get(url) ?? 0) + lt.duration);
+  }
+  const out: Hotspot[] = [];
+  for (const [url, dur] of byUrl) {
+    out.push({
+      selector: url,
+      label: "long tasks",
+      costMs: round1(dur),
+      bytes: 0,
+      nodeCount: 0,
+      offscreenFraction: 0,
+      gatingPhase: CAUSE_PHASE.script,
+      cause: "script",
+      evidence: `${String(Math.round(dur))}ms of long tasks attributed to ${url}`,
+    });
+  }
+  return out;
 }
 
 function round1(n: number): number {
@@ -63,24 +97,7 @@ export function computeHotspots(report: Report): Hotspot[] {
   }
 
   // 3. Script hotspots from attributed long tasks (representative run), grouped by JS URL.
-  const byUrl = new Map<string, number>();
-  for (const lt of rep?.longTasks ?? []) {
-    const url = lt.attributionRich?.url ?? lt.attribution;
-    byUrl.set(url, (byUrl.get(url) ?? 0) + lt.duration);
-  }
-  for (const [url, dur] of byUrl) {
-    hotspots.push({
-      selector: url,
-      label: "long tasks",
-      costMs: round1(dur),
-      bytes: 0,
-      nodeCount: 0,
-      offscreenFraction: 0,
-      gatingPhase: CAUSE_PHASE.script,
-      cause: "script",
-      evidence: `${String(Math.round(dur))}ms of long tasks attributed to ${url}`,
-    });
-  }
+  hotspots.push(...scriptBlockingFromLongTasks(rep?.longTasks ?? []));
 
   // 4. Third-party hotspots from the `third-parties` audit (main-thread time per entity).
   const tpAudit = report.audits.find((a) => a.id === "third-parties");
@@ -102,13 +119,13 @@ export function computeHotspots(report: Report): Hotspot[] {
   return hotspots;
 }
 
-interface ThirdPartyItem {
+export interface ThirdPartyItem {
   readonly entity: string;
   readonly mainThreadTime: number;
   readonly transferSize: number;
 }
 
-function extractThirdParties(details: unknown): ThirdPartyItem[] {
+export function extractThirdParties(details: unknown): ThirdPartyItem[] {
   if (details === null || typeof details !== "object") return [];
   const items = (details as Record<string, unknown>)["items"];
   if (!Array.isArray(items)) return [];

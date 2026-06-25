@@ -3,9 +3,56 @@
 All notable changes to this project will be documented in this file.
 
 
-## [0.2.0] - Unreleased
+## [0.3.0] - 2026-06-24
 
-Planned CLI-upgrade release. Full scope, severity, and `file:line` targets are tracked in
+MCP engine-parity + the comprehensive performance report (`perfSummary`), shipped together. Surfaces
+the v0.2.0 engine signals (Full-Load Time, hotspots, remediations) through MCP, fixes two confirmed
+bugs, AND makes every measurement report the FULL perf picture — total page-load time, network impact,
+JavaScript size/timing, main-thread cost, and **errors & console warnings** — not just the 4 CWV
+metrics. Fully additive (`schemaVersion` stays `1.0.0`; the 17 tools keep their names/shapes; default
+outputs unchanged when the new fields are absent). Consensus-planned (Planner→Architect→Critic) — see
+[`docs/MCP_V0.3.0_PLAN.md`](docs/MCP_V0.3.0_PLAN.md) and
+[`docs/PERF_SUMMARY_V0.3.0_PLAN.md`](docs/PERF_SUMMARY_V0.3.0_PLAN.md).
+
+### Added — comprehensive perf report
+- feat(core): `perfSummary` on every report — a derived rollup in 6 groups (timing, network,
+  javascript, main-thread, errors, stability). Reuses existing primitives (`scriptBlockingFromLongTasks`,
+  a shared `selectLargestResources`, `tbt`) so there is one source of truth for "what's slow".
+- feat(core): **console collector** (`Runtime.consoleAPICalled` + `Log.entryAdded`) and **error
+  collector** (`Runtime.exceptionThrown`) — passive, default-on, root-frame, deduped + capped (25);
+  surfaced as `RunReport.consoleMessages` / `RunReport.pageErrors`, origin-attributed (1st/3rd-party).
+- feat(core): `Resource.status` / `Resource.failed` / `Resource.failureText` — HTTP status codes and
+  failed requests (including blocked/no-response) are now retained.
+- feat(cli): a "Comprehensive perf" block in the run summary (both printers) + `perfSummary` in `--json`.
+- feat(reporter-markdown): a "Comprehensive perf" section (present-guarded).
+
+### Added — MCP engine parity
+- feat(mcp): `analyze_report` gains 7 insights (8 → 15): `full-load-breakdown`, `hotspots`,
+  `remediation`, `perf-summary`, `network`, `javascript`, `errors`. All degrade gracefully on reports
+  that lack the data.
+- feat(mcp): `measure` now forwards `diagnose` / `rx` / `fullLoad` to the engine (default `measure` unchanged).
+- feat(mcp): `measure` / `summarize` surface Full-Load Time, gating phase, top hotspots/recommendations,
+  and the perfSummary network/JS bytes + error/warning counts (muted, first-party split; presence-guarded).
+- feat(mcp): new `measure_and_diagnose` prompt (7 → 8). Tool count stays 17.
+
+### Fixed (MCP)
+- fix(mcp): `analyze_report` insight `third-parties` read the never-populated `pluginData["thirdParties"]` (always null); now reads the `third-parties` audit (`report.audits[…].details`), the same source the engine uses. Also unblocks the `audit_third_parties` prompt.
+- fix(mcp): `enforce_budget` ignored measurement quality; now trust/servability-gated — `exitCode` widened `0|12|13` (13 = gated/unmeasurable), with `gated`/`gateReason` and a `force` override. A bot-challenge / error / `unreliable` measurement no longer gates CI on meaningless numbers.
+- fix(mcp): `propose_patch` prepends a re-measure warning when `trustScore=unreliable`; `verify_fix` returns `inconclusive` (not pass/fail) when the candidate's trust is unreliable.
+
+### Changed
+- chore(mcp): server now advertises version `0.3.0` (was `0.0.0-pre`).
+- chore: version bump 0.2.0 → 0.3.0 across the published package set.
+
+### Notes
+- New collectors are passive CDP subscriptions (`Runtime` is already enabled by existing collectors;
+  only `Log.enable` is new). Console/error counts are shown muted (not as a verdict) because
+  `Log.entryAdded` can include third-party / browser-level noise — attribution distinguishes them.
+
+
+## [0.2.0] - 2026-06-23
+
+CLI-upgrade release. Full scope, severity, and `file:line` targets are tracked in
 [`docs/CLI_UPGRADE_PLAN_v0.2.0.md`](docs/CLI_UPGRADE_PLAN_v0.2.0.md) — grounded in a 20-agent
 analysis + 4-agent cross-review and live testing against https://moodtrip.hoainho.info.
 

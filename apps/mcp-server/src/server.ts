@@ -14,7 +14,10 @@ import {
   diffReports,
   formatDiff,
   runEngine,
+  selectLargestResources,
+  type FullLoadConfig,
   type Opportunity,
+  type PerfSummary,
   type Report,
 } from "@ohmyperf/core";
 import { createPlaywrightAdapter } from "@ohmyperf/driver-playwright";
@@ -59,13 +62,19 @@ const PLUGIN_IDS: readonly PluginId[] = [
   "custom-metric-example",
 ] as const;
 
-interface MeasureInput {
+export interface MeasureInput {
   url: string;
   runs?: number;
   mode?: "real" | "ci-stable";
   plugins?: ReadonlyArray<PluginId>;
   browserPath?: string;
   collectTrace?: boolean;
+  /** Capture DOM topology + compute component hotspots (Full-Load gating attribution). */
+  diagnose?: boolean;
+  /** Compute prescriptive remediations (implies diagnose). */
+  rx?: boolean;
+  /** Full-Load Time settle overrides, merged over the engine defaults. */
+  fullLoad?: Partial<FullLoadConfig>;
 }
 
 interface DiffInput {
@@ -74,7 +83,7 @@ interface DiffInput {
   failOnRegression?: boolean;
 }
 
-type InsightName =
+export type InsightName =
   | "lcp-breakdown"
   | "render-blocking"
   | "long-tasks"
@@ -82,7 +91,14 @@ type InsightName =
   | "opportunities"
   | "audits"
   | "resources"
-  | "frames";
+  | "frames"
+  | "full-load-breakdown"
+  | "hotspots"
+  | "remediation"
+  | "network"
+  | "javascript"
+  | "errors"
+  | "perf-summary";
 
 const INSIGHT_NAMES: readonly InsightName[] = [
   "lcp-breakdown",
@@ -93,6 +109,13 @@ const INSIGHT_NAMES: readonly InsightName[] = [
   "audits",
   "resources",
   "frames",
+  "full-load-breakdown",
+  "hotspots",
+  "remediation",
+  "network",
+  "javascript",
+  "errors",
+  "perf-summary",
 ] as const;
 
 export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
@@ -100,7 +123,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
   const maxReports = opts.maxReports ?? DEFAULT_MAX_REPORTS;
 
   const server = new Server(
-    { name: "ohmyperf", version: "0.0.0-pre" },
+    { name: "ohmyperf", version: "0.3.0" },
     {
       capabilities: {
         tools: {},
@@ -156,6 +179,24 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
               description:
                 "Capture Chrome DevTools trace for diagnostic insights (render-blocking, long-tasks, INP breakdown). Adds ~5-20MB per run.",
             },
+            diagnose: {
+              type: "boolean",
+              default: false,
+              description:
+                "Capture a per-run DOM-topology snapshot and compute component `hotspots` (settle-based Full-Load gating attribution). Surface via `analyze_report` insightName='hotspots'. Adds one in-page DOM snapshot per run (small). `fullLoad` (FLT) is computed for every report regardless of this flag.",
+            },
+            rx: {
+              type: "boolean",
+              default: false,
+              description:
+                "Compute prescriptive `recommendations` (implies diagnose). Each rec has a target, estimated FLT impact, confidence, and whether it sits on the gating path. Surface via `analyze_report` insightName='remediation'. No extra browser work beyond diagnose.",
+            },
+            fullLoad: {
+              type: "object",
+              additionalProperties: true,
+              description:
+                "Full-Load Time settle overrides, merged over engine defaults. Keys: until ('load-event'|'network-idle-2'|'fully-loaded'|'visually-complete'), settleWindowMs, maxWaitMs, netIdleThreshold, mutationNoiseFloor, longLivedGraceMs, visual (set true for a filmstrip / visually-complete signal), visualIntervalMs, visualDiffEpsilon, strictNetwork.",
+            },
           },
         },
       },
@@ -180,7 +221,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "analyze_report",
         description:
-          "Drill into ONE specific slice of a saved report — returns a compact summary + the relevant JSON subset, NOT the full 50KB+ report. **Use this whenever a single insight is needed** (LCP attribution, top opportunities, render-blocking resources, long-tasks, third-party impact, failed audits, largest resources, frame tree) — far cheaper than reading the full report via `ReadResource`. The 8 `insightName` values: `lcp-breakdown` (median/p75/cov + element attribution), `render-blocking` (top N by response time), `long-tasks` (≥50ms tasks sorted by duration), `third-parties` (vendor breakdown — requires `measure` to have been called with `plugins:['cwv','axe','third-parties']`), `opportunities` (top N by wastedMs), `audits` (failed first), `resources` (top N by transfer size), `frames` (frame tree). For a human-readable summary of the whole report use `generate_markdown_summary`; for a printable deck use `generate_deck`. Throws on unknown insightName.",
+          "Drill into ONE specific slice of a saved report — returns a compact summary + the relevant JSON subset, NOT the full 50KB+ report. **Use this whenever a single insight is needed** — far cheaper than reading the full report via `ReadResource`. The 15 `insightName` values: `lcp-breakdown` (median/p75/cov + element attribution), `render-blocking` (top N by response time), `long-tasks` (≥50ms tasks sorted by duration), `third-parties` (vendor breakdown — requires `measure` with `plugins:['cwv','axe','third-parties']`), `opportunities` (top N by wastedMs), `audits` (failed first), `resources` (top N by transfer size), `frames` (frame tree), `full-load-breakdown` (settle-based Full-Load Time, gating phase, gating distribution, sub-timeline incl. visuallyCompleteAt — present for every v0.2.0+ report), `hotspots` (ranked component/region cost table — requires `measure` with `diagnose:true`), `remediation` (prescriptive ranked fixes with est. FLT impact + gating — requires `measure` with `rx:true`), `perf-summary` (the FULL comprehensive rollup: timing + network + javascript + main-thread + errors + stability — present for every v0.3.0+ report), `network` (requests/bytes by type, cache, 1st/3rd-party, render-blocking, failed requests), `javascript` (JS transfer bytes, parse/compile + execution time, main-thread blocking), `errors` (JS errors + console error/warning counts + failed requests, first-party attributed). That is **15** values total. Insights that need data the report lacks degrade gracefully (non-throwing slice with a re-measure hint). For a human-readable summary of the whole report use `generate_markdown_summary`; for a printable deck use `generate_deck`. Throws on unknown insightName.",
         inputSchema: {
           type: "object",
           required: ["insightName"],
@@ -405,7 +446,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       {
         name: "enforce_budget",
         description:
-          "Contract-as-code for CI: measure a URL, then evaluate the report against a perf budget object. Returns structured pass/fail per metric with an exit-code-style verdict: `status='PASS'|'FAIL'`, `exitCode=0` (or `12` on fail). **Use this to gate PRs** in CI — the exitCode mirrors Unix convention so scripts can `set -e` on it. Default budget: `lcp ≤ 2500ms, inp ≤ 200ms, cls ≤ 0.1, tbt ≤ 200ms, fcp ≤ 1800ms, ttfb ≤ 800ms`; override per-metric with the `budget` object (missing keys use defaults). Always uses `mode='ci-stable'` (default) for reproducibility. Optionally `track=true` to also append the measurement to the time-series log. **Unique to ohmyperf** — devtools-mcp and similar servers have no budget primitive. For a per-report post-hoc check on a saved file, use the `check_budget` prompt instead.",
+          "Contract-as-code for CI: measure a URL, then evaluate the report against a perf budget object. Returns structured pass/fail per metric with an exit-code-style verdict: `status='PASS'|'FAIL'`, `exitCode=0` (pass), `12` (budget exceeded), or **`13` (gated/unmeasurable)**. **Use this to gate PRs** in CI — the exitCode mirrors Unix convention so scripts can `set -e` on it. **Trust gate**: if the measurement is a bot-challenge/error page (`servability != real-page`) or statistically `unreliable`, the verdict is `gated:true` with `exitCode=13` and `gateReason` — these numbers must NOT gate CI (the budget pass/fail is meaningless on a challenge page). Pass `force:true` to bypass the gate. Default budget: `lcp ≤ 2500ms, inp ≤ 200ms, cls ≤ 0.1, tbt ≤ 200ms, fcp ≤ 1800ms, ttfb ≤ 800ms`; override per-metric with the `budget` object (missing keys use defaults). Always uses `mode='ci-stable'` (default) for reproducibility. Optionally `track=true` to also append the measurement to the time-series log. **Unique to ohmyperf** — devtools-mcp and similar servers have no budget primitive. For a per-report post-hoc check on a saved file, use the `check_budget` prompt instead.",
         inputSchema: {
           type: "object",
           required: ["url"],
@@ -443,6 +484,12 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
               type: "boolean",
               default: false,
               description: "If true, also append this measurement to the time-series log.",
+            },
+            force: {
+              type: "boolean",
+              default: false,
+              description:
+                "Bypass the trust/servability gate (exitCode 13). Use only when you accept that the measurement may be a bot-challenge/error page or statistically unreliable.",
             },
           },
         },
@@ -817,7 +864,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
         await appendTimeSeriesPoint(reportsDir, report);
       }
       const budget = parseBudget(args["budget"]);
-      const verdict = evaluateBudget(report, budget);
+      const verdict = evaluateBudget(report, budget, args["force"] === true);
       return {
         content: [
           { type: "text", text: formatBudgetVerdict(verdict, savedPath) },
@@ -839,6 +886,8 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
         maxPatches,
       });
       const summaryLines: string[] = [];
+      const trustWarning = unreliableTrustWarning(report);
+      if (trustWarning) summaryLines.push(trustWarning);
       summaryLines.push(`propose_patch: ${String(result.patches.length)} patch(es) for ${report.meta.url}`);
       for (const p of result.patches) {
         const impact = p.expectedImpactMs !== undefined ? `~${p.expectedImpactMs.toFixed(0)}ms ${p.expectedMetric ?? ""}` : "impact unknown";
@@ -883,11 +932,9 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
       await trimReports(reportsDir, maxReports);
 
       const diff = diffReports(baseline, candidate);
-      const verdictLine = diff.hasRegressions
-        ? `verify_fix: ❌ REGRESSION DETECTED — candidate is significantly worse than baseline on at least one CWV metric`
-        : `verify_fix: ✅ no regression — candidate is at least as good as baseline`;
+      const classified = classifyVerifyFix(candidate, diff.hasRegressions);
       const summary = [
-        verdictLine,
+        classified.line,
         `Baseline: ${baseline.meta.url} (measurementId=${baseline.meta.measurementId})`,
         `Candidate: ${candidate.meta.url} (measurementId=${candidate.meta.measurementId}) → ${candidatePath}`,
         "",
@@ -900,7 +947,9 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
             type: "text",
             text: JSON.stringify(
               {
+                verdict: classified.verdict,
                 hasRegressions: diff.hasRegressions,
+                candidateTrust: candidate.trustScore?.overall ?? null,
                 candidatePath,
                 metrics: diff.metrics,
               },
@@ -1103,6 +1152,14 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
           { name: "url", description: "HTTP(S) URL to monitor. Will be measured and appended to the per-URL time-series log.", required: true },
         ],
       },
+      {
+        name: "measure_and_diagnose",
+        description:
+          "Full v0.3.0 diagnostic flow for a LIVE URL: measure with Full-Load Time + component hotspots + prescriptive remediations, gated on trust/servability. **Use this when you want the complete settle-based picture in one flow** — chains `measure` (with diagnose+rx) → `get_servability`/`get_trust_score` → `analyze_report` across full-load-breakdown, hotspots, remediation. Output is a settle-based load diagnosis (NOT just LCP): what gates Full-Load, which components cost the most, and the ranked fixes (lazy-load / virtualize / viewport-only / unblock). For a single SAVED report use `diagnose_report`; for two reports use `compare_runs`.",
+        arguments: [
+          { name: "url", description: "HTTP(S) URL to measure and diagnose end-to-end.", required: true },
+        ],
+      },
     ],
   }));
 
@@ -1116,7 +1173,7 @@ export function createOhmyperfMcpServer(opts: McpServerOptions = {}): Server {
   return server;
 }
 
-function parseMeasureInput(args: Record<string, unknown>): MeasureInput {
+export function parseMeasureInput(args: Record<string, unknown>): MeasureInput {
   const url = typeof args["url"] === "string" ? args["url"] : "";
   if (!url || !/^https?:\/\//.test(url)) {
     throw new Error("measure: 'url' must be an http(s) URL");
@@ -1133,6 +1190,9 @@ function parseMeasureInput(args: Record<string, unknown>): MeasureInput {
     : (["cwv", "axe"] as const);
   const browserPath = typeof args["browserPath"] === "string" ? args["browserPath"] : undefined;
   const collectTrace = args["collectTrace"] === true;
+  const diagnose = args["diagnose"] === true;
+  const rx = args["rx"] === true;
+  const fullLoad = parseFullLoadConfig(args["fullLoad"]);
   return {
     url,
     runs,
@@ -1140,7 +1200,65 @@ function parseMeasureInput(args: Record<string, unknown>): MeasureInput {
     plugins,
     ...(browserPath !== undefined ? { browserPath } : {}),
     ...(collectTrace ? { collectTrace: true } : {}),
+    ...(diagnose ? { diagnose: true } : {}),
+    ...(rx ? { rx: true } : {}),
+    ...(fullLoad ? { fullLoad } : {}),
   };
+}
+
+const FULL_LOAD_KEYS = [
+  "until",
+  "settleWindowMs",
+  "maxWaitMs",
+  "netIdleThreshold",
+  "mutationNoiseFloor",
+  "longLivedGraceMs",
+  "visual",
+  "visualIntervalMs",
+  "visualDiffEpsilon",
+  "strictNetwork",
+] as const;
+
+/** Pick only known FullLoadConfig keys from a client-supplied object. Returns undefined when empty. */
+function parseFullLoadConfig(raw: unknown): Partial<FullLoadConfig> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const src = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const k of FULL_LOAD_KEYS) {
+    if (k in src && src[k] !== undefined) out[k] = src[k];
+  }
+  return Object.keys(out).length > 0 ? (out as Partial<FullLoadConfig>) : undefined;
+}
+
+/** A re-measure warning to prepend to propose_patch output when the report's trust is unreliable. */
+export function unreliableTrustWarning(report: Report): string | undefined {
+  return report.trustScore?.overall === "unreliable"
+    ? "⚠ Trust is UNRELIABLE — these patches are based on statistically noisy data. Re-measure with more runs (mode='ci-stable') before applying."
+    : undefined;
+}
+
+export type VerifyVerdict = "inconclusive" | "regression" | "ok";
+
+/** verify_fix verdict. An unreliable candidate trust forces 'inconclusive' (cannot confirm the fix). */
+export function classifyVerifyFix(
+  candidate: Report,
+  hasRegressions: boolean,
+): { verdict: VerifyVerdict; line: string } {
+  if (candidate.trustScore?.overall === "unreliable") {
+    return {
+      verdict: "inconclusive",
+      line: "verify_fix: ⚠ INCONCLUSIVE — candidate measurement trust is unreliable; cannot confirm the fix. Re-measure the candidate with more runs (mode='ci-stable').",
+    };
+  }
+  return hasRegressions
+    ? {
+        verdict: "regression",
+        line: "verify_fix: ❌ REGRESSION DETECTED — candidate is significantly worse than baseline on at least one CWV metric",
+      }
+    : {
+        verdict: "ok",
+        line: "verify_fix: ✅ no regression — candidate is at least as good as baseline",
+      };
 }
 
 function parseDiffInput(args: Record<string, unknown>): DiffInput {
@@ -1198,12 +1316,12 @@ function resolveResourceUri(reportsDir: string, uri: unknown): string {
   return join(reportsDir, name);
 }
 
-interface InsightSlice {
+export interface InsightSlice {
   summary: string;
   data: unknown;
 }
 
-function extractInsight(report: Report, name: InsightName, limit: number): InsightSlice {
+export function extractInsight(report: Report, name: InsightName, limit: number): InsightSlice {
   switch (name) {
     case "lcp-breakdown": {
       const lcp = report.aggregated["lcp"];
@@ -1237,12 +1355,15 @@ function extractInsight(report: Report, name: InsightName, limit: number): Insig
       };
     }
     case "third-parties": {
-      const tp = (report.pluginData as Record<string, unknown>)["thirdParties"];
+      // Canonical source: the `third-parties` plugin writes an audit (id="third-parties")
+      // with details.{items}. (The engine's own hotspots reader uses this same path —
+      // hotspots.ts:86.) The old `pluginData["thirdParties"]` key was never populated.
+      const details = report.audits.find((a) => a.id === "third-parties")?.details ?? null;
       return {
-        summary: tp
-          ? "Third-party breakdown from `third-parties` plugin."
-          : "No third-party data — measure with plugins=['third-parties'] to populate.",
-        data: tp ?? null,
+        summary: details
+          ? "Third-party breakdown from the `third-parties` audit (vendors by main-thread time + transfer size)."
+          : "No third-party data — measure with plugins=['cwv','axe','third-parties'] to populate.",
+        data: details,
       };
     }
     case "opportunities": {
@@ -1268,9 +1389,9 @@ function extractInsight(report: Report, name: InsightName, limit: number): Insig
     }
     case "resources": {
       const all = report.runs[0]?.resources ?? [];
-      const top = [...all]
-        .sort((a, b) => b.transferSizeBytes - a.transferSizeBytes)
-        .slice(0, limit)
+      // Shared selector with `perfSummary.network.largestResources` (same sort+slice) so the
+      // two surfaces never disagree on the resource ranking.
+      const top = selectLargestResources(all, limit)
         .map((r) => ({
           url: r.url,
           mimeType: r.mimeType,
@@ -1296,15 +1417,135 @@ function extractInsight(report: Report, name: InsightName, limit: number): Insig
         data: { root: frames.root, frames: nodes },
       };
     }
+    case "full-load-breakdown": {
+      const fl = report.fullLoad;
+      if (!fl) {
+        return {
+          summary:
+            "Full-Load Time not present (report predates v0.2.0) — rerun `measure` to generate a settle-based Full-Load breakdown.",
+          data: null,
+        };
+      }
+      const st = fl.subTimeline;
+      const summaryLines = [
+        `Full-Load Time: ${fl.fltMs.toFixed(0)}ms — gating: ${fl.gatingPhase}${fl.capped ? " (CAPPED at maxWait)" : ""}`,
+      ];
+      if (st.lcp != null) summaryLines.push(`  LCP floor: ${st.lcp.toFixed(0)}ms`);
+      if (st.loadEventEnd != null) summaryLines.push(`  load event: ${st.loadEventEnd.toFixed(0)}ms`);
+      if (st.networkIdleAt != null) summaryLines.push(`  network idle: ${st.networkIdleAt.toFixed(0)}ms`);
+      if (st.visuallyCompleteAt != null) summaryLines.push(`  visually complete: ${st.visuallyCompleteAt.toFixed(0)}ms`);
+      if (fl.trustReason) summaryLines.push(`  ⚠ ${fl.trustReason}`);
+      return {
+        summary: summaryLines.join("\n"),
+        data: {
+          fltMs: fl.fltMs,
+          capped: fl.capped,
+          gatingPhase: fl.gatingPhase,
+          gatingDistribution: fl.gatingDistribution,
+          subTimeline: fl.subTimeline,
+          ...(fl.aggregated ? { aggregated: fl.aggregated } : {}),
+          ...(fl.trustReason ? { trustReason: fl.trustReason } : {}),
+        },
+      };
+    }
+    case "hotspots": {
+      const hs = report.hotspots;
+      if (!hs) {
+        return {
+          summary:
+            "No component hotspots — rerun `measure` with diagnose:true (the component cost table is computed at measure time from a DOM-topology snapshot).",
+          data: null,
+        };
+      }
+      const top = [...hs].sort((a, b) => b.costMs - a.costMs).slice(0, limit);
+      return {
+        summary: `${String(hs.length)} hotspot(s); showing top ${String(top.length)} by cost (ms).`,
+        data: top,
+      };
+    }
+    case "remediation": {
+      const recs = report.recommendations;
+      if (!recs) {
+        return {
+          summary:
+            "No remediations — rerun `measure` with diagnose:true AND rx:true (the remediation engine runs at measure time).",
+          data: report.remediationNote ? { recommendations: [], note: report.remediationNote } : null,
+        };
+      }
+      const top = [...recs].sort((a, b) => b.estFltDeltaMs - a.estFltDeltaMs).slice(0, limit);
+      const summaryLines = [
+        `${String(recs.length)} recommendation(s); showing top ${String(top.length)} by est. FLT impact.`,
+      ];
+      if (report.remediationNote) summaryLines.push(`⚠ ${report.remediationNote}`);
+      return {
+        summary: summaryLines.join("\n"),
+        data: {
+          recommendations: top,
+          ...(report.remediationNote ? { note: report.remediationNote } : {}),
+        },
+      };
+    }
+    case "perf-summary": {
+      const ps = report.perfSummary;
+      if (!ps) {
+        return { summary: "No perf summary (report predates v0.3.0) — rerun `measure`.", data: null };
+      }
+      return {
+        summary: [
+          `Full-Load ${ps.timing.fullLoadMs !== null ? `${ps.timing.fullLoadMs.toFixed(0)}ms` : "n/a"} (gating: ${ps.timing.gatingPhase ?? "n/a"})`,
+          `Network: ${String(ps.network.totalRequests)} reqs, ${kb(ps.network.totalTransferBytes)} (1P ${kb(ps.network.firstPartyBytes)} / 3P ${kb(ps.network.thirdPartyBytes)})`,
+          `JavaScript: ${kb(ps.javascript.transferBytes)}, main-thread blocking ${String(ps.javascript.mainThreadBlockingMs)}ms`,
+          `Errors: ${String(ps.errors.jsErrorCount)} JS · ${String(ps.errors.consoleErrorCount)} console-err · ${String(ps.errors.consoleWarningCount)} warn · ${String(ps.errors.failedRequestCount)} failed-req (${String(ps.errors.firstPartyErrorCount)} first-party)`,
+        ].join("\n"),
+        data: ps,
+      };
+    }
+    case "network": {
+      const n = report.perfSummary?.network;
+      if (!n) {
+        return { summary: "No network summary (report predates v0.3.0) — rerun `measure`.", data: null };
+      }
+      return {
+        summary: `${String(n.totalRequests)} request(s), ${kb(n.totalTransferBytes)} · ${String(n.renderBlockingCount)} render-blocking · ${String(n.failedRequestCount)} failed · 1P ${kb(n.firstPartyBytes)} / 3P ${kb(n.thirdPartyBytes)}`,
+        data: n,
+      };
+    }
+    case "javascript": {
+      const j = report.perfSummary?.javascript;
+      if (!j) {
+        return { summary: "No JavaScript summary (report predates v0.3.0) — rerun `measure`.", data: null };
+      }
+      return {
+        summary: `JS ${kb(j.transferBytes)} (${String(j.requestCount)} file(s)) · exec ${j.executionMs !== null ? `${j.executionMs.toFixed(0)}ms` : "n/a"} · parse/compile ${j.parseCompileMs !== null ? `${j.parseCompileMs.toFixed(0)}ms` : "n/a"} · main-thread blocking ${String(j.mainThreadBlockingMs)}ms`,
+        data: j,
+      };
+    }
+    case "errors": {
+      const e = report.perfSummary?.errors;
+      if (!e) {
+        return { summary: "No errors summary (report predates v0.3.0) — rerun `measure`.", data: null };
+      }
+      return {
+        summary: `${String(e.jsErrorCount)} JS error(s) · ${String(e.consoleErrorCount)} console error(s) · ${String(e.consoleWarningCount)} warning(s) · ${String(e.failedRequestCount)} failed request(s) (${String(e.firstPartyErrorCount)} first-party)`,
+        data: e,
+      };
+    }
   }
 }
 
-interface PromptMessage {
+/** Format bytes as a compact KB/MB string for insight summaries. */
+function kb(bytes: number): string {
+  if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${String(bytes)} B`;
+}
+
+export interface PromptMessage {
   role: "user" | "assistant";
   content: { type: "text"; text: string };
 }
 
-function buildPromptMessages(
+export function buildPromptMessages(
   name: string,
   args: Record<string, string | undefined>,
 ): PromptMessage[] {
@@ -1429,6 +1670,25 @@ function buildPromptMessages(
           ].join("\n"),
         ),
       ];
+    case "measure_and_diagnose":
+      return [
+        msg(
+          "user",
+          [
+            `Measure and diagnose the live URL \`${url}\` end-to-end (settle-based Full-Load, not just LCP).`,
+            "",
+            "Use these MCP tools in order:",
+            "1. `measure` with { url, diagnose: true, rx: true, mode: \"ci-stable\" } → persists a report with fullLoad, hotspots, and recommendations.",
+            "2. `get_servability` on the saved report → if classification != 'real-page' (bot-challenge / error page), STOP and report that the numbers are NOT representative of real users.",
+            "3. `get_trust_score` → if overall == 'unreliable', warn the diagnosis is low-confidence and recommend more runs (mode='ci-stable').",
+            "4. `analyze_report` with insightName=\"full-load-breakdown\" → state Full-Load Time (ms), the gating phase, and the gating distribution. This is the settle-based load time (network + DOM + main-thread + paint all quiet), NOT LCP.",
+            "5. `analyze_report` with insightName=\"hotspots\" → list the top component/region costs and their gating phase.",
+            "6. `analyze_report` with insightName=\"remediation\" → list the top ranked fixes (target, est. FLT impact, confidence, whether each is on the gating path).",
+            "",
+            "Then produce a diagnosis: (a) what gates Full-Load, (b) the 1-3 highest-leverage fixes (prefer gating + high-confidence + first-party), (c) the concrete strategy for each (lazy-load / virtualize / viewport-only render / unblock the main thread).",
+          ].join("\n"),
+        ),
+      ];
     default:
       throw new Error(`Unknown prompt: ${name}`);
   }
@@ -1457,6 +1717,9 @@ async function measure(input: MeasureInput): Promise<Report> {
       mode: input.mode ?? "real",
       plugins,
       ...(input.collectTrace ? { collectTrace: true } : {}),
+      ...(input.diagnose ? { diagnose: true } : {}),
+      ...(input.rx ? { rx: true } : {}),
+      ...(input.fullLoad ? { fullLoad: input.fullLoad } : {}),
     },
     driver,
     adapter,
@@ -1511,7 +1774,7 @@ async function trimReports(dir: string, max: number): Promise<void> {
   }
 }
 
-function summarize(report: Report, savedPath: string): string {
+export function summarize(report: Report, savedPath: string): string {
   const lines: string[] = [];
   lines.push(`Measured ${report.meta.url}`);
   lines.push(`Saved to: ${savedPath}`);
@@ -1546,6 +1809,35 @@ function summarize(report: Report, savedPath: string): string {
     lines.push(
       `  ${name.toUpperCase().padEnd(5)} median=${agg.median.toFixed(digits)} cov=${(agg.cov * 100).toFixed(1)}% n=${String(agg.runs)}`,
     );
+  }
+  if (report.fullLoad) {
+    const fl = report.fullLoad;
+    lines.push(
+      `Full-Load: ${fl.fltMs.toFixed(0)}ms (gating: ${fl.gatingPhase}${fl.capped ? ", capped" : ""}) — settle-based, not LCP`,
+    );
+  }
+  if (report.perfSummary) {
+    const ps = report.perfSummary;
+    lines.push(
+      `Network: ${String(ps.network.totalRequests)} reqs, ${kb(ps.network.totalTransferBytes)} (JS ${kb(ps.javascript.transferBytes)}, ${String(ps.network.renderBlockingCount)} render-blocking, ${String(ps.network.failedRequestCount)} failed)`,
+    );
+    lines.push(
+      `Errors: ${String(ps.errors.jsErrorCount)} JS · ${String(ps.errors.consoleErrorCount)} console-err · ${String(ps.errors.consoleWarningCount)} warn (${String(ps.errors.firstPartyErrorCount)} first-party)`,
+    );
+  }
+  if (report.hotspots && report.hotspots.length > 0) {
+    const top = [...report.hotspots].sort((a, b) => b.costMs - a.costMs).slice(0, 3);
+    lines.push(`Hotspots: ${String(report.hotspots.length)} (top ${String(top.length)} by cost):`);
+    for (const h of top) {
+      lines.push(`  • [${h.cause}] ${h.label} — ${h.costMs.toFixed(0)}ms (gating: ${h.gatingPhase})`);
+    }
+  }
+  if (report.recommendations && report.recommendations.length > 0) {
+    const top = [...report.recommendations].sort((a, b) => b.estFltDeltaMs - a.estFltDeltaMs).slice(0, 3);
+    lines.push(`Recommendations: ${String(report.recommendations.length)} (top ${String(top.length)} by est. FLT impact):`);
+    for (const r of top) {
+      lines.push(`  • [${r.rule}] ${r.title} — ~${r.estFltDeltaMs.toFixed(0)}ms${r.gating ? " (gating)" : ""}, ${r.confidence}`);
+    }
   }
   if (report.fixPlan && report.fixPlan.length > 0) {
     lines.push(`Fix plan: ${String(report.fixPlan.length)} ranked patches (top 3 shown):`);
@@ -1662,7 +1954,7 @@ function parseBudget(raw: unknown): Record<string, number> {
   return out;
 }
 
-interface BudgetMetricResult {
+export interface BudgetMetricResult {
   metric: string;
   observed: number;
   threshold: number;
@@ -1671,9 +1963,13 @@ interface BudgetMetricResult {
   passed: boolean;
 }
 
-interface BudgetVerdict {
+export interface BudgetVerdict {
   status: "PASS" | "FAIL";
-  exitCode: 0 | 12;
+  /** 0 = pass, 12 = budget exceeded, 13 = gated (trust/servability — not safe to gate CI). */
+  exitCode: 0 | 12 | 13;
+  /** True when the measurement is not safe to gate CI (bot-challenge/error page or unreliable). */
+  gated: boolean;
+  gateReason?: string;
   url: string;
   mode: string;
   unstable: boolean;
@@ -1681,7 +1977,19 @@ interface BudgetVerdict {
   failedCount: number;
 }
 
-function evaluateBudget(report: Report, budget: Record<string, number>): BudgetVerdict {
+/** Determine the trust/servability gate reason, if any. servability != real-page wins over trust. */
+function budgetGateReason(report: Report): string | undefined {
+  const servability = report.meta.servability?.classification;
+  if (servability && servability !== "real-page") return servability;
+  if (report.trustScore?.overall === "unreliable") return "unreliable";
+  return undefined;
+}
+
+export function evaluateBudget(
+  report: Report,
+  budget: Record<string, number>,
+  force = false,
+): BudgetVerdict {
   const results: BudgetMetricResult[] = [];
   for (const [metric, threshold] of Object.entries(budget)) {
     const agg = report.aggregated[metric];
@@ -1699,9 +2007,16 @@ function evaluateBudget(report: Report, budget: Record<string, number>): BudgetV
     });
   }
   const failedCount = results.filter((r) => !r.passed).length;
+  const gateReason = force ? undefined : budgetGateReason(report);
+  const gated = gateReason !== undefined;
+  // Gating takes precedence over the metric verdict: a bot-challenge/error/unreliable page's
+  // budget pass/fail is meaningless, so signal exitCode 13 distinct from 12 (budget exceeded).
+  const exitCode: 0 | 12 | 13 = gated ? 13 : failedCount === 0 ? 0 : 12;
   return {
     status: failedCount === 0 ? "PASS" : "FAIL",
-    exitCode: failedCount === 0 ? 0 : 12,
+    exitCode,
+    gated,
+    ...(gateReason ? { gateReason } : {}),
     url: report.meta.url,
     mode: report.meta.mode,
     unstable: Boolean(report.meta.unstable),
@@ -1713,7 +2028,12 @@ function evaluateBudget(report: Report, budget: Record<string, number>): BudgetV
 function formatBudgetVerdict(verdict: BudgetVerdict, savedPath: string): string {
   const lines: string[] = [];
   lines.push(`Budget check for ${verdict.url} (mode=${verdict.mode})`);
-  lines.push(`Status: ${verdict.status} · exitCode=${String(verdict.exitCode)}`);
+  lines.push(`Status: ${verdict.status} · exitCode=${String(verdict.exitCode)}${verdict.gated ? " · ⛔ GATED" : ""}`);
+  if (verdict.gated) {
+    lines.push(
+      `⛔ Gated (exitCode 13): servability/trust = ${verdict.gateReason} — this measurement must NOT gate CI; the budget verdict below is not representative. Pass force:true to override.`,
+    );
+  }
   if (verdict.unstable) lines.push("⚠ Run was unstable (CoV > 20% on at least one CWV).");
   lines.push("");
   for (const m of verdict.metrics) {

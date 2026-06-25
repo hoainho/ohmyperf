@@ -131,6 +131,12 @@ export interface Resource {
   readonly cacheHit: boolean;
   /** First/third party classification vs the report's primary URL. Populated when the report has a known primary origin. */
   readonly originClass?: OriginClass;
+  /** HTTP status code from the response (e.g. 200, 404, 500). Absent when the request failed before a response. */
+  readonly status?: number;
+  /** True when the request failed at the network level (blocked, DNS, CORS, aborted-non-canceled). */
+  readonly failed?: boolean;
+  /** CDP `Network.loadingFailed.errorText` (e.g. "net::ERR_BLOCKED_BY_CLIENT") when `failed`. */
+  readonly failureText?: string;
 }
 
 export interface LongTask {
@@ -407,6 +413,28 @@ export interface ReportMeta {
   readonly measurementId: string;
 }
 
+/** A browser console message captured during the run, deduped by (level+text). */
+export interface ConsoleMessage {
+  readonly level: "error" | "warning" | "info" | "log" | "debug";
+  readonly text: string;
+  readonly url?: string;
+  readonly lineNumber?: number;
+  /** First/third-party classification of the message's source URL vs the primary origin. */
+  readonly originClass?: OriginClass;
+  /** How many times this (level+text) pair occurred during the run. */
+  readonly count: number;
+}
+
+/** An uncaught JavaScript error or unhandled promise rejection captured during the run. */
+export interface PageError {
+  readonly message: string;
+  readonly name?: string;
+  readonly stack?: string;
+  readonly url?: string;
+  readonly source: "exception" | "unhandledrejection";
+  readonly originClass?: OriginClass;
+}
+
 export interface RunReport {
   readonly runIndex: number;
   readonly cold: boolean;
@@ -428,6 +456,81 @@ export interface RunReport {
   readonly fullLoad?: FullLoadResult;
   /** Per-run DOM topology snapshot (only when opts.diagnose). Additive-optional. */
   readonly domTopology?: DomTopology;
+  /** Browser console messages captured during the run (deduped+counted). Additive-optional. */
+  readonly consoleMessages?: readonly ConsoleMessage[];
+  /** Uncaught JS errors / unhandled rejections captured during the run. Additive-optional. */
+  readonly pageErrors?: readonly PageError[];
+}
+
+/**
+ * Comprehensive, derived performance rollup — the FULL picture beyond the 4 CWV metrics.
+ * Computed every run by `computePerfSummary` from already-collected data + the console/error
+ * collectors. A formatting/rollup view: it reuses the same primitives as `hotspots`/`resources`
+ * (no parallel "what's slow" ranking). All surfaces (CLI/MCP/markdown) render this object.
+ */
+export interface PerfSummary {
+  readonly timing: {
+    readonly ttfbMs: number | null;
+    readonly fcpMs: number | null;
+    readonly lcpMs: number | null;
+    readonly dclMs: number | null;
+    readonly loadEventMs: number | null;
+    readonly networkIdleMs: number | null;
+    /** Settle-based total page-load time (Full-Load), not LCP. */
+    readonly fullLoadMs: number | null;
+    readonly gatingPhase: GatingPhase | null;
+  };
+  readonly network: {
+    readonly totalRequests: number;
+    readonly totalTransferBytes: number;
+    /** Bytes + count grouped by resource kind: js, css, image, font, html, other. */
+    readonly byType: Readonly<Record<string, { readonly count: number; readonly bytes: number }>>;
+    readonly cachedRequests: number;
+    readonly cachedBytes: number;
+    readonly firstPartyBytes: number;
+    readonly thirdPartyBytes: number;
+    readonly renderBlockingCount: number;
+    readonly largestResources: ReadonlyArray<{ readonly url: string; readonly bytes: number }>;
+    readonly slowestRequests: ReadonlyArray<{ readonly url: string; readonly responseMs: number }>;
+    readonly failedRequestCount: number;
+    readonly failedRequests: ReadonlyArray<{
+      readonly url: string;
+      readonly status?: number;
+      readonly failureText?: string;
+    }>;
+  };
+  readonly javascript: {
+    readonly transferBytes: number;
+    readonly requestCount: number;
+    readonly parseCompileMs: number | null;
+    readonly executionMs: number | null;
+    readonly mainThreadBlockingMs: number;
+    readonly topBlockingScripts: ReadonlyArray<{ readonly url: string; readonly blockingMs: number }>;
+  };
+  readonly mainThread: {
+    readonly totalTaskMs: number | null;
+    readonly longTaskCount: number;
+    readonly totalBlockingMs: number;
+    readonly layoutMs: number | null;
+    readonly recalcStyleMs: number | null;
+  };
+  readonly errors: {
+    readonly jsErrorCount: number;
+    readonly jsErrors: readonly PageError[];
+    readonly consoleErrorCount: number;
+    readonly consoleWarningCount: number;
+    readonly consoleSamples: readonly ConsoleMessage[];
+    /** JS errors + console errors attributed to the first party (the page's own code). */
+    readonly firstPartyErrorCount: number;
+    readonly failedRequestCount: number;
+  };
+  readonly stability: {
+    readonly cls: number | null;
+    readonly thirdPartyCount: number;
+    readonly thirdPartyMainThreadMs: number;
+    readonly trust: string | null;
+    readonly servability: string | null;
+  };
 }
 
 export interface Report {
@@ -460,6 +563,8 @@ export interface Report {
   readonly recommendations?: readonly Recommendation[];
   /** Set when recommendations are trust-degraded (e.g. unreliable measurement) — a re-measure banner. */
   readonly remediationNote?: string;
+  /** Comprehensive derived perf rollup (timing/network/javascript/main-thread/errors/stability). Computed every run. Additive-optional. */
+  readonly perfSummary?: PerfSummary;
 }
 
 export interface EmulationConfig {

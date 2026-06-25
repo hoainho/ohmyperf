@@ -276,4 +276,79 @@ describe("resourceCollectorFactory", () => {
     expect(result.resources).toHaveLength(1);
     expect(result.resources[0]!.url).toBe("http://example.com/a");
   });
+
+  it("captures HTTP status code (200 and 404)", async () => {
+    const { session, emit } = makeMockSession();
+    const handle = await resourceCollectorFactory.create(session, {
+      logger: createSilentLogger(),
+      frameId: "root",
+      isRoot: true,
+      url: "http://example.com/",
+      navigationStart: 0,
+    });
+    emit("Network.requestWillBeSent", {
+      requestId: "nf",
+      loaderId: "L1",
+      documentURL: "http://example.com/",
+      request: { url: "http://example.com/missing.js", method: "GET", headers: {}, initialPriority: "Low" },
+      timestamp: 100.0,
+      wallTime: 0,
+      type: "Script",
+    });
+    emit("Network.responseReceived", {
+      requestId: "nf",
+      loaderId: "L1",
+      timestamp: 100.05,
+      type: "Script",
+      response: {
+        url: "http://example.com/missing.js",
+        status: 404,
+        statusText: "Not Found",
+        mimeType: "text/html",
+        encodedDataLength: 0,
+        headers: {},
+      },
+    });
+    emit("Network.loadingFinished", { requestId: "nf", timestamp: 100.1, encodedDataLength: 120 });
+
+    const result = await handle.finalize();
+    const r = result.resources[0]!;
+    expect(r.status).toBe(404);
+    expect(r.failed).toBeUndefined();
+  });
+
+  it("emits a failed (non-canceled) request that never got a response", async () => {
+    const { session, emit } = makeMockSession();
+    const handle = await resourceCollectorFactory.create(session, {
+      logger: createSilentLogger(),
+      frameId: "root",
+      isRoot: true,
+      url: "http://example.com/",
+      navigationStart: 0,
+    });
+    emit("Network.requestWillBeSent", {
+      requestId: "blocked",
+      loaderId: "L1",
+      documentURL: "http://example.com/",
+      request: { url: "http://ads.example/track.js", method: "GET", headers: {}, initialPriority: "Low" },
+      timestamp: 100.0,
+      wallTime: 0,
+      type: "Script",
+    });
+    emit("Network.loadingFailed", {
+      requestId: "blocked",
+      timestamp: 100.02,
+      type: "Script",
+      errorText: "net::ERR_BLOCKED_BY_CLIENT",
+      canceled: false,
+    });
+
+    const result = await handle.finalize();
+    expect(result.resources).toHaveLength(1);
+    const r = result.resources[0]!;
+    expect(r.url).toBe("http://ads.example/track.js");
+    expect(r.failed).toBe(true);
+    expect(r.failureText).toBe("net::ERR_BLOCKED_BY_CLIENT");
+    expect(r.status).toBeUndefined();
+  });
 });

@@ -165,10 +165,18 @@ export type {
   RxRule,
   RxConfidence,
   Recommendation,
+  PerfSummary,
+  ConsoleMessage,
+  PageError,
 } from "./types.js";
 export { FULL_LOAD_DEFAULTS, computeFullLoad } from "./full-load.js";
 export { computeHotspots } from "./hotspots.js";
 export { evaluateRx, type RxResult } from "./rx.js";
+export {
+  computePerfSummary,
+  selectLargestResources,
+  selectSlowestRequests,
+} from "./perf-summary.js";
 export type {
   NetRequest,
   DomBatch,
