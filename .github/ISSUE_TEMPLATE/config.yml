@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question / discussion
+    url: https://github.com/hoainho/ohmyperf/discussions
+    about: Ask the community, share what you measured, propose ideas pre-spec.
+  - name: Security disclosure
+    url: https://github.com/hoainho/ohmyperf/security/advisories/new
+    about: Found a security issue? Please report privately, not in a public issue.
+  - name: Live viewer (drop a report.json)
+    url: https://hoainho.github.io/ohmyperf/viewer/
+    about: Need to inspect a report without filing anything? Drop it here.

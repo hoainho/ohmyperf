@@ -1,0 +1,34 @@
+name: Question / usage help
+description: Not a bug, not a feature — you just need help using OhMyPerf
+title: "[Q]: "
+labels: ["type/question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For freeform questions, prefer [GitHub Discussions](https://github.com/hoainho/ohmyperf/discussions).
+        Use this template only if you've already searched and didn't find an answer.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: One question per issue, please. Helps us answer faster and keeps search clean.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: What have you tried already?
+      description: Commands you ran, docs you read. Helps us skip suggestions you already tested.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: OhMyPerf version
+      placeholder: "e.g. 1.0.2"
+    validations:
+      required: true

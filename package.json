@@ -9,7 +9,7 @@
     "url": "git+https://github.com/hoainho/ohmyperf.git"
   },
   "bugs": {
-    "url": "https://github.com/ohmyperf/ohmyperf/issues"
+    "url": "https://github.com/hoainho/ohmyperf/issues"
   },
   "engines": {
     "node": ">=22.0.0"

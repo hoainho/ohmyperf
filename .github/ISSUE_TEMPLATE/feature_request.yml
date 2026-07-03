@@ -1,0 +1,78 @@
+name: Feature request
+description: Suggest a new capability, metric, plugin, or improvement
+title: "[Feature]: "
+labels: ["type/feature", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a feature. The fastest path to "shipped" is a clear
+        problem statement + a sketch of the smallest version that would help you.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: Describe the user pain. Skip the solution for a moment — start with the symptom.
+      placeholder: "When I run ohmyperf in CI on a multi-region site, I can't ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How would you like this to work? A flag, a new tool, a new metric, a config option?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface would this touch?
+      multiple: true
+      options:
+        - CLI (@ohmyperf/cli)
+        - MCP server (@ohmyperf/mcp-server)
+        - SDK / @ohmyperf/core
+        - Chrome extension
+        - VSCode extension
+        - Viewer (web SPA)
+        - ESLint plugin
+        - Share-server
+        - Reporter
+        - Documentation
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What workarounds have you tried? Why don't they suffice?
+
+  - type: textarea
+    id: api
+    attributes:
+      label: API / CLI sketch (optional)
+      description: If you have a concrete API in mind, sketch it. We may iterate.
+      render: shell
+
+  - type: checkboxes
+    id: openspec
+    attributes:
+      label: Scope
+      options:
+        - label: I'm willing to write an OpenSpec change proposal (`openspec/changes/...`) if this gets a "yes, design it"
+          required: false
+        - label: I'm willing to send the PR myself
+          required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I searched [existing issues](https://github.com/hoainho/ohmyperf/issues?q=is%3Aissue) and the [roadmap](../ROADMAP.md)
+          required: true
